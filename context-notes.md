@@ -81,3 +81,10 @@
 - 시안의 접수 날짜(2026.09.07~11)는 이미 지났다. 시안의 "승인 결과 확인 중" 등 상태 라벨은 `ES.HOLD` + `PS.PENDING` 같은 DB 코드에 대응시켜 표시만 맞춘다.
 - 시안 사용안내.md는 건물 사진의 자유사용 여부가 미확인이고 온라인 신청·600초 기한은 신규 서비스 검토안이라고 밝힌다.
 - git 2.56.0은 이미 D:\Program Files\Git에 설치돼 있었다. 이 셸의 PATH에만 없어 처음에 없다고 잘못 판단했다. 새 셸에서는 $env:Path += ';D:\Program Files\Git\cmd'가 필요하다. 저장소는 이 프로젝트 폴더에 만들었고 브랜치는 main, 첫 커밋은 7d3c836이다. 커밋 사용자는 전역 설정(flag22)을 쓴다.
+
+## 2026-11-01 F3 저장소 뼈대와 packages/ui
+- 도구 고정: TypeScript 5.9.3(typescript-eslint 8.72.1이 6.1 미만만 지원), ESLint 10.14.0, Vite 8.3.5, Vitest 5.0.5, pnpm 10.18.2, Node 26.10.0에서 확인했다. 루트 `pnpm check`가 lint, typecheck, test, build를 차례로 돌린다.
+- 시안 CSS 4개는 `packages/ui/src/styles/`에 가져왔다. 바꾼 것은 `site.css`와 `admin.css`의 `@font-face` 한 줄 제거와 `font-family:Noto`를 `'Noto Sans KR Variable'`로 바꾼 것뿐이다. 각 파일 첫 줄에 출처와 변경 범위를 주석으로 남겼다.
+- 주민 앱은 `@jori/ui/user.css`, 관리자 앱은 `@jori/ui/admin.css`를 불러온다. 두 CSS는 전역 선택자가 겹칠 수 있어 한 앱에서 함께 쓰지 않는다.
+- 가져온 자산은 로고 `paju-ci.jpg`와 SNS 아이콘 3개뿐이다. 건물 사진, PDF, 10MB ttf는 가져오지 않았다.
+- `packages/ui/src/index.ts`에는 화면 모드(`standard`/`easy`)와 글자 크기 단계만 있다. 컴포넌트는 F5부터 시안 화면을 옮기면서 필요한 것만 만든다.

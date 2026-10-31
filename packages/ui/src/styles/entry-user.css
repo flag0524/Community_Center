@@ -1,0 +1,5 @@
+/* 주민 앱이 불러오는 스타일 진입점. 폰트와 시안의 site·easy·prototype CSS를 순서대로 묶는다. */
+@import '@fontsource-variable/noto-sans-kr';
+@import './site.css';
+@import './easy.css';
+@import './prototype.css';
