@@ -51,14 +51,33 @@ test('전체 메뉴를 연 상태에서도 접근성 위반이 없고 Esc로 닫
   await expect(opener).toBeFocused();
 });
 
-test.describe('청사 사진이 없을 때', () => {
+// 1x1 크기의 올바른 PNG. 사진 파일은 git에 없으므로 시험이 직접 만들어 쓴다.
+const TINY_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+test.describe('청사 사진', () => {
   // 모의 서버(서비스 워커)가 켜져 있으면 page.route가 요청을 가로채지 못한다. 워커를 막고 API도 직접 흉내 낸다.
   // 이 환경에서는 모의 서버 시작이 실패해도 화면이 떠야 한다.
   test.use({ serviceWorkers: 'block' });
 
-  test('화면이 깨지지 않고 접근성 위반이 없다', async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await page.route('**/api/v1/home', (route) => route.fulfill({ json: buildHome() }));
     await page.route('**/api/v1/site/contact', (route) => route.fulfill({ json: contact }));
+  });
+
+  test('있으면 히어로에 그리고 사진 출처를 표시한다', async ({ page }) => {
+    await page.route('**/dev-assets/building.jpg', (route) =>
+      route.fulfill({ status: 200, contentType: 'image/png', body: TINY_PNG }),
+    );
+    await openHome(page, '/');
+
+    await expect(page.locator('.hero > img')).toBeVisible();
+    await expect(page.locator('.photo-credit')).toContainText('파주시 제공');
+  });
+
+  test('없어도 화면이 깨지지 않고 접근성 위반이 없다', async ({ page }) => {
     await page.route('**/dev-assets/building.jpg', (route) => route.fulfill({ status: 404, body: '' }));
     const photoResponse = page.waitForResponse('**/dev-assets/building.jpg');
 
@@ -72,12 +91,6 @@ test.describe('청사 사진이 없을 때', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     expect(await violations(page)).toEqual([]);
   });
-});
-
-test('청사 사진이 있으면 히어로에 그리고 사진 출처를 표시한다', async ({ page }) => {
-  await openHome(page, '/');
-  await expect(page.locator('.hero > img')).toBeVisible();
-  await expect(page.locator('.photo-credit')).toContainText('파주시 제공');
 });
 
 for (const size of [...SIZES, { name: '확대 200% 상당 640', width: 640, height: 900 }, { name: '최소 폭 360', width: 360, height: 800 }]) {
