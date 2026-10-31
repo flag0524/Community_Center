@@ -1,0 +1,15 @@
+/* 시안 CSS에 없는 이 앱 고유의 최소 스타일. 임시 화면 배치만 다룬다 */
+.placeholder {
+  padding: 96px 0;
+  text-align: center;
+}
+
+.placeholder h1 {
+  font-size: 2rem;
+  margin: 0 0 16px;
+}
+
+.placeholder p {
+  color: var(--muted);
+  margin: 0 0 32px;
+}

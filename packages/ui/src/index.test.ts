@@ -49,6 +49,14 @@ describe('시안 CSS 이식', () => {
     expect(admin).toContain('./admin.css');
   });
 
+  it('접근성 보정 파일은 주민용 진입점의 맨 마지막에 불러온다', () => {
+    const imports = read('entry-user.css')
+      .split('\n')
+      .filter((line) => line.startsWith('@import'));
+    expect(imports.at(-1)).toContain('./a11y-fixes.css');
+    expect(read('a11y-fixes.css')).toContain('#596475');
+  });
+
   it('가져온 자산은 로고와 SNS 아이콘뿐이다', () => {
     expect(readdirSync(assetsDir).sort()).toEqual([
       'paju-ci.jpg',

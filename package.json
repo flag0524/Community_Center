@@ -12,8 +12,9 @@
     "lint": "eslint . && pnpm -r --if-present lint",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
+    "test:e2e": "pnpm -r --if-present test:e2e",
     "build": "pnpm -r --if-present build",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

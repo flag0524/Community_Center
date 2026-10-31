@@ -2,7 +2,7 @@
 node_modules/
 .venv/
 dist/
-build/
+/build/
 __pycache__/
 *.pyc
 .pytest_cache/
@@ -29,3 +29,7 @@ Thumbs.db
 ~$*
 *.tmp
 packages/api-client/openapi.json
+
+# 브라우저 시험 산출물
+test-results/
+playwright-report/

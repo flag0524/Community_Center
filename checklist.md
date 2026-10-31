@@ -51,7 +51,7 @@
 - [x] F2 git 저장소 초기화, 첫 커밋 (git은 이미 설치됨)
 - [x] F3 저장소 뼈대와 packages/ui
 - [x] F4 API 골격과 OpenAPI, packages/api-client
-- [ ] F5 web-user 공통 레이아웃·홈·쉬운 화면·글자 크기, MSW
+- [x] F5 web-user 공통 레이아웃·홈·쉬운 화면·글자 크기, MSW
 - [ ] F6 강좌 목록·상세, 로그인·가입
 - [ ] F7 신청→결제→내 신청→영수증→환불
 - [ ] F8 주민 나머지 화면, 관리자 앱
