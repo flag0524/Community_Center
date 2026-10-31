@@ -48,7 +48,7 @@
 - [ ] P2 착수 전 Docker·git 설치
 ## 2026-11-01 시안 이식 (단계별, 사용자 확인 후 진행)
 - [x] F1 순서 변경과 결정 기록 (plan.md, context-notes.md)
-- [ ] F2 git 설치와 저장소 초기화, 첫 커밋
+- [x] F2 git 저장소 초기화, 첫 커밋 (git은 이미 설치됨)
 - [ ] F3 저장소 뼈대와 packages/ui
 - [ ] F4 API 골격과 OpenAPI, packages/api-client
 - [ ] F5 web-user 공통 레이아웃·홈·쉬운 화면·글자 크기, MSW
