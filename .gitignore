@@ -1,0 +1,30 @@
+# 의존성과 빌드 산출물
+node_modules/
+.venv/
+dist/
+build/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage/
+
+# 비밀값과 로컬 설정
+.env
+.env.*
+*.key
+*.pem
+
+# 로컬 전용 자산 (자유사용 여부 미확인 사진 등, 출시 전 사용 허가 확인 필요)
+apps/web-user/public/dev-assets/
+
+# 생성물 (빌드 때 만든다)
+packages/api-client/src/generated/
+
+# 편집기와 운영체제 임시 파일
+.vscode/
+.idea/
+Thumbs.db
+~$*
+*.tmp
