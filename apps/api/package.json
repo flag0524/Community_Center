@@ -1,0 +1,11 @@
+{
+  "name": "@jori/api",
+  "private": true,
+  "version": "0.0.0",
+  "description": "FastAPI 백엔드. 루트의 pnpm check가 파이썬 검사를 함께 돌리도록 uv 명령을 연결한다.",
+  "scripts": {
+    "lint": "uv run ruff check . && uv run ruff format --check .",
+    "typecheck": "uv run mypy app tests",
+    "test": "uv run pytest -q"
+  }
+}
