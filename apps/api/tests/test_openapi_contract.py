@@ -180,5 +180,20 @@ def test_결제_진행_엔드포인트에_금액_입력은_승인_확인뿐이�
     assert "amount" in confirm
 
 
+def test_홈_응답은_교육기수를_선택_필드로_가진다(spec: Schema) -> None:
+    home = spec["components"]["schemas"]["HomeResponse"]
+    assert "cycle" in home["properties"]
+    assert "cycle" not in home.get("required", []) or "null" in type_names(home["properties"]["cycle"])
+    cycle = spec["components"]["schemas"]["CycleInfo"]
+    assert set(cycle["properties"]) == {
+        "name",
+        "educationStart",
+        "educationEnd",
+        "receptionStart",
+        "receptionEnd",
+        "receptionState",
+    }
+
+
 def test_환불_접수_모델에는_금액_필드가_없다(spec: Schema) -> None:
     assert set(spec["components"]["schemas"]["RefundCreate"]["properties"]) == {"applicationId", "reason"}
