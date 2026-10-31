@@ -28,3 +28,4 @@ packages/api-client/src/generated/
 Thumbs.db
 ~$*
 *.tmp
+packages/api-client/openapi.json

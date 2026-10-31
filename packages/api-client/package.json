@@ -1,0 +1,20 @@
+{
+  "name": "@jori/api-client",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "uv run --directory ../../apps/api python -m app.tools.export_openapi ../../packages/api-client/openapi.json && openapi-typescript openapi.json -o src/generated/schema.d.ts",
+    "typecheck": "pnpm generate && tsc --noEmit",
+    "test": "pnpm generate && vitest run",
+    "build": "pnpm generate"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "openapi-typescript": "7.13.0",
+    "vitest": "5.0.5"
+  }
+}

@@ -50,7 +50,7 @@
 - [x] F1 순서 변경과 결정 기록 (plan.md, context-notes.md)
 - [x] F2 git 저장소 초기화, 첫 커밋 (git은 이미 설치됨)
 - [x] F3 저장소 뼈대와 packages/ui
-- [ ] F4 API 골격과 OpenAPI, packages/api-client
+- [x] F4 API 골격과 OpenAPI, packages/api-client
 - [ ] F5 web-user 공통 레이아웃·홈·쉬운 화면·글자 크기, MSW
 - [ ] F6 강좌 목록·상세, 로그인·가입
 - [ ] F7 신청→결제→내 신청→영수증→환불

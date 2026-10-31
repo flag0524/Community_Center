@@ -88,3 +88,13 @@
 - 주민 앱은 `@jori/ui/user.css`, 관리자 앱은 `@jori/ui/admin.css`를 불러온다. 두 CSS는 전역 선택자가 겹칠 수 있어 한 앱에서 함께 쓰지 않는다.
 - 가져온 자산은 로고 `paju-ci.jpg`와 SNS 아이콘 3개뿐이다. 건물 사진, PDF, 10MB ttf는 가져오지 않았다.
 - `packages/ui/src/index.ts`에는 화면 모드(`standard`/`easy`)와 글자 크기 단계만 있다. 컴포넌트는 F5부터 시안 화면을 옮기면서 필요한 것만 만든다.
+## 2026-11-01 F4 API 골격과 OpenAPI
+- `apps/api`는 Python 3.12.13, FastAPI 0.162, Pydantic 2, ruff 0.17, mypy 2.4(strict), pytest 9.2다. 시험 클라이언트는 Starlette 1.10이 `httpx`를 권장하지 않아 `httpx2`를 쓴다.
+- 엔드포인트 25개(경로 23개)의 라우터·스키마만 있고 모든 핸들러는 501 `NOT_IMPLEMENTED`다. 본 구현은 P3~P5에서 채운다.
+- 계약 규칙은 시험으로 고정했다. 일련번호는 22자리 숫자 문자열(2^53을 넘는 값도 왕복), JSON은 camelCase, 검증 오류는 400 `ErrorResponse`(입력값을 되돌려 주지 않음), 신청·환불 요청 모델에 금액 필드 없음, 상태 변경은 `X-CSRF-Token`, 신청·결제·환불 생성은 `Idempotency-Key` 필수, 회원 경로는 세션 쿠키 보안 요구.
+- 시험을 믿기 전에 일부러 망가뜨려 확인했다. 변이 10개(파이썬 9, TS 컴파일 1)를 넣었고 처음에는 1개를 못 잡았다. 요청 ID 검증을 풀어도 통과했는데, 시험이 `\r\n` 값 하나만 써서 우연히 통과한 것이었다. 값 6종으로 보강한 뒤 잡힌다.
+- `pnpm check`가 JS와 파이썬 검사를 모두 실행한다. `apps/api/package.json`은 uv 명령만 연결하는 얇은 파일이다.
+- `uv run --project`는 작업 폴더를 바꾸지 않아 `app` 패키지를 못 찾는다. 다른 폴더에서 호출할 때는 `--directory`를 쓴다.
+- 문서 화면(`/docs`, `/redoc`)과 스키마 URL은 열지 않는다. 계약 파일은 `python -m app.tools.export_openapi <경로>`로 만든다.
+- 가입 요청(`JoinRequest`)은 TDD 필드만 담았다. 시안 `join-info.html`의 입력 항목은 F6에서 맞춘다.
+- spec.md에 DV32~DV38을 추가했고 TDD 10.2 변경 두 건을 5장에 적었다. 로고·청사 사진 사용 허가를 미결에 넣었다.
