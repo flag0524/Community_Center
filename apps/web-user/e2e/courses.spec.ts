@@ -37,9 +37,8 @@ for (const size of SIZES) {
       test('접수중 목록(잔여석 표시)에 접근성 위반이 없다', async ({ page }) => {
         await page.goto(url('/courses/open', view.query, DURING));
         await waitForList(page);
-        // 쉬운 화면은 시안 CSS가 정원 칸 전체를 숨겨서 잔여석도 보이지 않는다. 이 충돌은 사용자 확인 대기 중이다.
-        if (view.query === '') await expect(page.getByText('잔여 5석').first()).toBeVisible();
-        else await expect(page.getByText('잔여 5석').first()).toBeHidden();
+        // 쉬운 화면은 시안 CSS가 정원 칸을 숨기므로 접수 상태 칸의 쉬운 화면 전용 문구가 잔여석을 보인다(C2).
+        await expect(page.getByText('잔여 5석').filter({ visible: true }).first()).toBeVisible();
         expect(await violations(page)).toEqual([]);
       });
 

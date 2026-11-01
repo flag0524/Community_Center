@@ -140,8 +140,19 @@ describe('접수중·접수예정 강좌', () => {
     expect(within(list[0]!).getAllByText('접수중')[0]).toBeInTheDocument();
     expect(within(list[0]!).getByText('교육예정')).toBeInTheDocument();
     // 정원 12명의 60%(7명)가 찼다고 보는 시험용 값이라 5석이 남는다.
-    expect(within(list[0]!).getByText('잔여 5석')).toBeInTheDocument();
+    // 쉬운 화면은 시안 CSS가 정원 칸을 숨기므로(C2) 접수 상태 칸에 같은 문구를 쉬운 화면 전용으로 한 번 더 둔다.
+    const seatTexts = within(list[0]!).getAllByText('잔여 5석');
+    expect(seatTexts).toHaveLength(2);
+    expect(seatTexts.map((node) => node.closest('td')?.dataset.label ?? 'status')).toEqual(['status', '정원']);
+    expect(seatTexts[0]!).toHaveClass('easy-only');
+    expect(seatTexts[1]!).not.toHaveClass('easy-only');
     expect(screen.getByText('25', { selector: 'strong' })).toBeInTheDocument();
+  });
+
+  it('접수중이 아닌 강좌는 쉬운 화면용 잔여석 문구도 없다', async () => {
+    renderApp('/courses');
+    const list = await rows();
+    expect(within(list[0]!).queryByText(/잔여/)).not.toBeInTheDocument();
   });
 
   it('접수 기간이 아니면 접수중 강좌 빈 상태를 안내하고 전체 강좌로 보낸다', async () => {

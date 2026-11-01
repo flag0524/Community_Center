@@ -157,6 +157,12 @@ function CourseRow({ course }: { course: CourseSummary }) {
         <span className="status">{RECEPTION_LABEL[course.receptionState]}</span>
         <br />
         <small>{EDUCATION_LABEL[course.educationState]}</small>
+        {seats ? (
+          <>
+            <br />
+            <small className="easy-only">{seats}</small>
+          </>
+        ) : null}
       </td>
       <td>
         <small>
