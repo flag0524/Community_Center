@@ -70,7 +70,7 @@ export function Header({ onOpenMenu }: { onOpenMenu: () => void }) {
             전화 문의
           </a>
         ) : null}
-        <form className="header-search" onSubmit={search} role="search">
+        <form className="header-search" onSubmit={search} role="search" aria-label="통합 검색">
           <input
             name="q"
             type="search"

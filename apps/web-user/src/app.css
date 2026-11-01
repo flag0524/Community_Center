@@ -4,6 +4,11 @@
   text-align: center;
 }
 
+/* 시안이 label에 직접 준 flex:2 를 클래스로 옮긴 것이다. 검색어 칸을 다른 칸의 두 배로 넓힌다. */
+.toolbar .toolbar-grow {
+  flex: 2;
+}
+
 .placeholder h1 {
   font-size: 2rem;
   margin: 0 0 16px;

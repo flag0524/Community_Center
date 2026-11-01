@@ -2,7 +2,7 @@
 import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vitest/config';
-import { stripDevOnly } from './src/build/stripDevOnly.ts';
+import { findDevLeaks, stripDevOnly } from './src/build/stripDevOnly.ts';
 
 function stripDevOnlyPlugin(): Plugin {
   let outDir = '';
@@ -14,6 +14,10 @@ function stripDevOnlyPlugin(): Plugin {
     },
     closeBundle() {
       stripDevOnly(outDir);
+      const leaks = findDevLeaks(outDir);
+      if (leaks.length > 0) {
+        throw new Error(`운영 빌드에 개발 전용 코드가 섞였습니다. ${leaks.join(', ')}`);
+      }
     },
   };
 }

@@ -140,6 +140,7 @@ describe('주 메뉴와 검색', () => {
   it('검색어를 제출하면 강좌 목록 경로로 검색어를 넘긴다', async () => {
     const { router } = renderApp('/');
     await userEvent.type(screen.getByRole('searchbox', { name: '통합 강좌 검색' }), '요가 {Enter}');
+    expect(router.state.location.pathname).toBe('/courses');
 
     expect(router.state.location.pathname).toBe('/courses');
     expect(router.state.location.search).toBe('?q=%EC%9A%94%EA%B0%80');
@@ -153,11 +154,11 @@ describe('주 메뉴와 검색', () => {
 
 describe('임시 화면과 없는 경로', () => {
   it('아직 옮기지 않은 화면은 안내와 홈 링크를 보이고 문서 제목을 맞춘다', () => {
-    renderApp('/courses');
-    expect(screen.getByRole('heading', { level: 1, name: '전체 강좌' })).toBeInTheDocument();
+    renderApp('/guide/apply');
+    expect(screen.getByRole('heading', { level: 1, name: '수강 및 결제 안내' })).toBeInTheDocument();
     expect(screen.getByText('이 화면은 아직 이식 전입니다.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/');
-    expect(document.title).toBe('전체 강좌 | 조리읍주민자치센터');
+    expect(document.title).toBe('수강 및 결제 안내 | 조리읍주민자치센터');
   });
 
   it('메뉴에 있는 모든 경로가 임시 화면으로 연결되어 있다', () => {

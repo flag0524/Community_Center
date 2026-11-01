@@ -78,7 +78,6 @@ export const FOOTER_LINKS: NavLinkItem[] = [
 export const EXTRA_PLACEHOLDERS: NavLinkItem[] = [
   { label: '로그인', to: '/login' },
   { label: '공지사항 상세', to: '/board/notice/:postId' },
-  { label: '분야별 강좌', to: '/courses/field/:categoryId' },
   { label: '약관', to: '/terms/:termType' },
   { label: '갤러리 상세', to: '/board/gallery/:postId' },
 ];

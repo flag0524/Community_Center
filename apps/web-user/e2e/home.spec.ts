@@ -1,7 +1,7 @@
 // 홈 화면을 실제 브라우저에서 열어 접근성(axe), 반응형, 키보드, 사진 없음 대체 화면을 확인하는 시험
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { buildHome, contact } from '../src/mocks/fixtures';
+import { violations } from './support';
 
 const SIZES = [
   { name: '데스크톱 1280', width: 1280, height: 800 },
@@ -18,14 +18,6 @@ async function openHome(page: Page, path: string) {
   await expect(page.locator('.category-grid > a')).toHaveCount(4);
 }
 
-async function violations(page: Page) {
-  const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
-  return result.violations.map((v) => ({
-    id: v.id,
-    impact: v.impact,
-    nodes: v.nodes.slice(0, 3).map((n) => n.target.join(' ')),
-  }));
-}
 
 for (const size of SIZES) {
   for (const view of VIEWS) {
@@ -144,8 +136,9 @@ test('글자 크기를 키우면 html 글자 크기가 바뀐다', async ({ page
 
 test('다른 화면으로 이동해도 머리글과 연락처가 유지된다', async ({ page }) => {
   await openHome(page, '/');
-  await page.getByRole('link', { name: '전체 강좌 보기　+' }).click();
-  await expect(page).toHaveURL(/\/courses$/);
+  // 머리글 드롭다운에도 비슷한 링크가 있지만 마우스를 올려야 보인다. 홈 본문의 보이는 링크를 누른다.
+  await page.locator('#services').getByRole('link', { name: /수강·결제 안내/ }).click();
+  await expect(page).toHaveURL(/\/guide\/apply$/);
   await expect(page.getByText('이 화면은 아직 이식 전입니다.')).toBeVisible();
   await expect(page.getByRole('contentinfo')).toContainText('031-941-7742');
 });
