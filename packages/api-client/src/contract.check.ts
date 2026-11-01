@@ -12,6 +12,15 @@ export type SerialIdsAreStrings = [
   Assert<Equal<Schemas['Refund']['refundId'], string>>,
 ];
 
+// 강좌 일정은 요일·시각을 한 쌍으로 갖는 일정 행 목록이고, 교육 상태는 서버가 판정한 열거형이다.
+export type CourseHasScheduleRows = Assert<
+  Equal<keyof Schemas['ScheduleSlot'], 'days' | 'startTime' | 'endTime' | 'label'>
+>;
+export type CourseEducationStateIsEnum = Assert<
+  Equal<Schemas['CourseSummary']['educationState'], 'UPCOMING' | 'ONGOING' | 'ENDED'>
+>;
+export type CourseHasNoSingleTime = Assert<Equal<'startTime' extends keyof Schemas['CourseSummary'] ? true : false, false>>;
+
 // 금액은 숫자, 신청 요청에는 금액 필드가 없다.
 export type MoneyIsNumber = Assert<Equal<Schemas['ApplicationSummary']['payableAmount'], number>>;
 export type ApplicationCreateHasOnlyCourseId = Assert<Equal<keyof Schemas['ApplicationCreate'], 'courseId'>>;

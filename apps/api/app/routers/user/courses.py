@@ -5,13 +5,18 @@ from fastapi import APIRouter, Path, Query
 
 from app.core.errors import ErrorCode, not_implemented
 from app.core.schema import SerialId
-from app.domain.course.schemas import CourseDetail, CoursePage, CoursePlan
+from app.domain.course.schemas import CategoryList, CourseDetail, CoursePage, CoursePlan
 from app.domain.course.types import ReceptionState, Weekday
 from app.routers.deps import PUBLIC_ERRORS, error_responses
 
 router = APIRouter(tags=["courses"], responses=PUBLIC_ERRORS)
 
 CourseId = Annotated[str, Path(pattern=r"^[0-9]{1,22}$", description="강좌 일련번호(문자열)")]
+
+
+@router.get("/categories")
+def list_categories() -> CategoryList:
+    not_implemented()
 
 
 @router.get("/courses")

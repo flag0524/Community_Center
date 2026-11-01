@@ -1,10 +1,10 @@
 # 홈 화면과 센터 연락처 API의 응답 모델
 from datetime import date
 
-from pydantic import AwareDatetime, Field
+from pydantic import AwareDatetime
 
 from app.core.schema import ApiModel, SerialId, ServerTimed
-from app.domain.course.schemas import CategoryRef
+from app.domain.course.schemas import CategoryRef, CycleInfo
 from app.domain.course.types import ReceptionState
 
 
@@ -23,19 +23,6 @@ class CategoryOverview(ApiModel):
     education_start: date | None
     education_end: date | None
     course_names: list[str]
-
-
-class CycleInfo(ApiModel):
-    """홈 배너에 보이는 현재 교육기수. 시안의 '2026년 4분기 교육프로그램'에 해당한다."""
-
-    name: str
-    education_start: date
-    education_end: date
-    reception_start: AwareDatetime | None
-    reception_end: AwareDatetime | None
-    reception_state: ReceptionState = Field(
-        description="서버가 판정한 접수 상태. 화면은 날짜를 비교하지 않는다."
-    )
 
 
 class HomeResponse(ServerTimed):

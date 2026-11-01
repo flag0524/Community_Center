@@ -10,6 +10,14 @@ class ReceptionState(StrEnum):
     CLOSED = "CLOSED"  # 접수마감
 
 
+class EducationState(StrEnum):
+    """교육 상태. 접수 상태와 따로 서버가 교육기간으로 판정한다. 화면은 날짜를 비교하지 않는다."""
+
+    UPCOMING = "UPCOMING"  # 교육예정
+    ONGOING = "ONGOING"  # 교육중
+    ENDED = "ENDED"  # 교육종료
+
+
 class Weekday(StrEnum):
     MON = "MON"
     TUE = "TUE"

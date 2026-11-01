@@ -13,6 +13,7 @@ EXPECTED_OPERATIONS = {
     ("get", "/api/v1/home"),
     ("get", "/api/v1/site/contact"),
     ("get", "/api/v1/terms/{term_type}"),
+    ("get", "/api/v1/categories"),
     ("get", "/api/v1/courses"),
     ("get", "/api/v1/courses/{course_id}"),
     ("get", "/api/v1/courses/{course_id}/plan"),
@@ -193,6 +194,36 @@ def test_홈_응답은_교육기수를_선택_필드로_가진다(spec: Schema) 
         "receptionEnd",
         "receptionState",
     }
+
+
+def test_강좌는_요일별_시간이_달라도_일정_행_목록으로_표현한다(spec: Schema) -> None:
+    summary = spec["components"]["schemas"]["CourseSummary"]["properties"]
+    # 요일 목록 하나와 시각 하나로는 한국무용(요일마다 시간이 다름)이나 반이 나뉜 강좌를 담을 수 없다.
+    assert "schedules" in summary
+    assert not {"days", "startTime", "endTime"} & set(summary)
+    slot = spec["components"]["schemas"]["ScheduleSlot"]["properties"]
+    assert set(slot) == {"days", "startTime", "endTime", "label"}
+
+
+def test_강좌는_서버가_판정한_교육_상태를_가진다(spec: Schema) -> None:
+    summary = spec["components"]["schemas"]["CourseSummary"]["properties"]
+    assert "educationState" in summary
+    states = spec["components"]["schemas"]["EducationState"]["enum"]
+    assert states == ["UPCOMING", "ONGOING", "ENDED"]
+
+
+def test_분야_목록_응답은_분야_참조_배열이다(spec: Schema) -> None:
+    categories = spec["components"]["schemas"]["CategoryList"]["properties"]
+    assert set(categories) == {"items"}
+    assert categories["items"]["items"]["$ref"].endswith("/CategoryRef")
+
+
+def test_강좌_목록_기준에는_교육기수를_담고_상세에는_기수명을_담는다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert "cycle" in schemas["CourseListCriteria"]["properties"]
+    assert "basisAt" in schemas["CourseListCriteria"]["properties"]
+    assert schemas["CoursePage"]["properties"]["criteria"]["$ref"].endswith("/CourseListCriteria")
+    assert "cycleName" in schemas["CourseDetail"]["properties"]
 
 
 def test_환불_접수_모델에는_금액_필드가_없다(spec: Schema) -> None:
