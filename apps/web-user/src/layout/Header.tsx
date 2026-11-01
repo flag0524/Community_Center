@@ -1,7 +1,10 @@
 // 로고, 주 메뉴, 전체 메뉴 버튼, 강좌 검색, 로그인 링크가 있는 머리글
 import logo from '@jori/ui/assets/paju-ci.jpg';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { logout } from '../api/auth';
+import { sessionQuery } from '../api/queries';
 import { SearchIcon } from '../components/icons';
 import { EASY_NAV, NAV_GROUPS, isActiveGroup } from './navigation';
 import { useContact } from './useContact';
@@ -11,6 +14,13 @@ export function Header({ onOpenMenu }: { onOpenMenu: () => void }) {
   const navigate = useNavigate();
   const contact = useContact();
   const [query, setQuery] = useState('');
+  const queryClient = useQueryClient();
+  const { data: session } = useQuery(sessionQuery);
+  const signOut = useMutation({
+    mutationFn: logout,
+    // 로그아웃하면 세션을 다시 받아 새 토큰과 비로그인 상태를 반영한다.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionQuery.queryKey }),
+  });
 
   function search(event: FormEvent) {
     event.preventDefault();
@@ -83,9 +93,18 @@ export function Header({ onOpenMenu }: { onOpenMenu: () => void }) {
             <SearchIcon />
           </button>
         </form>
-        <Link className="login-link" to="/login">
-          로그인
-        </Link>
+        {session?.authenticated && session.member ? (
+          <>
+            <span className="login-name">{session.member.name}님</span>
+            <button className="login-link" type="button" disabled={signOut.isPending} onClick={() => signOut.mutate()}>
+              로그아웃
+            </button>
+          </>
+        ) : (
+          <Link className="login-link" to="/login">
+            로그인
+          </Link>
+        )}
       </div>
     </header>
   );

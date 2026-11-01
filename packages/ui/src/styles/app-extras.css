@@ -1,0 +1,51 @@
+/* 시안에 없는 요소만 더한다. 로그인한 머리글, 입력 오류 문구, 아이디 중복확인 줄. 시안 복사본은 건드리지 않는다. */
+
+/* 로그아웃은 동작이 있어 button이지만 모양은 시안의 .login-link(링크)와 같다. */
+button.login-link {
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.login-name {
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+/* 흰 바탕에서 대비 6.5:1 이다. */
+.proto .field-error {
+  margin: 4px 0 0;
+  color: #b3261e;
+  font-size: 0.875rem;
+}
+
+/* 시안의 .form-message는 파랑이라 실패 문구가 안내와 구분되지 않는다. */
+.proto .form-message.is-error {
+  color: #b3261e;
+}
+
+/* 입력 칸 오른쪽에 버튼을 붙이고, 오류·안내 문구는 칸 아래 전체 너비에 둔다. */
+.field-with-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: end;
+}
+
+.field-with-action > .field {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.field-with-action > .button {
+  grid-column: 2;
+  grid-row: 1;
+  margin-bottom: 14px;
+}
+
+.field-with-action > p {
+  grid-column: 1 / -1;
+}

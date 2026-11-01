@@ -4,7 +4,9 @@ import { render } from '@testing-library/react';
 import { setupServer } from 'msw/node';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll } from 'vitest';
+import { rememberCsrfToken } from '../api/http';
 import { routes } from '../app/routes';
+import { resetMockAuth } from '../mocks/auth';
 import { handlers } from '../mocks/handlers';
 
 // Node의 fetch는 상대 경로를 받지 못한다. 브라우저처럼 현재 주소를 기준으로 풀어 준다.
@@ -17,7 +19,11 @@ export const server = setupServer(...handlers);
 /** 모의 서버를 시험 파일 수명에 맞춰 켜고 끈다. 처리기가 없는 요청은 시험을 실패시킨다. */
 export function useMockServer(): void {
   beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
-  afterEach(() => server.resetHandlers());
+  afterEach(() => {
+    server.resetHandlers();
+    resetMockAuth();
+    rememberCsrfToken(null);
+  });
   afterAll(() => server.close());
 }
 

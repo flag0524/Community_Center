@@ -28,13 +28,38 @@ function parseJson(text: string): unknown {
   }
 }
 
-export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    credentials: 'include',
-    headers: { Accept: 'application/json' },
-    signal,
-  });
+// 상태를 바꾸는 요청의 X-CSRF-Token 값. 세션 응답이 올 때마다 바뀔 수 있어 모듈 안에서만 들고 있다.
+let csrfToken: string | null = null;
+
+export function rememberCsrfToken(token: string | null | undefined): void {
+  csrfToken = token ?? null;
+}
+
+async function request<T>(path: string, init: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, { credentials: 'include', ...init });
   const payload = parseJson(await response.text());
   if (!response.ok) throw new ApiRequestError(response.status, isErrorResponse(payload) ? payload : null);
+  // 세션 응답(조회·로그인)이 새 토큰을 담고 있으면 이후 요청부터 그 값을 쓴다.
+  if (typeof payload === 'object' && payload !== null && 'csrfToken' in payload) {
+    rememberCsrfToken((payload as { csrfToken?: string | null }).csrfToken);
+  }
   return payload as T;
+}
+
+export function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return request<T>(path, { headers: { Accept: 'application/json' }, signal });
+}
+
+export async function postJson<T = null>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+  if (csrfToken === null) await getJson('/auth/session', signal);
+  return request<T>(path, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(csrfToken === null ? {} : { 'X-CSRF-Token': csrfToken }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
+  });
 }

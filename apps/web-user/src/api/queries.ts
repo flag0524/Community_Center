@@ -12,6 +12,23 @@ export type CourseSummary = Schemas['CourseSummary'];
 export type CourseDetail = Schemas['CourseDetail'];
 export type CoursePlan = Schemas['CoursePlan'];
 
+export type SessionInfo = Schemas['SessionInfo'];
+export type TermDocument = Schemas['TermDocument'];
+export type TermType = Schemas['TermType'];
+
+export const sessionQuery = queryOptions({
+  queryKey: ['session'],
+  queryFn: ({ signal }) => getJson<SessionInfo>('/auth/session', signal),
+  staleTime: 5 * 60 * 1000,
+});
+
+export const termQuery = (termType: TermType) =>
+  queryOptions({
+    queryKey: ['terms', termType],
+    queryFn: ({ signal }) => getJson<TermDocument>(`/terms/${termType}`, signal),
+    staleTime: 10 * 60 * 1000,
+  });
+
 export const homeQuery = queryOptions({
   queryKey: ['home'],
   queryFn: ({ signal }) => getJson<HomeResponse>('/home', signal),

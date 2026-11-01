@@ -41,7 +41,13 @@ describe('시안 CSS 이식', () => {
 
   it('두 진입점이 폰트와 필요한 CSS를 모두 불러온다', () => {
     const user = read('entry-user.css');
-    for (const part of ['@fontsource-variable/noto-sans-kr', './site.css', './easy.css', './prototype.css']) {
+    for (const part of [
+      '@fontsource-variable/noto-sans-kr',
+      './site.css',
+      './easy.css',
+      './prototype.css',
+      './app-extras.css',
+    ]) {
       expect(user).toContain(part);
     }
     const admin = read('entry-admin.css');

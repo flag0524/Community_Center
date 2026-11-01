@@ -8,11 +8,25 @@ import { CourseDetailPage } from '../pages/courses/CourseDetailPage';
 import { CourseListPage } from '../pages/courses/CourseListPage';
 import { CoursePlanPage } from '../pages/courses/CoursePlanPage';
 import { Home } from '../pages/Home';
+import { JoinCompletePage } from '../pages/member/JoinCompletePage';
+import { JoinFlowLayout } from '../pages/member/JoinFlow';
+import { JoinInfoPage } from '../pages/member/JoinInfoPage';
+import { JoinTermsPage } from '../pages/member/JoinTermsPage';
+import { JoinVerifyPage } from '../pages/member/JoinVerifyPage';
+import { LoginPage } from '../pages/member/LoginPage';
+import { TermPage } from '../pages/member/TermPage';
 import { NotFound, Placeholder } from '../pages/Placeholder';
 import { ViewModeProvider } from '../view/ViewModeProvider';
 
 // 실제 화면으로 옮긴 경로. 임시 화면 목록에서 뺀다.
-const IMPLEMENTED_PATHS = new Set(['/courses', '/courses/open', '/courses/upcoming']);
+const IMPLEMENTED_PATHS = new Set([
+  '/courses',
+  '/courses/open',
+  '/courses/upcoming',
+  '/terms/terms-of-use',
+  '/terms/privacy-policy',
+  '/terms/email-refusal',
+]);
 
 function placeholderRoutes(): RouteObject[] {
   const byPath = new Map<string, string>();
@@ -47,6 +61,19 @@ export const routes: RouteObject[] = [
       { path: 'courses/field/:categoryId', element: <CategoryCoursesPage />, handle: SERVICE_PAGE_HANDLE },
       { path: 'courses/:courseId', element: <CourseDetailPage />, handle: SERVICE_PAGE_HANDLE },
       { path: 'courses/:courseId/plan', element: <CoursePlanPage />, handle: SERVICE_PAGE_HANDLE },
+      { path: 'login', element: <LoginPage />, handle: SERVICE_PAGE_HANDLE },
+      {
+        path: 'join',
+        element: <JoinFlowLayout />,
+        handle: SERVICE_PAGE_HANDLE,
+        children: [
+          { index: true, element: <JoinTermsPage /> },
+          { path: 'verify', element: <JoinVerifyPage /> },
+          { path: 'info', element: <JoinInfoPage /> },
+          { path: 'complete', element: <JoinCompletePage /> },
+        ],
+      },
+      { path: 'terms/:slug', element: <TermPage />, handle: SERVICE_PAGE_HANDLE },
       ...placeholderRoutes(),
       { path: '*', element: <NotFound /> },
     ],
