@@ -33,5 +33,7 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
     css: false,
+    // pnpm check는 파이썬·타입 검사와 시험을 동시에 돌려 부하가 크다. 반복 입력이 많은 시험이 5초를 넘기지 않게 여유를 둔다.
+    testTimeout: 20_000,
   },
 });
