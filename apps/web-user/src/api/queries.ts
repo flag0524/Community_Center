@@ -22,6 +22,10 @@ export type BoardKey = Schemas['BoardKey'];
 export type PostPage = Schemas['PostPage'];
 export type PostSummary = Schemas['PostSummary'];
 export type PostDetail = Schemas['PostDetail'];
+export type InquiryPage = Schemas['InquiryPage'];
+export type InquiryDetail = Schemas['InquiryDetail'];
+export type ReviewPage = Schemas['ReviewPage'];
+export type ReviewDetail = Schemas['ReviewDetail'];
 export type ApplicationPage = Schemas['ApplicationPage'];
 export type Receipt = Schemas['Receipt'];
 export type RefundPreview = Schemas['RefundPreview'];
@@ -149,3 +153,45 @@ export const postQuery = (postId: string) =>
     queryKey: ['posts', postId],
     queryFn: ({ signal }) => getJson<PostDetail>(`/posts/${encodeURIComponent(postId)}`, signal),
   });
+
+export const inquiryCategoriesQuery = queryOptions({
+  queryKey: ['me', 'inquiry-categories'],
+  queryFn: ({ signal }) => getJson<Schemas['InquiryCategoryList']>('/inquiry-categories', signal),
+  staleTime: 5 * 60 * 1000,
+});
+
+export const inquiryListQuery = (page: number, mine = false) =>
+  queryOptions({
+    queryKey: ['me', 'inquiries', mine ? 'mine' : 'all', page],
+    queryFn: ({ signal }) => getJson<InquiryPage>(`${mine ? '/me/inquiries' : '/inquiries'}?page=${page}&size=10`, signal),
+  });
+
+export const inquiryQuery = (postId: string) =>
+  queryOptions({
+    queryKey: ['me', 'inquiry', postId],
+    queryFn: ({ signal }) => getJson<InquiryDetail>(`/inquiries/${encodeURIComponent(postId)}`, signal),
+  });
+
+export const reviewListQuery = (params: { q?: string; page?: number }, mine = false) =>
+  queryOptions({
+    queryKey: mine ? ['me', 'reviews', 'mine', params] : ['reviews', 'all', params],
+    queryFn: ({ signal }) =>
+      getJson<ReviewPage>(
+        mine
+          ? `/me/reviews?page=${params.page ?? 1}&size=10`
+          : `/reviews${toQueryString({ q: params.q, page: params.page && params.page > 1 ? params.page : undefined })}`,
+        signal,
+      ),
+  });
+
+export const reviewQuery = (postId: string) =>
+  queryOptions({
+    // 내 글 여부와 수정 가능 여부가 회원마다 달라 로그아웃 때 지워지는 회원 전용 키 아래에 둔다.
+    queryKey: ['me', 'review', postId],
+    queryFn: ({ signal }) => getJson<ReviewDetail>(`/reviews/${encodeURIComponent(postId)}`, signal),
+  });
+
+export const reviewableCoursesQuery = queryOptions({
+  queryKey: ['me', 'reviewable-courses'],
+  queryFn: ({ signal }) => getJson<Schemas['ReviewableCourseList']>('/me/reviewable-courses', signal),
+});

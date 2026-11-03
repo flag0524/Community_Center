@@ -40,6 +40,13 @@ interface MockApplicationState {
 const initialState = (): MockApplicationState => ({ items: new Map(), seq: 0, payments: new Map(), paymentSeq: 0, refunds: new Map(), refundSeq: 0 });
 let state = initialState();
 
+/** 수강확정(결제 완료·무료 등록)인 신청의 강좌. 후기를 쓸 수 있는 강좌의 기준이다. */
+export function confirmedCoursesFor(memberId: string): Array<{ courseId: string; name: string }> {
+  return forMember(memberId)
+    .filter(({ application }) => application.status === 'CONFIRMED')
+    .map(({ application }) => ({ courseId: application.course.courseId, name: application.course.name }));
+}
+
 /** 시험 사이에 신청 내역을 비운다. */
 export function resetMockApplications(): void {
   state = initialState();

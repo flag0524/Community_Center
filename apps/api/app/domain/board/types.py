@@ -12,3 +12,10 @@ class BoardKey(StrEnum):
     FAQ = "faq"  # BT.FAQ 자주하는 질문
     QNA = "qna"  # BT.QNA 질문과 답변
     REVIEW = "review"  # BT.REVIEW 수강후기
+
+
+class InquiryStatus(StrEnum):
+    """문의 처리 상태. 답변은 한 단계다(FN-053)."""
+
+    RECEIVED = "RECEIVED"  # 접수
+    ANSWERED = "ANSWERED"  # 답변완료

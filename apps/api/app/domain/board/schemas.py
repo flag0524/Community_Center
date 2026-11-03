@@ -2,7 +2,7 @@
 from pydantic import AwareDatetime, Field
 
 from app.core.schema import ApiModel, Page, SerialId
-from app.domain.board.types import BoardKey
+from app.domain.board.types import BoardKey, InquiryStatus
 
 
 class PostFile(ApiModel):
@@ -52,3 +52,100 @@ class PostDetail(ApiModel):
 
 class PostPage(Page[PostSummary]):
     pass
+
+
+class InquiryCategory(ApiModel):
+    """문의 분류. 값은 공통코드(IQ)에서 오며 화면에 고정하지 않는다(PRD Q26)."""
+
+    category_id: SerialId
+    name: str
+
+
+class InquiryCategoryList(ApiModel):
+    items: list[InquiryCategory]
+
+
+class InquirySummary(ApiModel):
+    """다른 회원의 비공개 문의는 서버가 제목과 작성자를 가려 내려준다."""
+
+    post_id: SerialId
+    category_name: str
+    title: str
+    author_name: str
+    status: InquiryStatus
+    is_private: bool
+    is_mine: bool
+    published_at: AwareDatetime
+
+
+class InquiryPage(Page[InquirySummary]):
+    pass
+
+
+class InquiryAnswer(ApiModel):
+    body: str
+    answered_at: AwareDatetime
+
+
+class InquiryDetail(ApiModel):
+    post_id: SerialId
+    category_id: SerialId
+    category_name: str
+    title: str
+    body: str
+    author_name: str
+    status: InquiryStatus
+    is_private: bool
+    published_at: AwareDatetime
+    answer: InquiryAnswer | None = Field(description="센터 답변. 원글의 비공개 범위가 답변에도 같다.")
+    can_edit: bool = Field(description="답변 전의 본인 문의만 고칠 수 있다.")
+    can_delete: bool
+
+
+class InquiryWrite(ApiModel):
+    category_id: SerialId
+    title: str = Field(min_length=1, max_length=100)
+    body: str = Field(min_length=1, max_length=2000)
+    is_private: bool
+
+
+class ReviewSummary(ApiModel):
+    post_id: SerialId
+    title: str
+    author_name: str
+    course_name: str
+    is_mine: bool
+    published_at: AwareDatetime
+
+
+class ReviewPage(Page[ReviewSummary]):
+    pass
+
+
+class ReviewDetail(ApiModel):
+    post_id: SerialId
+    course_id: SerialId
+    course_name: str
+    title: str
+    body: str
+    author_name: str
+    published_at: AwareDatetime
+    can_edit: bool
+    can_delete: bool
+
+
+class ReviewWrite(ApiModel):
+    course_id: SerialId
+    title: str = Field(min_length=1, max_length=100)
+    body: str = Field(min_length=1, max_length=2000)
+
+
+class ReviewableCourse(ApiModel):
+    course_id: SerialId
+    name: str
+
+
+class ReviewableCourseList(ApiModel):
+    """후기를 쓸 수 있는 강좌. 수강확정인 신청의 강좌만이다(PRD Q19 가정)."""
+
+    items: list[ReviewableCourse]

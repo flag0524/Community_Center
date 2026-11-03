@@ -4,6 +4,7 @@ import { applicationHandlers } from './applications';
 import { authHandlers } from './auth';
 import { boardHandlers } from './board';
 import { mockNow } from './clock';
+import { communityHandlers } from './community';
 import { CONTENTS } from './contents';
 import {
   buildCategories,
@@ -31,6 +32,7 @@ export const handlers = [
   ...authHandlers,
   ...applicationHandlers,
   ...boardHandlers,
+  ...communityHandlers,
   http.get('/api/v1/home', () => HttpResponse.json(buildHome(mockNow()))),
   http.get('/api/v1/site/contact', () => HttpResponse.json(contact)),
   http.get('/api/v1/contents/:slug', ({ params }) => {

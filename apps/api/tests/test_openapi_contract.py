@@ -17,6 +17,20 @@ EXPECTED_OPERATIONS = {
     ("get", "/api/v1/boards/{board}/posts"),
     ("get", "/api/v1/posts/{post_id}"),
     ("get", "/api/v1/files/{file_id}"),
+    ("get", "/api/v1/inquiry-categories"),
+    ("get", "/api/v1/inquiries"),
+    ("get", "/api/v1/inquiries/{post_id}"),
+    ("get", "/api/v1/me/inquiries"),
+    ("post", "/api/v1/me/inquiries"),
+    ("put", "/api/v1/me/inquiries/{post_id}"),
+    ("delete", "/api/v1/me/inquiries/{post_id}"),
+    ("get", "/api/v1/reviews"),
+    ("get", "/api/v1/reviews/{post_id}"),
+    ("get", "/api/v1/me/reviews"),
+    ("get", "/api/v1/me/reviewable-courses"),
+    ("post", "/api/v1/me/reviews"),
+    ("put", "/api/v1/me/reviews/{post_id}"),
+    ("delete", "/api/v1/me/reviews/{post_id}"),
     ("put", "/api/v1/me/profile"),
     ("put", "/api/v1/me/password"),
     ("post", "/api/v1/me/withdraw"),
@@ -313,3 +327,37 @@ def test_첨부_다운로드는_이진_응답이고_없는_파일은_404다(spec
     operation = spec["paths"]["/api/v1/files/{file_id}"]["get"]
     assert "application/octet-stream" in operation["responses"]["200"]["content"]
     assert "404" in operation["responses"]
+
+
+def test_문의는_비공개_가림과_본인_여부_수정_가능_여부를_서버가_정해_내려준다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    summary = schemas["InquirySummary"]["properties"]
+    # 다른 회원의 비공개 문의는 서버가 제목·작성자를 가려 내려준다. 화면은 그대로 그린다.
+    assert {
+        "postId",
+        "categoryName",
+        "title",
+        "authorName",
+        "status",
+        "isPrivate",
+        "isMine",
+        "publishedAt",
+    } <= set(summary)
+    assert schemas["InquiryStatus"]["enum"] == ["RECEIVED", "ANSWERED"]
+    detail = schemas["InquiryDetail"]["properties"]
+    assert {"body", "answer", "canEdit", "canDelete", "categoryId"} <= set(detail)
+    # 답변은 한 단계다(FN-053).
+    assert "$ref" in detail["answer"] or "anyOf" in detail["answer"]
+
+
+def test_문의와_후기_작성_요청은_분류와_자격을_서버_값으로만_받는다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    inquiry = schemas["InquiryWrite"]["properties"]
+    assert set(inquiry) == {"categoryId", "title", "body", "isPrivate"}
+    assert (inquiry["title"]["maxLength"], inquiry["body"]["maxLength"]) == (100, 2000)
+    review = schemas["ReviewWrite"]["properties"]
+    assert set(review) == {"courseId", "title", "body"}
+    assert (review["title"]["maxLength"], review["body"]["maxLength"]) == (100, 2000)
+    # 문의 분류 값은 공통코드(IQ)에서 서버가 내려준다. 화면에 고정하지 않는다(PRD Q26).
+    assert "InquiryCategoryList" in schemas
+    assert "ReviewableCourseList" in schemas

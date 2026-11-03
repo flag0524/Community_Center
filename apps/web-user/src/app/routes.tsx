@@ -13,6 +13,14 @@ import { CoursePlanPage } from '../pages/courses/CoursePlanPage';
 import { ContactPage } from '../pages/content/ContactPage';
 import { ContentPage } from '../pages/content/ContentPage';
 import { Home } from '../pages/Home';
+import { InquiryFormPage } from '../pages/community/InquiryFormPage';
+import { MyInquiriesPage } from '../pages/community/MyInquiriesPage';
+import { MyReviewsPage } from '../pages/community/MyReviewsPage';
+import { QnaDetailPage } from '../pages/community/QnaDetailPage';
+import { QnaListPage } from '../pages/community/QnaListPage';
+import { ReviewDetailPage } from '../pages/community/ReviewDetailPage';
+import { ReviewFormPage } from '../pages/community/ReviewFormPage';
+import { ReviewListPage } from '../pages/community/ReviewListPage';
 import { BoardListPage } from '../pages/board/BoardListPage';
 import { PostDetailPage } from '../pages/board/PostDetailPage';
 import { ChangePasswordPage } from '../pages/account/ChangePasswordPage';
@@ -50,6 +58,8 @@ const IMPLEMENTED_PATHS = new Set([
   '/board/resources',
   '/board/gallery',
   '/board/faq',
+  '/board/qna',
+  '/board/review',
   '/me/profile',
   '/find-id',
   '/reset-password',
@@ -108,7 +118,21 @@ export const routes: RouteObject[] = [
       ...(['notice', 'news', 'resources', 'gallery'] as const).map((board) => ({
         path: `board/${board}/:postId`,
         element: <PostDetailPage board={board} />,
-      })),      { path: 'login', element: <LoginPage />, handle: SERVICE_PAGE_HANDLE },
+      })),      ...[
+        ['board/qna', <QnaListPage />],
+        ['board/qna/write', <InquiryFormPage mode="create" />],
+        ['board/qna/:postId/edit', <InquiryFormPage mode="edit" />],
+        ['board/qna/:postId', <QnaDetailPage />],
+        ['board/review/write', <ReviewFormPage mode="create" />],
+        ['board/review/:postId/edit', <ReviewFormPage mode="edit" />],
+        ['me/inquiries', <MyInquiriesPage />],
+        ['me/reviews', <MyReviewsPage />],
+      ].map(([path, page]) => ({
+        path: path as string,
+        element: <RequireLogin>{page}</RequireLogin>,
+      })),
+      { path: 'board/review', element: <ReviewListPage /> },
+      { path: 'board/review/:postId', element: <ReviewDetailPage /> },      { path: 'login', element: <LoginPage />, handle: SERVICE_PAGE_HANDLE },
       { path: 'find-id', element: <FindIdPage />, handle: SERVICE_PAGE_HANDLE },
       { path: 'withdraw/done', element: <WithdrawDonePage />, handle: SERVICE_PAGE_HANDLE },
       { path: 'reset-password', element: <ResetPasswordPage />, handle: SERVICE_PAGE_HANDLE },
