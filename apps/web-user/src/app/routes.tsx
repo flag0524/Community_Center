@@ -13,6 +13,8 @@ import { CoursePlanPage } from '../pages/courses/CoursePlanPage';
 import { ContactPage } from '../pages/content/ContactPage';
 import { ContentPage } from '../pages/content/ContentPage';
 import { Home } from '../pages/Home';
+import { BoardListPage } from '../pages/board/BoardListPage';
+import { PostDetailPage } from '../pages/board/PostDetailPage';
 import { ChangePasswordPage } from '../pages/account/ChangePasswordPage';
 import { FindIdPage } from '../pages/account/FindIdPage';
 import { ProfilePage } from '../pages/account/ProfilePage';
@@ -43,6 +45,11 @@ const IMPLEMENTED_PATHS = new Set([
   '/courses/open',
   '/courses/upcoming',
   '/me/applications',
+  '/board/notice',
+  '/board/news',
+  '/board/resources',
+  '/board/gallery',
+  '/board/faq',
   '/me/profile',
   '/find-id',
   '/reset-password',
@@ -94,7 +101,14 @@ export const routes: RouteObject[] = [
       { path: 'center/history', element: <ContentPage slug="center-history" groupTitle="센터소개" /> },
       { path: 'center/facility', element: <ContentPage slug="center-facility" groupTitle="센터소개" /> },
       { path: 'center/contact', element: <ContactPage /> },
-      { path: 'login', element: <LoginPage />, handle: SERVICE_PAGE_HANDLE },
+      ...(['notice', 'news', 'resources', 'gallery', 'faq'] as const).map((board) => ({
+        path: `board/${board}`,
+        element: <BoardListPage board={board} />,
+      })),
+      ...(['notice', 'news', 'resources', 'gallery'] as const).map((board) => ({
+        path: `board/${board}/:postId`,
+        element: <PostDetailPage board={board} />,
+      })),      { path: 'login', element: <LoginPage />, handle: SERVICE_PAGE_HANDLE },
       { path: 'find-id', element: <FindIdPage />, handle: SERVICE_PAGE_HANDLE },
       { path: 'withdraw/done', element: <WithdrawDonePage />, handle: SERVICE_PAGE_HANDLE },
       { path: 'reset-password', element: <ResetPasswordPage />, handle: SERVICE_PAGE_HANDLE },

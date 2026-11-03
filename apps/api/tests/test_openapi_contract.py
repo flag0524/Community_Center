@@ -14,6 +14,9 @@ EXPECTED_OPERATIONS = {
     ("get", "/api/v1/site/contact"),
     ("get", "/api/v1/terms/{term_type}"),
     ("get", "/api/v1/contents/{slug}"),
+    ("get", "/api/v1/boards/{board}/posts"),
+    ("get", "/api/v1/posts/{post_id}"),
+    ("get", "/api/v1/files/{file_id}"),
     ("put", "/api/v1/me/profile"),
     ("put", "/api/v1/me/password"),
     ("post", "/api/v1/me/withdraw"),
@@ -289,3 +292,24 @@ def test_비밀번호_변경_재설정_탈퇴_요청은_새_비밀번호_길이�
         assert (prop["minLength"], prop["maxLength"]) == (10, 64), name
     assert set(schemas["WithdrawalRequest"]["properties"]) == {"password", "reason"}
     assert schemas["WithdrawalReason"]["enum"] == ["NO_COURSE", "DIFFICULT", "OTHER"]
+
+
+def test_게시판은_7개_키로_조회하고_게시물은_목록과_상세로_나눈다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert schemas["BoardKey"]["enum"] == ["notice", "news", "resources", "gallery", "faq", "qna", "review"]
+    summary = schemas["PostSummary"]["properties"]
+    # 상단공지 구분(pinned), 자료실의 '자료 보기'(primaryFile), 갤러리 썸네일, FAQ 본문(body)을
+    # 목록이 바로 담는다.
+    assert {"postId", "board", "title", "publishedAt", "pinned", "body", "primaryFile", "thumbnail"} <= set(
+        summary
+    )
+    detail = schemas["PostDetail"]["properties"]
+    assert {"body", "facts", "attachments", "images"} <= set(detail)
+    list_params = {p["name"] for p in spec["paths"]["/api/v1/boards/{board}/posts"]["get"]["parameters"]}
+    assert {"q", "page", "size"} <= list_params
+
+
+def test_첨부_다운로드는_이진_응답이고_없는_파일은_404다(spec: Schema) -> None:
+    operation = spec["paths"]["/api/v1/files/{file_id}"]["get"]
+    assert "application/octet-stream" in operation["responses"]["200"]["content"]
+    assert "404" in operation["responses"]

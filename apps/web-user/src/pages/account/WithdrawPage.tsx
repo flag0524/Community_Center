@@ -3,7 +3,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { withdraw } from '../../api/member';
-import { sessionQuery } from '../../api/queries';
 import { FormMessage } from '../../components/FormMessage';
 import { TextField } from '../../components/TextField';
 import { ServicePage } from '../../layout/SubLayout';
@@ -33,9 +32,8 @@ export function WithdrawPage() {
       withdraw({ password, reason: reason === '' ? null : (reason as 'NO_COURSE' | 'DIFFICULT' | 'OTHER') }),
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: ['me'] });
-      // 세션이 사라지면 이 화면(로그인 필요)은 로그인으로 돌려보내므로, 로그인이 필요 없는 완료 화면으로 먼저 옮긴다.
+      // 세션이 사라지면 이 화면(로그인 필요)은 로그인으로 돌려보낸다. 세션 갱신은 완료 화면이 뜬 뒤에 하도록 그쪽에 맡긴다.
       navigate('/withdraw/done', { replace: true });
-      void queryClient.invalidateQueries({ queryKey: sessionQuery.queryKey });
     },
     onError: () => setConfirming(false),
     onSettled: () => {

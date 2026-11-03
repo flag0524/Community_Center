@@ -2,6 +2,7 @@
 import { HttpResponse, http } from 'msw';
 import { applicationHandlers } from './applications';
 import { authHandlers } from './auth';
+import { boardHandlers } from './board';
 import { mockNow } from './clock';
 import { CONTENTS } from './contents';
 import {
@@ -29,6 +30,7 @@ const toNumber = (value: string | null): number | undefined => {
 export const handlers = [
   ...authHandlers,
   ...applicationHandlers,
+  ...boardHandlers,
   http.get('/api/v1/home', () => HttpResponse.json(buildHome(mockNow()))),
   http.get('/api/v1/site/contact', () => HttpResponse.json(contact)),
   http.get('/api/v1/contents/:slug', ({ params }) => {

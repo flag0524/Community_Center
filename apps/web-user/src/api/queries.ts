@@ -18,6 +18,10 @@ export type ApplyPreview = Schemas['ApplyPreview'];
 export type Application = Schemas['Application'];
 export type PaymentMethod = Schemas['PaymentMethod'];
 export type MemberProfile = Schemas['MemberProfile'];
+export type BoardKey = Schemas['BoardKey'];
+export type PostPage = Schemas['PostPage'];
+export type PostSummary = Schemas['PostSummary'];
+export type PostDetail = Schemas['PostDetail'];
 export type ApplicationPage = Schemas['ApplicationPage'];
 export type Receipt = Schemas['Receipt'];
 export type RefundPreview = Schemas['RefundPreview'];
@@ -132,3 +136,16 @@ export const profileQuery = queryOptions({
   queryKey: ['me', 'profile'],
   queryFn: ({ signal }) => getJson<MemberProfile>('/me/profile', signal),
 });
+
+export const postListQuery = (board: BoardKey, params: { q?: string; page?: number }) =>
+  queryOptions({
+    queryKey: ['boards', board, 'list', params],
+    queryFn: ({ signal }) =>
+      getJson<PostPage>(`/boards/${board}/posts${toQueryString({ q: params.q, page: params.page && params.page > 1 ? params.page : undefined })}`, signal),
+  });
+
+export const postQuery = (postId: string) =>
+  queryOptions({
+    queryKey: ['posts', postId],
+    queryFn: ({ signal }) => getJson<PostDetail>(`/posts/${encodeURIComponent(postId)}`, signal),
+  });
