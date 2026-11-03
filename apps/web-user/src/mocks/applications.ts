@@ -4,6 +4,7 @@ import { HttpResponse, http } from 'msw';
 import { apiError, csrfRejected, currentMockMember } from './auth';
 import { mockNow } from './clock';
 import { buildCourseSummary, findCourseSeed } from './fixtures';
+import { mockPayOutcome } from './payOutcome';
 
 type Application = Schemas['Application'];
 type ApplyPreview = Schemas['ApplyPreview'];
@@ -17,12 +18,23 @@ interface StoredApplication {
   application: Application;
 }
 
+interface StoredPayment {
+  paymentId: string;
+  orderNo: string;
+  memberId: string;
+  applicationId: string;
+  amount: number;
+  idempotencyKey: string;
+}
+
 interface MockApplicationState {
   items: Map<string, StoredApplication>;
   seq: number;
+  payments: Map<string, StoredPayment>; // 주문번호로 찾는다
+  paymentSeq: number;
 }
 
-const initialState = (): MockApplicationState => ({ items: new Map(), seq: 0 });
+const initialState = (): MockApplicationState => ({ items: new Map(), seq: 0, payments: new Map(), paymentSeq: 0 });
 let state = initialState();
 
 /** 시험 사이에 신청 내역을 비운다. */
@@ -60,6 +72,21 @@ function buildPreview(courseId: string, memberId: string, now: Date): ApplyPrevi
   };
 }
 
+const paymentSerialOf = (seq: number) => String(3_000_000_000_000_000_000_000n + BigInt(seq));
+
+/** 결제기한이 지난 결제 대기·결제 실패 신청을 만료로 바꾼다. 서버가 시각으로 판정하는 부분이다. */
+function syncExpiry(stored: StoredApplication, now: Date): Application {
+  const current = stored.application;
+  const open = current.displayState === 'PAYMENT_DUE' || current.displayState === 'PAYMENT_FAILED';
+  if (open && current.paymentDeadline && now.getTime() > new Date(current.paymentDeadline).getTime()) {
+    stored.application = { ...current, status: 'EXPIRED', displayState: 'EXPIRED', canPay: false, canCancel: false };
+  }
+  return stored.application;
+}
+
+function expire(stored: StoredApplication): void {
+  stored.application = { ...stored.application, status: 'EXPIRED', displayState: 'EXPIRED', canPay: false, canCancel: false };
+}
 function createApplication(courseId: string, memberId: string, now: Date): Application {
   const seed = findCourseSeed(courseId)!;
   const course = buildCourseSummary(seed, now);
@@ -68,6 +95,7 @@ function createApplication(courseId: string, memberId: string, now: Date): Appli
     applicationId: serialOf(state.seq),
     course,
     paymentStatus: null,
+    paymentId: null,
     fee: seed.fee,
     reductionAmount: 0,
     payableAmount: seed.fee,
@@ -154,7 +182,91 @@ export const applicationHandlers = [
     const found = state.items.get(String(params.applicationId));
     // 남의 신청은 없는 것과 같게 404로 답한다.
     return found && found.memberId === member.memberId
-      ? HttpResponse.json({ ...found.application, serverNow: mockNow().toISOString() })
+      ? HttpResponse.json({ ...syncExpiry(found, mockNow()), serverNow: mockNow().toISOString() })
       : apiError('NOT_FOUND');
   }),
-];
+
+  http.post('/api/v1/me/applications/:applicationId/payments', async ({ request, params }) => {
+    const member = currentMockMember();
+    if (!member) return apiError('UNAUTHENTICATED');
+    if (csrfRejected(request)) return apiError('FORBIDDEN');
+    const key = request.headers.get('Idempotency-Key');
+    if (!key) return apiError('VALIDATION_FAILED', { 'Idempotency-Key': '멱등키가 필요합니다.' });
+    const found = state.items.get(String(params.applicationId));
+    if (!found || found.memberId !== member.memberId) return apiError('NOT_FOUND');
+    const { method } = (await request.json()) as Schemas['PaymentRequestCreate'];
+
+    const now = mockNow();
+    const application = syncExpiry(found, now);
+    // 같은 키로 다시 요청하면 새로 만들지 않고 이전 결제 요청을 돌려준다. 기한은 늘어나지 않는다.
+    const previous = [...state.payments.values()].find((item) => item.idempotencyKey === key);
+    if (!previous) {
+      if (application.displayState === 'PAYMENT_UNKNOWN') return apiError('PAY_RESULT_PENDING');
+      if (application.displayState === 'EXPIRED') return apiError('PAY_DEADLINE_EXPIRED');
+      if (!application.canPay) return apiError('PAY_NOT_PAYABLE');
+    }
+    const payment =
+      previous ??
+      (() => {
+        state.paymentSeq += 1;
+        const created: StoredPayment = {
+          paymentId: paymentSerialOf(state.paymentSeq),
+          orderNo: `MOCK-${String(state.paymentSeq).padStart(6, '0')}`,
+          memberId: member.memberId,
+          applicationId: application.applicationId,
+          amount: application.payableAmount,
+          idempotencyKey: key,
+        };
+        state.payments.set(created.orderNo, created);
+        return created;
+      })();
+    return HttpResponse.json(
+      {
+        serverNow: now.toISOString(),
+        paymentId: payment.paymentId,
+        orderNo: payment.orderNo,
+        amount: payment.amount,
+        method,
+        deadline: application.paymentDeadline!,
+        gateway: 'mock',
+        gatewayParams: {},
+      },
+      { status: 201 },
+    );
+  }),
+
+  http.post('/api/v1/payments/confirm', async ({ request }) => {
+    const member = currentMockMember();
+    if (!member) return apiError('UNAUTHENTICATED');
+    if (csrfRejected(request)) return apiError('FORBIDDEN');
+    const body = (await request.json()) as Schemas['PaymentConfirmRequest'];
+    const payment = state.payments.get(body.orderNo);
+    const found = payment ? state.items.get(payment.applicationId) : undefined;
+    if (!payment || !found || found.memberId !== member.memberId) return apiError('NOT_FOUND');
+    // 금액은 저장한 값과 대조만 한다. 브라우저가 보낸 값으로 정하지 않는다.
+    if (body.amount !== payment.amount) return apiError('PAY_AMOUNT_MISMATCH');
+
+    const now = mockNow();
+    const outcome = mockPayOutcome();
+    const application = syncExpiry(found, now);
+    if (application.displayState === 'PAYMENT_UNKNOWN') return apiError('PAY_RESULT_PENDING');
+    if (outcome === 'expired' || application.displayState === 'EXPIRED') {
+      expire(found);
+      return apiError('PAY_DEADLINE_EXPIRED');
+    }
+
+    const settled =
+      outcome === 'success'
+        ? { status: 'CONFIRMED', displayState: 'CONFIRMED', paymentStatus: 'PAID', canPay: false, canCancel: true, canRequestRefund: true }
+        : outcome === 'failed'
+          ? { status: 'HOLD', displayState: 'PAYMENT_FAILED', paymentStatus: 'FAILED', canPay: true, canCancel: true, canRequestRefund: false }
+          : { status: 'HOLD', displayState: 'PAYMENT_UNKNOWN', paymentStatus: 'PENDING', canPay: false, canCancel: false, canRequestRefund: false };
+    found.application = { ...application, ...settled, paymentId: payment.paymentId } as Application;
+    return HttpResponse.json({
+      serverNow: now.toISOString(),
+      paymentId: payment.paymentId,
+      status: settled.paymentStatus,
+      applicationId: application.applicationId,
+      applicationDisplayState: settled.displayState,
+    });
+  }),];

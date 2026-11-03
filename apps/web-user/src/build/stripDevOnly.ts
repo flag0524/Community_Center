@@ -6,7 +6,7 @@ import { join, relative, sep } from 'node:path';
 export const DEV_ONLY_PATHS = ['dev-assets', 'mockServiceWorker.js'];
 
 // 번들에 이 문자열이 있으면 모의 서버나 시계 조절 기능이 운영 빌드에 섞인 것이다.
-export const DEV_ONLY_MARKERS = ['mockServiceWorker', 'mockNow', 'setupWorker', 'Demo-pass-2026'];
+export const DEV_ONLY_MARKERS = ['mockServiceWorker', 'mockNow', 'mockPay', 'setupWorker', 'Demo-pass-2026'];
 
 const SCANNED = /\.(js|mjs|html)$/;
 

@@ -76,6 +76,10 @@ const MESSAGES: Partial<Record<ErrorCode, string>> = {
   IDEMPOTENCY_CONFLICT: '같은 요청 키로 다른 내용이 전달되었습니다.',
   APLY_RCPT_CLOSED: '접수기간이 아닙니다.',
   APLY_ALREADY_APPLIED: '이미 신청한 강좌입니다.',
+  PAY_NOT_PAYABLE: '결제할 수 없는 신청입니다.',
+  PAY_DEADLINE_EXPIRED: '결제기한이 지났습니다.',
+  PAY_RESULT_PENDING: '결제 결과를 확인 중입니다. 확인이 끝날 때까지 기다려 주세요.',
+  PAY_AMOUNT_MISMATCH: '결제 금액이 일치하지 않습니다.',
 };
 
 const STATUS: Partial<Record<ErrorCode, number>> = {
@@ -92,6 +96,10 @@ const STATUS: Partial<Record<ErrorCode, number>> = {
   IDEMPOTENCY_CONFLICT: 409,
   APLY_RCPT_CLOSED: 422,
   APLY_ALREADY_APPLIED: 422,
+  PAY_NOT_PAYABLE: 422,
+  PAY_DEADLINE_EXPIRED: 422,
+  PAY_RESULT_PENDING: 422,
+  PAY_AMOUNT_MISMATCH: 422,
 };
 
 export function apiError(code: ErrorCode, fields?: Record<string, string>) {

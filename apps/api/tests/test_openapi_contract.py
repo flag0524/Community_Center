@@ -228,3 +228,10 @@ def test_강좌_목록_기준에는_교육기수를_담고_상세에는_기수�
 
 def test_환불_접수_모델에는_금액_필드가_없다(spec: Schema) -> None:
     assert set(spec["components"]["schemas"]["RefundCreate"]["properties"]) == {"applicationId", "reason"}
+
+
+def test_신청은_영수증_조회에_쓸_결제_일련번호를_가진다(spec: Schema) -> None:
+    summary = spec["components"]["schemas"]["ApplicationSummary"]["properties"]
+    # 영수증 API는 결제 번호로 조회한다. 신청 응답에 없으면 화면이 영수증 링크를 만들 수 없다.
+    assert "paymentId" in summary
+    assert "x-serial" in str(summary["paymentId"])

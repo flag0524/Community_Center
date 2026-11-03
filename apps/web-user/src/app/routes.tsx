@@ -11,6 +11,8 @@ import { CourseDetailPage } from '../pages/courses/CourseDetailPage';
 import { CourseListPage } from '../pages/courses/CourseListPage';
 import { CoursePlanPage } from '../pages/courses/CoursePlanPage';
 import { Home } from '../pages/Home';
+import { PaymentPage } from '../pages/payment/PaymentPage';
+import { PaymentResultPage } from '../pages/payment/PaymentResultPage';
 import { JoinCompletePage } from '../pages/member/JoinCompletePage';
 import { JoinFlowLayout } from '../pages/member/JoinFlow';
 import { JoinInfoPage } from '../pages/member/JoinInfoPage';
@@ -79,6 +81,24 @@ export const routes: RouteObject[] = [
         element: (
           <RequireLogin>
             <ApplicationDonePage />
+          </RequireLogin>
+        ),
+        handle: SERVICE_PAGE_HANDLE,
+      },
+      {
+        path: 'payment/:applicationId',
+        element: (
+          <RequireLogin>
+            <PaymentPage />
+          </RequireLogin>
+        ),
+        handle: SERVICE_PAGE_HANDLE,
+      },
+      {
+        path: 'payment/:applicationId/result',
+        element: (
+          <RequireLogin>
+            <PaymentResultPage />
           </RequireLogin>
         ),
         handle: SERVICE_PAGE_HANDLE,

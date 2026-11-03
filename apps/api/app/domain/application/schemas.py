@@ -38,6 +38,9 @@ class ApplicationSummary(ApiModel):
     display_state: ApplicationDisplayState
     waiting_rank: int | None = Field(default=None, ge=1, description="대기 순번. 대기 상태에서만 값이 있다.")
     payment_status: PaymentStatus | None = None
+    payment_id: SerialId | None = Field(
+        default=None, description="가장 최근 결제 일련번호. 영수증 조회에 쓴다."
+    )
     fee: Won
     reduction_amount: Won
     payable_amount: Won

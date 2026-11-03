@@ -14,6 +14,7 @@ export type CoursePlan = Schemas['CoursePlan'];
 
 export type ApplyPreview = Schemas['ApplyPreview'];
 export type Application = Schemas['Application'];
+export type PaymentMethod = Schemas['PaymentMethod'];
 export type SessionInfo = Schemas['SessionInfo'];
 export type TermDocument = Schemas['TermDocument'];
 export type TermType = Schemas['TermType'];
