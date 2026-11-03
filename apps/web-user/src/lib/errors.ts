@@ -8,3 +8,8 @@ export function errorMessage(error: unknown): string {
   if (error instanceof ApiRequestError) return error.body?.message ?? error.message;
   return NETWORK_ERROR_MESSAGE;
 }
+
+/** 서버가 필드 이름으로 돌려준 검증 오류. 없으면 빈 객체다. */
+export function fieldErrors(error: unknown): Record<string, string> {
+  return error instanceof ApiRequestError ? (error.body?.fields ?? {}) : {};
+}

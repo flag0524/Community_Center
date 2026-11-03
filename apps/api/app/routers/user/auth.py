@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, Query, Response
 
 from app.core.errors import ErrorCode, not_implemented
 from app.domain.member.schemas import (
+    FindIdRequest,
+    FindIdResult,
     JoinRequest,
     LoginIdCheck,
     LoginRequest,
@@ -13,6 +15,7 @@ from app.domain.member.schemas import (
     OtpRequest,
     OtpVerifyRequest,
     OtpVerifyResult,
+    PasswordResetRequest,
     SessionInfo,
 )
 from app.routers.deps import PUBLIC_ERRORS, csrf_header, error_responses
@@ -69,4 +72,20 @@ def check_login_id(
     dependencies=[Depends(csrf_header)],
 )
 def join(body: JoinRequest) -> MemberBrief:
+    not_implemented()
+
+
+@router.post("/auth/find-id", responses=OTP_ERRORS, dependencies=[Depends(csrf_header)])
+def find_id(body: FindIdRequest) -> FindIdResult:
+    not_implemented()
+
+
+@router.post(
+    "/auth/password-reset",
+    status_code=204,
+    response_class=Response,
+    responses=OTP_ERRORS,
+    dependencies=[Depends(csrf_header)],
+)
+def reset_password(body: PasswordResetRequest) -> None:
     not_implemented()

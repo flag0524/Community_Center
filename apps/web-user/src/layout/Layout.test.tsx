@@ -162,7 +162,7 @@ describe('임시 화면과 없는 경로', () => {
   });
 
   it('메뉴에 있는 모든 경로가 임시 화면으로 연결되어 있다', () => {
-    for (const path of ['/board/notice', '/instructors/recruit', '/board/gallery', '/me/profile', '/find-id', '/reset-password']) {
+    for (const path of ['/board/notice', '/instructors/recruit', '/board/gallery', '/instructors', '/board/qna', '/board/faq']) {
       const { unmount } = renderApp(path);
       expect(screen.queryByText('페이지를 찾을 수 없습니다')).not.toBeInTheDocument();
       expect(screen.getByText('이 화면은 아직 이식 전입니다.')).toBeInTheDocument();

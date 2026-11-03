@@ -16,8 +16,12 @@ export async function logout(): Promise<void> {
   rememberCsrfToken(null);
 }
 
-export const requestJoinOtp = (phone: string, name: string) =>
-  postJson<OtpIssued>('/auth/otp', { purpose: 'JOIN', phone, name });
+type OtpPurpose = Schemas['OtpPurpose'];
+
+export const requestOtp = (purpose: OtpPurpose, phone: string, name: string, loginId?: string) =>
+  postJson<OtpIssued>('/auth/otp', { purpose, phone, name, ...(loginId ? { loginId } : {}) });
+
+export const requestJoinOtp = (phone: string, name: string) => requestOtp('JOIN', phone, name);
 
 export const verifyOtp = (certRequestId: string, code: string) =>
   postJson<OtpVerifyResult>('/auth/otp/verify', { certRequestId, code });
@@ -26,3 +30,12 @@ export const checkLoginId = (loginId: string) =>
   getJson<Schemas['LoginIdCheck']>(`/join/check-id?loginId=${encodeURIComponent(loginId)}`);
 
 export const join = (body: JoinRequest) => postJson<MemberBrief>('/join', body);
+
+export const findId = (certRequestId: string, code: string) =>
+  postJson<Schemas['FindIdResult']>('/auth/find-id', { certRequestId, code });
+
+export async function resetPassword(body: Schemas['PasswordResetRequest']): Promise<void> {
+  await postJson('/auth/password-reset', body);
+  // 서버가 기존 세션을 모두 끊고 토큰을 바꾼다. 다음 요청 때 세션에서 새로 받는다.
+  rememberCsrfToken(null);
+}

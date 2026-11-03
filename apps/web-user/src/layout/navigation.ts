@@ -76,8 +76,6 @@ export const FOOTER_LINKS: NavLinkItem[] = [
 
 // 아직 화면을 옮기지 않은 경로. 이식이 끝나면 이 목록에서 빠지고 실제 라우트가 대신한다.
 export const EXTRA_PLACEHOLDERS: NavLinkItem[] = [
-  { label: '아이디 찾기', to: '/find-id' },
-  { label: '비밀번호 찾기', to: '/reset-password' },
   { label: '공지사항 상세', to: '/board/notice/:postId' },
   { label: '갤러리 상세', to: '/board/gallery/:postId' },
 ];

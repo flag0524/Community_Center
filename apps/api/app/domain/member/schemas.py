@@ -4,7 +4,7 @@ from datetime import date
 from pydantic import AwareDatetime, Field
 
 from app.core.schema import ApiModel, SerialId, ServerTimed
-from app.domain.member.types import OtpPurpose, TermType
+from app.domain.member.types import OtpPurpose, ResidenceDeclared, ResidenceStatus, TermType, WithdrawalReason
 
 PHONE_PATTERN = r"^01[0-9]{8,9}$"
 EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
@@ -81,6 +81,8 @@ class MemberProfile(ApiModel):
     email: str | None = None
     phone_masked: str | None = None
     joined_on: date
+    residence_declared: ResidenceDeclared | None = None
+    residence_status: ResidenceStatus
 
 
 class TermDocument(ApiModel):
@@ -89,3 +91,40 @@ class TermDocument(ApiModel):
     title: str
     body: str
     effective_on: date | None = None
+
+
+class ProfileUpdate(ApiModel):
+    email: str = Field(max_length=254, pattern=EMAIL_PATTERN)
+    residence_declared: ResidenceDeclared | None = None
+
+
+class PasswordChange(ApiModel):
+    current_password: str = Field(min_length=1, max_length=64)
+    new_password: str = Field(min_length=10, max_length=64)
+
+
+class FindIdRequest(ApiModel):
+    """OTP(목적 ID_FIND)를 확인한 뒤 같은 인증 요청 번호와 코드로 결과를 받는다."""
+
+    cert_request_id: SerialId
+    code: str = Field(pattern=r"^[0-9]{6}$")
+
+
+class FindIdResult(ApiModel):
+    masked_login_id: str | None = Field(
+        default=None, description="앞 2글자만 보이는 아이디. 일치하는 회원이 없으면 null(FN-061)."
+    )
+
+
+class PasswordResetRequest(ApiModel):
+    """OTP(목적 PASSWORD_RESET)를 확인한 뒤 새 비밀번호를 정한다. 성공하면 기존 세션이 모두 끊긴다."""
+
+    cert_request_id: SerialId
+    code: str = Field(pattern=r"^[0-9]{6}$")
+    login_id: str = Field(min_length=1, max_length=64)
+    new_password: str = Field(min_length=10, max_length=64)
+
+
+class WithdrawalRequest(ApiModel):
+    password: str = Field(min_length=1, max_length=64)
+    reason: WithdrawalReason | None = None

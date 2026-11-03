@@ -17,6 +17,7 @@ export type ContentSlug = Schemas['ContentSlug'];
 export type ApplyPreview = Schemas['ApplyPreview'];
 export type Application = Schemas['Application'];
 export type PaymentMethod = Schemas['PaymentMethod'];
+export type MemberProfile = Schemas['MemberProfile'];
 export type ApplicationPage = Schemas['ApplicationPage'];
 export type Receipt = Schemas['Receipt'];
 export type RefundPreview = Schemas['RefundPreview'];
@@ -126,3 +127,8 @@ export const contentQuery = (slug: ContentSlug) =>
     queryFn: ({ signal }) => getJson<ContentDocument>(`/contents/${slug}`, signal),
     staleTime: 5 * 60 * 1000,
   });
+
+export const profileQuery = queryOptions({
+  queryKey: ['me', 'profile'],
+  queryFn: ({ signal }) => getJson<MemberProfile>('/me/profile', signal),
+});

@@ -25,10 +25,21 @@ const OTP_RESEND_SECONDS = 60;
 const IDLE_TIMEOUT_SECONDS = 1800;
 
 interface Cert {
+  purpose: Schemas['OtpPurpose'];
+  phone: string;
+  loginId: string | null;
   name: string;
   failures: number;
   verified: boolean;
   issuedAt: number;
+}
+
+interface MockProfile {
+  name: string;
+  phone: string;
+  email: string;
+  residenceDeclared: Schemas['ResidenceDeclared'] | null;
+  joinedOn: string;
 }
 
 interface MockAuthState {
@@ -37,11 +48,18 @@ interface MockAuthState {
   loginFailures: Map<string, number>;
   certs: Map<string, Cert>;
   certSeq: number;
-  lastOtpAt: number | null;
+  lastOtpAt: Map<Schemas['OtpPurpose'], number>; // 재전송 제한은 본인확인 흐름(목적)마다 센다
   members: Map<string, MemberBrief>;
   passwords: Map<string, string>;
+  profiles: Map<string, MockProfile>;
   memberSeq: number;
 }
+
+/** 탈퇴를 막는 규칙. 신청 모의 서버가 진행 중인 신청이 있으면 사유를 돌려준다. */
+const withdrawalGuards: Array<(memberId: string) => string | null> = [];
+export const registerWithdrawalGuard = (guard: (memberId: string) => string | null) => {
+  withdrawalGuards.push(guard);
+};
 
 const initialState = (): MockAuthState => ({
   csrfSeq: 1,
@@ -49,9 +67,12 @@ const initialState = (): MockAuthState => ({
   loginFailures: new Map(),
   certs: new Map(),
   certSeq: 0,
-  lastOtpAt: null,
+  lastOtpAt: new Map(),
   members: new Map([[DEMO.loginId, { ...DEMO.member }]]),
   passwords: new Map([[DEMO.loginId, DEMO.password]]),
+  profiles: new Map([
+    [DEMO.loginId, { name: DEMO.member.name, phone: '01000000000', email: 'demo@example.invalid', residenceDeclared: null, joinedOn: '2026-09-01' }],
+  ]),
   memberSeq: 1,
 });
 
@@ -72,6 +93,7 @@ const MESSAGES: Partial<Record<ErrorCode, string>> = {
   OTP_EXPIRED: '인증번호 유효시간이 지났습니다. 다시 요청해 주세요.',
   OTP_RESEND_TOO_SOON: '인증번호는 잠시 후 다시 요청할 수 있습니다.',
   JOIN_LOGIN_ID_TAKEN: '이미 사용 중인 아이디입니다.',
+  RULE_REJECTED: '요청을 처리할 수 없습니다.',
   UNAUTHENTICATED: '로그인이 필요합니다.',
   IDEMPOTENCY_CONFLICT: '같은 요청 키로 다른 내용이 전달되었습니다.',
   APLY_RCPT_CLOSED: '접수기간이 아닙니다.',
@@ -95,6 +117,7 @@ const STATUS: Partial<Record<ErrorCode, number>> = {
   OTP_EXPIRED: 422,
   OTP_RESEND_TOO_SOON: 429,
   JOIN_LOGIN_ID_TAKEN: 422,
+  RULE_REJECTED: 422,
   UNAUTHENTICATED: 401,
   IDEMPOTENCY_CONFLICT: 409,
   APLY_RCPT_CLOSED: 422,
@@ -137,6 +160,21 @@ const serialOf = (seq: number) => String(1_000_000_000_000_000_000_000n + BigInt
 const PHONE = /^01[0-9]{8,9}$/;
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+const maskPhone = (digits: string) => digits.replace(/^(01[0-9])([0-9]{3,4})([0-9]{4})$/, '$1-****-$3');
+
+function profileBody(member: MemberBrief): Schemas['MemberProfile'] {
+  const profile = state.profiles.get(member.loginId)!;
+  return {
+    memberId: member.memberId,
+    name: profile.name,
+    loginId: member.loginId,
+    email: profile.email,
+    phoneMasked: maskPhone(profile.phone),
+    joinedOn: profile.joinedOn,
+    residenceDeclared: profile.residenceDeclared,
+    residenceStatus: 'UNVERIFIED',
+  };
+}
 export const authHandlers = [
   http.get('/api/v1/auth/session', () => HttpResponse.json(sessionBody())),
 
@@ -168,13 +206,22 @@ export const authHandlers = [
     const body = (await request.json()) as OtpRequest;
     if (!PHONE.test(body.phone)) return apiError('VALIDATION_FAILED', { phone: '휴대전화 번호 형식을 확인해 주세요.' });
     const now = Date.now();
-    if (state.lastOtpAt !== null && now - state.lastOtpAt < OTP_RESEND_SECONDS * 1000) {
+    const last = state.lastOtpAt.get(body.purpose);
+    if (last !== undefined && now - last < OTP_RESEND_SECONDS * 1000) {
       return apiError('OTP_RESEND_TOO_SOON');
     }
-    state.lastOtpAt = now;
+    state.lastOtpAt.set(body.purpose, now);
     state.certSeq += 1;
     const certRequestId = serialOf(state.certSeq);
-    state.certs.set(certRequestId, { name: body.name ?? DEMO.member.name, failures: 0, verified: false, issuedAt: now });
+    state.certs.set(certRequestId, {
+      purpose: body.purpose,
+      phone: body.phone,
+      loginId: body.loginId ?? null,
+      name: body.name ?? DEMO.member.name,
+      failures: 0,
+      verified: false,
+      issuedAt: now,
+    });
     return HttpResponse.json({
       certRequestId,
       expiresAt: new Date(now + OTP_VALID_SECONDS * 1000).toISOString(),
@@ -216,6 +263,13 @@ export const authHandlers = [
     const member: MemberBrief = { memberId: serialOf(1000 + state.memberSeq), name: cert.name, loginId: body.loginId };
     state.members.set(body.loginId, member);
     state.passwords.set(body.loginId, body.password);
+    state.profiles.set(body.loginId, {
+      name: cert.name,
+      phone: cert.phone,
+      email: body.email,
+      residenceDeclared: null,
+      joinedOn: new Date().toISOString().slice(0, 10),
+    });
     state.certs.delete(body.certRequestId);
     return HttpResponse.json(member, { status: 201 });
   }),
@@ -224,4 +278,80 @@ export const authHandlers = [
     const term = TERMS[String(params.termType) as keyof typeof TERMS];
     return term ? HttpResponse.json(term) : apiError('NOT_FOUND');
   }),
-];
+
+  http.post('/api/v1/auth/find-id', async ({ request }) => {
+    if (csrfRejected(request)) return apiError('FORBIDDEN');
+    const { certRequestId, code } = (await request.json()) as Schemas['FindIdRequest'];
+    const cert = state.certs.get(certRequestId);
+    if (!cert?.verified || cert.purpose !== 'ID_FIND' || code !== DEMO.otpCode) return apiError('OTP_INVALID');
+    const found = [...state.profiles.entries()].find(([, profile]) => profile.name === cert.name && profile.phone === cert.phone);
+    // 앞 2글자만 보인다. 일치하는 회원이 없으면 null로 답한다(FN-061).
+    return HttpResponse.json({ maskedLoginId: found ? found[0].slice(0, 2) + '*'.repeat(found[0].length - 2) : null });
+  }),
+
+  http.post('/api/v1/auth/password-reset', async ({ request }) => {
+    if (csrfRejected(request)) return apiError('FORBIDDEN');
+    const body = (await request.json()) as Schemas['PasswordResetRequest'];
+    const cert = state.certs.get(body.certRequestId);
+    if (!cert?.verified || cert.purpose !== 'PASSWORD_RESET' || body.code !== DEMO.otpCode) return apiError('OTP_INVALID');
+    if (body.newPassword.length < 10) return apiError('VALIDATION_FAILED', { newPassword: '비밀번호는 10자 이상이어야 합니다.' });
+    const profile = state.profiles.get(body.loginId);
+    if (!profile || profile.name !== cert.name || profile.phone !== cert.phone || cert.loginId !== body.loginId) {
+      return apiError('VALIDATION_FAILED', { loginId: '입력하신 정보와 일치하는 회원이 없습니다.' });
+    }
+    state.passwords.set(body.loginId, body.newPassword);
+    state.certs.delete(body.certRequestId);
+    // 기존 세션을 모두 끊는다.
+    state.member = null;
+    rotateCsrf();
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.get('/api/v1/me/profile', () => {
+    if (!state.member) return apiError('UNAUTHENTICATED');
+    return HttpResponse.json(profileBody(state.member));
+  }),
+
+  http.put('/api/v1/me/profile', async ({ request }) => {
+    if (!state.member) return apiError('UNAUTHENTICATED');
+    if (csrfRejected(request)) return apiError('FORBIDDEN');
+    const body = (await request.json()) as Schemas['ProfileUpdate'];
+    if (!EMAIL.test(body.email)) return apiError('VALIDATION_FAILED', { email: '이메일 형식을 확인해 주세요.' });
+    const profile = state.profiles.get(state.member.loginId)!;
+    profile.email = body.email;
+    profile.residenceDeclared = body.residenceDeclared ?? null;
+    return HttpResponse.json(profileBody(state.member));
+  }),
+
+  http.put('/api/v1/me/password', async ({ request }) => {
+    if (!state.member) return apiError('UNAUTHENTICATED');
+    if (csrfRejected(request)) return apiError('FORBIDDEN');
+    const body = (await request.json()) as Schemas['PasswordChange'];
+    if (state.passwords.get(state.member.loginId) !== body.currentPassword) {
+      return apiError('VALIDATION_FAILED', { currentPassword: '현재 비밀번호가 올바르지 않습니다.' });
+    }
+    if (body.newPassword.length < 10) return apiError('VALIDATION_FAILED', { newPassword: '비밀번호는 10자 이상이어야 합니다.' });
+    state.passwords.set(state.member.loginId, body.newPassword);
+    rotateCsrf();
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.post('/api/v1/me/withdraw', async ({ request }) => {
+    if (!state.member) return apiError('UNAUTHENTICATED');
+    if (csrfRejected(request)) return apiError('FORBIDDEN');
+    const body = (await request.json()) as Schemas['WithdrawalRequest'];
+    if (state.passwords.get(state.member.loginId) !== body.password) {
+      return apiError('VALIDATION_FAILED', { password: '비밀번호가 올바르지 않습니다.' });
+    }
+    for (const guard of withdrawalGuards) {
+      const reason = guard(state.member.memberId);
+      if (reason) return HttpResponse.json({ code: 'RULE_REJECTED', message: reason, fields: null, requestId: 'mock-rule_rejected-0001' }, { status: 422 });
+    }
+    const { loginId } = state.member;
+    state.members.delete(loginId);
+    state.passwords.delete(loginId);
+    state.profiles.delete(loginId);
+    state.member = null;
+    rotateCsrf();
+    return new HttpResponse(null, { status: 204 });
+  }),];

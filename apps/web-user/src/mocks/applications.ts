@@ -1,7 +1,7 @@
 // 수강신청 미리보기·신청·조회를 흉내 내는 모의 서버. 금액·정원·대기순번·결제기한은 서버가 정하고 화면은 따르기만 한다
 import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
-import { apiError, csrfRejected, currentMockMember } from './auth';
+import { apiError, csrfRejected, currentMockMember, registerWithdrawalGuard } from './auth';
 import { mockNow } from './clock';
 import { buildCourseSummary, findCourseSeed } from './fixtures';
 import { mockPayOutcome } from './payOutcome';
@@ -44,6 +44,13 @@ let state = initialState();
 export function resetMockApplications(): void {
   state = initialState();
 }
+
+// 취소·만료되지 않은 신청이나 처리 중인 환불이 있으면 탈퇴할 수 없다.
+registerWithdrawalGuard((memberId) => {
+  const active = forMember(memberId).some(({ application }) => !['CANCELLED', 'EXPIRED'].includes(application.status));
+  const refunding = [...state.refunds.values()].some((item) => item.memberId === memberId && item.refund.stage !== 'DONE' && item.refund.stage !== 'REJECTED');
+  return active || refunding ? '진행 중인 수강신청·결제·환불이 있어 탈퇴할 수 없습니다. 신청 내역을 먼저 확인해 주세요.' : null;
+});
 
 const serialOf = (seq: number) => String(2_000_000_000_000_000_000_000n + BigInt(seq));
 

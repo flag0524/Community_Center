@@ -13,6 +13,12 @@ import { CoursePlanPage } from '../pages/courses/CoursePlanPage';
 import { ContactPage } from '../pages/content/ContactPage';
 import { ContentPage } from '../pages/content/ContentPage';
 import { Home } from '../pages/Home';
+import { ChangePasswordPage } from '../pages/account/ChangePasswordPage';
+import { FindIdPage } from '../pages/account/FindIdPage';
+import { ProfilePage } from '../pages/account/ProfilePage';
+import { ResetPasswordPage } from '../pages/account/ResetPasswordPage';
+import { WithdrawDonePage } from '../pages/account/WithdrawDonePage';
+import { WithdrawPage } from '../pages/account/WithdrawPage';
 import { ApplicationCancelledPage } from '../pages/me/ApplicationCancelledPage';
 import { MyApplicationPage } from '../pages/me/MyApplicationPage';
 import { MyApplicationsPage } from '../pages/me/MyApplicationsPage';
@@ -37,6 +43,9 @@ const IMPLEMENTED_PATHS = new Set([
   '/courses/open',
   '/courses/upcoming',
   '/me/applications',
+  '/me/profile',
+  '/find-id',
+  '/reset-password',
   '/guide/apply',
   '/guide/refund',
   '/center/history',
@@ -86,6 +95,9 @@ export const routes: RouteObject[] = [
       { path: 'center/facility', element: <ContentPage slug="center-facility" groupTitle="센터소개" /> },
       { path: 'center/contact', element: <ContactPage /> },
       { path: 'login', element: <LoginPage />, handle: SERVICE_PAGE_HANDLE },
+      { path: 'find-id', element: <FindIdPage />, handle: SERVICE_PAGE_HANDLE },
+      { path: 'withdraw/done', element: <WithdrawDonePage />, handle: SERVICE_PAGE_HANDLE },
+      { path: 'reset-password', element: <ResetPasswordPage />, handle: SERVICE_PAGE_HANDLE },
       {
         path: 'apply/:courseId',
         element: (
@@ -129,6 +141,9 @@ export const routes: RouteObject[] = [
         ['me/applications/:applicationId/refund', <RefundApplyPage />],
         ['me/receipts/:paymentId', <ReceiptPage />],
         ['me/refunds', <MyRefundsPage />],
+        ['me/profile', <ProfilePage />],
+        ['me/password', <ChangePasswordPage />],
+        ['me/withdraw', <WithdrawPage />],
       ].map(([path, page]) => ({
         path: path as string,
         element: <RequireLogin>{page}</RequireLogin>,

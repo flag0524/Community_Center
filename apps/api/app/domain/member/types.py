@@ -19,3 +19,25 @@ class TermType(StrEnum):
     MARKETING_CONSENT = "MARKETING_CONSENT"
     PRIVACY_POLICY = "PRIVACY_POLICY"
     EMAIL_REFUSAL = "EMAIL_REFUSAL"
+
+
+class ResidenceDeclared(StrEnum):
+    """회원이 직접 고른 거주지역(자가 입력). 센터 확인 거주구분(HAB_RGN_CD)과 달라 우선접수에 쓰지 않는다."""
+
+    JORI = "JORI"
+    OTHER_PAJU = "OTHER_PAJU"
+
+
+class ResidenceStatus(StrEnum):
+    """센터의 거주지 확인 상태. 확인은 센터가 하며 회원이 바꿀 수 없다(HAB_IDNTY_STTS_CD)."""
+
+    UNVERIFIED = "UNVERIFIED"
+    VERIFIED = "VERIFIED"
+
+
+class WithdrawalReason(StrEnum):
+    """탈퇴 사유(선택). 화면의 선택지와 같다."""
+
+    NO_COURSE = "NO_COURSE"
+    DIFFICULT = "DIFFICULT"
+    OTHER = "OTHER"

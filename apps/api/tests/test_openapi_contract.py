@@ -14,6 +14,11 @@ EXPECTED_OPERATIONS = {
     ("get", "/api/v1/site/contact"),
     ("get", "/api/v1/terms/{term_type}"),
     ("get", "/api/v1/contents/{slug}"),
+    ("put", "/api/v1/me/profile"),
+    ("put", "/api/v1/me/password"),
+    ("post", "/api/v1/me/withdraw"),
+    ("post", "/api/v1/auth/find-id"),
+    ("post", "/api/v1/auth/password-reset"),
     ("get", "/api/v1/categories"),
     ("get", "/api/v1/courses"),
     ("get", "/api/v1/courses/{course_id}"),
@@ -259,3 +264,28 @@ def test_안내_콘텐츠는_이름_붙은_문서로_절_단위로_내려준다(
     assert {"heading", "paragraphs", "steps", "items", "table", "links"} <= set(section)
     operation = spec["paths"]["/api/v1/contents/{slug}"]["get"]
     assert "404" in operation["responses"]
+
+
+def test_거주지는_본인_입력과_센터_확인_상태를_구분한다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    profile = schemas["MemberProfile"]["properties"]
+    # 스키마 설계안은 확인된 거주구분(HAB_RGN_CD)과 회원의 자가 입력을 구분한다.
+    # 자가 입력만으로 우선접수를 판정하지 않는다.
+    assert {"residenceDeclared", "residenceStatus"} <= set(profile)
+    assert set(schemas["ProfileUpdate"]["properties"]) == {"email", "residenceDeclared"}
+    assert schemas["ResidenceStatus"]["enum"] == ["UNVERIFIED", "VERIFIED"]
+
+
+def test_아이디_찾기_결과는_마스킹된_값만_내려준다(spec: Schema) -> None:
+    result = spec["components"]["schemas"]["FindIdResult"]["properties"]
+    assert set(result) == {"maskedLoginId"}
+    assert "loginId" not in result
+
+
+def test_비밀번호_변경_재설정_탈퇴_요청은_새_비밀번호_길이를_제한한다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    for name, field in [("PasswordChange", "newPassword"), ("PasswordResetRequest", "newPassword")]:
+        prop = schemas[name]["properties"][field]
+        assert (prop["minLength"], prop["maxLength"]) == (10, 64), name
+    assert set(schemas["WithdrawalRequest"]["properties"]) == {"password", "reason"}
+    assert schemas["WithdrawalReason"]["enum"] == ["NO_COURSE", "DIFFICULT", "OTHER"]

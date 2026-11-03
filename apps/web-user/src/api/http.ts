@@ -50,15 +50,13 @@ export function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   return request<T>(path, { headers: { Accept: 'application/json' }, signal });
 }
 
-export async function postJson<T = null>(
-  path: string,
-  body?: unknown,
-  options: { signal?: AbortSignal; headers?: Record<string, string> } = {},
-): Promise<T> {
+type SendOptions = { signal?: AbortSignal; headers?: Record<string, string> };
+
+async function sendJson<T>(method: 'POST' | 'PUT', path: string, body: unknown, options: SendOptions): Promise<T> {
   const { signal, headers } = options;
   if (csrfToken === null) await getJson('/auth/session', signal);
   return request<T>(path, {
-    method: 'POST',
+    method,
     headers: {
       Accept: 'application/json',
       ...headers,
@@ -69,3 +67,9 @@ export async function postJson<T = null>(
     signal,
   });
 }
+
+export const postJson = <T = null>(path: string, body?: unknown, options: SendOptions = {}) =>
+  sendJson<T>('POST', path, body, options);
+
+export const putJson = <T = null>(path: string, body?: unknown, options: SendOptions = {}) =>
+  sendJson<T>('PUT', path, body, options);
