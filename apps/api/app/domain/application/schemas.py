@@ -6,6 +6,7 @@ from app.core.schema import ApiModel, Page, SerialId, ServerTimed, Won
 from app.domain.application.types import ApplicationDisplayState, ApplicationStatus
 from app.domain.course.schemas import CourseSummary
 from app.domain.payment.types import PaymentStatus
+from app.domain.refund.types import RefundStage
 
 
 class Eligibility(ApiModel):
@@ -40,6 +41,9 @@ class ApplicationSummary(ApiModel):
     payment_status: PaymentStatus | None = None
     payment_id: SerialId | None = Field(
         default=None, description="가장 최근 결제 일련번호. 영수증 조회에 쓴다."
+    )
+    refund_stage: RefundStage | None = Field(
+        default=None, description="가장 최근 환불의 주민 화면 단계. 환불 내역이 없으면 null."
     )
     fee: Won
     reduction_amount: Won

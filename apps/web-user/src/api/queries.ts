@@ -15,6 +15,10 @@ export type CoursePlan = Schemas['CoursePlan'];
 export type ApplyPreview = Schemas['ApplyPreview'];
 export type Application = Schemas['Application'];
 export type PaymentMethod = Schemas['PaymentMethod'];
+export type ApplicationPage = Schemas['ApplicationPage'];
+export type Receipt = Schemas['Receipt'];
+export type RefundPreview = Schemas['RefundPreview'];
+export type RefundPage = Schemas['RefundPage'];
 export type SessionInfo = Schemas['SessionInfo'];
 export type TermDocument = Schemas['TermDocument'];
 export type TermType = Schemas['TermType'];
@@ -87,4 +91,29 @@ export const applicationQuery = (applicationId: string) =>
   queryOptions({
     queryKey: ['me', 'applications', applicationId],
     queryFn: ({ signal }) => getJson<Application>(`/me/applications/${encodeURIComponent(applicationId)}`, signal),
+  });
+
+export const myApplicationsQuery = (page: number) =>
+  queryOptions({
+    queryKey: ['me', 'applications', 'list', page],
+    queryFn: ({ signal }) => getJson<ApplicationPage>(`/me/applications?page=${page}&size=10`, signal),
+  });
+
+export const receiptQuery = (paymentId: string) =>
+  queryOptions({
+    queryKey: ['me', 'receipts', paymentId],
+    queryFn: ({ signal }) => getJson<Receipt>(`/me/payments/${encodeURIComponent(paymentId)}/receipt`, signal),
+  });
+
+export const refundPreviewQuery = (applicationId: string) =>
+  queryOptions({
+    queryKey: ['me', 'refund-preview', applicationId],
+    queryFn: ({ signal }) =>
+      getJson<RefundPreview>(`/me/applications/${encodeURIComponent(applicationId)}/refund-preview`, signal),
+  });
+
+export const myRefundsQuery = (page: number) =>
+  queryOptions({
+    queryKey: ['me', 'refunds', page],
+    queryFn: ({ signal }) => getJson<RefundPage>(`/me/refunds?page=${page}&size=10`, signal),
   });

@@ -80,6 +80,9 @@ const MESSAGES: Partial<Record<ErrorCode, string>> = {
   PAY_DEADLINE_EXPIRED: '결제기한이 지났습니다.',
   PAY_RESULT_PENDING: '결제 결과를 확인 중입니다. 확인이 끝날 때까지 기다려 주세요.',
   PAY_AMOUNT_MISMATCH: '결제 금액이 일치하지 않습니다.',
+  APLY_CANCEL_NOT_ALLOWED: '현재 상태에서는 신청을 취소할 수 없습니다.',
+  RFND_NOT_ALLOWED: '환불을 신청할 수 없는 상태입니다.',
+  RFND_LIMIT_EXCEEDED: '환불 가능 금액을 초과합니다.',
 };
 
 const STATUS: Partial<Record<ErrorCode, number>> = {
@@ -100,6 +103,9 @@ const STATUS: Partial<Record<ErrorCode, number>> = {
   PAY_DEADLINE_EXPIRED: 422,
   PAY_RESULT_PENDING: 422,
   PAY_AMOUNT_MISMATCH: 422,
+  APLY_CANCEL_NOT_ALLOWED: 422,
+  RFND_NOT_ALLOWED: 422,
+  RFND_LIMIT_EXCEEDED: 422,
 };
 
 export function apiError(code: ErrorCode, fields?: Record<string, string>) {

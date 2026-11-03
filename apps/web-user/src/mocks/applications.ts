@@ -24,6 +24,7 @@ interface StoredPayment {
   memberId: string;
   applicationId: string;
   amount: number;
+  method: Schemas['PaymentMethod'];
   idempotencyKey: string;
 }
 
@@ -32,9 +33,11 @@ interface MockApplicationState {
   seq: number;
   payments: Map<string, StoredPayment>; // 주문번호로 찾는다
   paymentSeq: number;
+  refunds: Map<string, { memberId: string; refund: Schemas['Refund'] }>;
+  refundSeq: number;
 }
 
-const initialState = (): MockApplicationState => ({ items: new Map(), seq: 0, payments: new Map(), paymentSeq: 0 });
+const initialState = (): MockApplicationState => ({ items: new Map(), seq: 0, payments: new Map(), paymentSeq: 0, refunds: new Map(), refundSeq: 0 });
 let state = initialState();
 
 /** 시험 사이에 신청 내역을 비운다. */
@@ -87,6 +90,44 @@ function syncExpiry(stored: StoredApplication, now: Date): Application {
 function expire(stored: StoredApplication): void {
   stored.application = { ...stored.application, status: 'EXPIRED', displayState: 'EXPIRED', canPay: false, canCancel: false };
 }
+const reservedFor = (applicationId: string) =>
+  [...state.refunds.values()]
+    .filter((item) => item.refund.applicationId === applicationId && item.refund.stage !== 'REJECTED')
+    .reduce((sum, item) => sum + item.refund.amount, 0);
+
+/** 신청의 가장 최근 환불 단계를 응답에 붙인다. */
+function withRefundStage(application: Application, memberId: string): Application {
+  const latest = [...state.refunds.values()]
+    .filter((item) => item.memberId === memberId && item.refund.applicationId === application.applicationId)
+    .at(-1);
+  return { ...application, refundStage: latest ? latest.refund.stage : null };
+}
+
+const kstYearMonth = (date: Date): [number, number] => {
+  const [year, month] = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(date).split('-');
+  return [Number(year), Number(month)];
+};
+
+/** 반환 기준액 산정을 흉내 낸다. 개강 전이면 전액, 개강 후에는 지난 달수와 당월분을 뺀 나머지다(PRD Q15, 기관 승인 전 값). */
+function buildRefundPreview(application: Application, reserved: number, now: Date): Schemas['RefundPreview'] {
+  const paid = application.payableAmount;
+  const [startYear, startMonth] = application.course.educationStart.split('-').map(Number) as [number, number];
+  const [endYear, endMonth] = application.course.educationEnd.split('-').map(Number) as [number, number];
+  const educationMonths = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(now);
+  const base = { applicationId: application.applicationId, paidAmount: paid, reservedAmount: reserved, serverNow: now.toISOString() };
+  if (today < application.course.educationStart) {
+    return { ...base, refundableAmount: paid, basis: { rule: 'BEFORE_START', referenceDate: today } };
+  }
+  const [year, month] = kstYearMonth(now);
+  const elapsed = Math.min(educationMonths, (year - startYear) * 12 + (month - startMonth) + 1);
+  const monthlyFee = Math.floor(paid / educationMonths);
+  return {
+    ...base,
+    refundableAmount: monthlyFee * Math.max(0, educationMonths - elapsed),
+    basis: { rule: 'AFTER_START', referenceDate: today, educationMonths, elapsedMonths: elapsed, monthlyFee },
+  };
+}
 function createApplication(courseId: string, memberId: string, now: Date): Application {
   const seed = findCourseSeed(courseId)!;
   const course = buildCourseSummary(seed, now);
@@ -96,6 +137,7 @@ function createApplication(courseId: string, memberId: string, now: Date): Appli
     course,
     paymentStatus: null,
     paymentId: null,
+    refundStage: null,
     fee: seed.fee,
     reductionAmount: 0,
     payableAmount: seed.fee,
@@ -182,7 +224,7 @@ export const applicationHandlers = [
     const found = state.items.get(String(params.applicationId));
     // 남의 신청은 없는 것과 같게 404로 답한다.
     return found && found.memberId === member.memberId
-      ? HttpResponse.json({ ...syncExpiry(found, mockNow()), serverNow: mockNow().toISOString() })
+      ? HttpResponse.json({ ...withRefundStage(syncExpiry(found, mockNow()), member.memberId), serverNow: mockNow().toISOString() })
       : apiError('NOT_FOUND');
   }),
 
@@ -215,6 +257,7 @@ export const applicationHandlers = [
           memberId: member.memberId,
           applicationId: application.applicationId,
           amount: application.payableAmount,
+          method,
           idempotencyKey: key,
         };
         state.payments.set(created.orderNo, created);
@@ -257,7 +300,7 @@ export const applicationHandlers = [
 
     const settled =
       outcome === 'success'
-        ? { status: 'CONFIRMED', displayState: 'CONFIRMED', paymentStatus: 'PAID', canPay: false, canCancel: true, canRequestRefund: true }
+        ? { status: 'CONFIRMED', displayState: 'CONFIRMED', paymentStatus: 'PAID', canPay: false, canCancel: false, canRequestRefund: true }
         : outcome === 'failed'
           ? { status: 'HOLD', displayState: 'PAYMENT_FAILED', paymentStatus: 'FAILED', canPay: true, canCancel: true, canRequestRefund: false }
           : { status: 'HOLD', displayState: 'PAYMENT_UNKNOWN', paymentStatus: 'PENDING', canPay: false, canCancel: false, canRequestRefund: false };
@@ -268,5 +311,133 @@ export const applicationHandlers = [
       status: settled.paymentStatus,
       applicationId: application.applicationId,
       applicationDisplayState: settled.displayState,
+    });
+  }),
+
+  http.get('/api/v1/me/applications', ({ request }) => {
+    const member = currentMockMember();
+    if (!member) return apiError('UNAUTHENTICATED');
+    const params = new URL(request.url).searchParams;
+    const page = Math.max(1, Number(params.get('page')) || 1);
+    const size = Math.min(50, Math.max(1, Number(params.get('size')) || 10));
+    const now = mockNow();
+    const mine = forMember(member.memberId)
+      .map((item) => withRefundStage(syncExpiry(item, now), member.memberId))
+      .reverse(); // 최신 신청이 먼저
+    // 목록 항목은 ApplicationSummary라 응답 시각(serverNow)은 싣지 않는다.
+    const items = mine.slice((page - 1) * size, page * size).map((item) => {
+      const { serverNow, ...summary } = item;
+      void serverNow;
+      return summary;
+    });
+    return HttpResponse.json({
+      items,
+      page,
+      size,
+      total: mine.length,
+      criteria: { basisAt: now.toISOString(), description: null },
+    });
+  }),
+
+  http.post('/api/v1/me/applications/:applicationId/cancel', ({ request, params }) => {
+    const member = currentMockMember();
+    if (!member) return apiError('UNAUTHENTICATED');
+    if (csrfRejected(request)) return apiError('FORBIDDEN');
+    const found = state.items.get(String(params.applicationId));
+    if (!found || found.memberId !== member.memberId) return apiError('NOT_FOUND');
+    const application = syncExpiry(found, mockNow());
+    if (application.displayState === 'PAYMENT_UNKNOWN') return apiError('PAY_RESULT_PENDING');
+    if (!application.canCancel) return apiError('APLY_CANCEL_NOT_ALLOWED');
+    found.application = {
+      ...application,
+      status: 'CANCELLED',
+      displayState: 'CANCELLED',
+      canPay: false,
+      canCancel: false,
+      canRequestRefund: false,
+      serverNow: mockNow().toISOString(),
+    };
+    return HttpResponse.json(found.application);
+  }),
+
+  http.get('/api/v1/me/payments/:paymentId/receipt', ({ params }) => {
+    const member = currentMockMember();
+    if (!member) return apiError('UNAUTHENTICATED');
+    const payment = [...state.payments.values()].find((item) => item.paymentId === String(params.paymentId));
+    const found = payment ? state.items.get(payment.applicationId) : undefined;
+    if (!payment || !found || found.memberId !== member.memberId || found.application.paymentStatus !== 'PAID') {
+      return apiError('NOT_FOUND');
+    }
+    return HttpResponse.json({
+      paymentId: payment.paymentId,
+      applicationId: payment.applicationId,
+      courseName: found.application.course.name,
+      method: payment.method,
+      amount: payment.amount,
+      approvalNo: `MOCK-${payment.orderNo.slice(-6)}`,
+      approvedAt: mockNow().toISOString(),
+      payerName: member.name,
+    });
+  }),
+
+  http.get('/api/v1/me/applications/:applicationId/refund-preview', ({ params }) => {
+    const member = currentMockMember();
+    if (!member) return apiError('UNAUTHENTICATED');
+    const found = state.items.get(String(params.applicationId));
+    if (!found || found.memberId !== member.memberId) return apiError('NOT_FOUND');
+    const now = mockNow();
+    const application = syncExpiry(found, now);
+    const reserved = reservedFor(application.applicationId);
+    if (reserved === 0 && !application.canRequestRefund) return apiError('RFND_NOT_ALLOWED');
+    return HttpResponse.json(buildRefundPreview(application, reserved, now));
+  }),
+
+  http.post('/api/v1/me/refunds', async ({ request }) => {
+    const member = currentMockMember();
+    if (!member) return apiError('UNAUTHENTICATED');
+    if (csrfRejected(request)) return apiError('FORBIDDEN');
+    const key = request.headers.get('Idempotency-Key');
+    if (!key) return apiError('VALIDATION_FAILED', { 'Idempotency-Key': '멱등키가 필요합니다.' });
+    const body = (await request.json()) as Schemas['RefundCreate'];
+    const found = state.items.get(body.applicationId);
+    if (!found || found.memberId !== member.memberId) return apiError('NOT_FOUND');
+    const now = mockNow();
+    const application = syncExpiry(found, now);
+    const reserved = reservedFor(application.applicationId);
+    if (reserved === 0 && !application.canRequestRefund) return apiError('RFND_NOT_ALLOWED');
+    const preview = buildRefundPreview(application, reserved, now);
+    const amount = preview.refundableAmount - reserved; // 금액은 서버가 정한다. 요청에는 없다.
+    if (amount <= 0) return apiError('RFND_LIMIT_EXCEEDED');
+
+    state.refundSeq += 1;
+    const refund: Schemas['Refund'] = {
+      refundId: String(4_000_000_000_000_000_000_000n + BigInt(state.refundSeq)),
+      applicationId: application.applicationId,
+      courseName: application.course.name,
+      amount,
+      status: 'REQUESTED',
+      stage: 'RECEIVED',
+      reason: null,
+      requestedAt: now.toISOString(),
+      completedAt: null,
+    };
+    state.refunds.set(refund.refundId, { memberId: member.memberId, refund });
+    found.application = { ...application, canRequestRefund: false };
+    return HttpResponse.json(refund, { status: 201 });
+  }),
+
+  http.get('/api/v1/me/refunds', ({ request }) => {
+    const member = currentMockMember();
+    if (!member) return apiError('UNAUTHENTICATED');
+    const params = new URL(request.url).searchParams;
+    const page = Math.max(1, Number(params.get('page')) || 1);
+    const size = Math.min(50, Math.max(1, Number(params.get('size')) || 10));
+    const mine = [...state.refunds.values()].filter((item) => item.memberId === member.memberId).map((item) => item.refund).reverse();
+    return HttpResponse.json({
+      items: mine.slice((page - 1) * size, page * size),
+      page,
+      size,
+      total: mine.length,
+      criteria: { basisAt: mockNow().toISOString(), description: null },
     });
   }),];

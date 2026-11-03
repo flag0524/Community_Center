@@ -11,6 +11,12 @@ import { CourseDetailPage } from '../pages/courses/CourseDetailPage';
 import { CourseListPage } from '../pages/courses/CourseListPage';
 import { CoursePlanPage } from '../pages/courses/CoursePlanPage';
 import { Home } from '../pages/Home';
+import { ApplicationCancelledPage } from '../pages/me/ApplicationCancelledPage';
+import { MyApplicationPage } from '../pages/me/MyApplicationPage';
+import { MyApplicationsPage } from '../pages/me/MyApplicationsPage';
+import { MyRefundsPage } from '../pages/me/MyRefundsPage';
+import { ReceiptPage } from '../pages/me/ReceiptPage';
+import { RefundApplyPage } from '../pages/me/RefundApplyPage';
 import { PaymentPage } from '../pages/payment/PaymentPage';
 import { PaymentResultPage } from '../pages/payment/PaymentResultPage';
 import { JoinCompletePage } from '../pages/member/JoinCompletePage';
@@ -28,6 +34,7 @@ const IMPLEMENTED_PATHS = new Set([
   '/courses',
   '/courses/open',
   '/courses/upcoming',
+  '/me/applications',
   '/terms/terms-of-use',
   '/terms/privacy-policy',
   '/terms/email-refusal',
@@ -103,7 +110,18 @@ export const routes: RouteObject[] = [
         ),
         handle: SERVICE_PAGE_HANDLE,
       },
-      {
+      ...[
+        ['me/applications', <MyApplicationsPage />],
+        ['me/applications/:applicationId', <MyApplicationPage />],
+        ['me/applications/:applicationId/cancelled', <ApplicationCancelledPage />],
+        ['me/applications/:applicationId/refund', <RefundApplyPage />],
+        ['me/receipts/:paymentId', <ReceiptPage />],
+        ['me/refunds', <MyRefundsPage />],
+      ].map(([path, page]) => ({
+        path: path as string,
+        element: <RequireLogin>{page}</RequireLogin>,
+        handle: SERVICE_PAGE_HANDLE,
+      })),      {
         path: 'join',
         element: <JoinFlowLayout />,
         handle: SERVICE_PAGE_HANDLE,

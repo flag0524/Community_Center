@@ -235,3 +235,9 @@ def test_신청은_영수증_조회에_쓸_결제_일련번호를_가진다(spec
     # 영수증 API는 결제 번호로 조회한다. 신청 응답에 없으면 화면이 영수증 링크를 만들 수 없다.
     assert "paymentId" in summary
     assert "x-serial" in str(summary["paymentId"])
+
+
+def test_신청은_목록의_환불상태_칸에_쓸_최근_환불_단계를_가진다(spec: Schema) -> None:
+    summary = spec["components"]["schemas"]["ApplicationSummary"]["properties"]
+    # 내 신청 내역 표에 환불상태 칸이 있다. 서버가 정한 값이 없으면 화면이 환불 여부를 알 수 없다.
+    assert "refundStage" in summary
