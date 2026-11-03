@@ -78,6 +78,8 @@ export const FOOTER_LINKS: NavLinkItem[] = [
 export const EXTRA_PLACEHOLDERS: NavLinkItem[] = [
   { label: '아이디 찾기', to: '/find-id' },
   { label: '비밀번호 찾기', to: '/reset-password' },
+  { label: '결제', to: '/payment/:applicationId' },
+  { label: '신청 상세', to: '/me/applications/:applicationId' },
   { label: '공지사항 상세', to: '/board/notice/:postId' },
   { label: '갤러리 상세', to: '/board/gallery/:postId' },
 ];

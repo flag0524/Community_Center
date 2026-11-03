@@ -58,6 +58,10 @@ const category = (id: string) => CATEGORY_SEEDS.find((item) => item.categoryId =
 const OCCUPIED_RATIO = 0.6;
 const WAIT_CAPACITY = 10;
 
+// 대기신청 흐름을 시연하려고 강좌 하나(라인댄스 A)만 정원이 모두 찬 것으로 둔다.
+export const FULL_COURSE_ID = '3';
+const FULL_COURSE_WAITING = 2;
+
 export function buildCourseSummary(seed: CourseSeed, now: Date = new Date()): CourseSummary {
   return {
     courseId: seed.id,
@@ -74,8 +78,8 @@ export function buildCourseSummary(seed: CourseSeed, now: Date = new Date()): Co
     educationState: educationStateAt(now, EDUCATION_START, EDUCATION_END),
     fee: seed.fee,
     capacity: seed.capacity,
-    remainingSeats: seed.capacity - Math.floor(seed.capacity * OCCUPIED_RATIO),
-    waitingCount: 0,
+    remainingSeats: seed.id === FULL_COURSE_ID ? 0 : seed.capacity - Math.floor(seed.capacity * OCCUPIED_RATIO),
+    waitingCount: seed.id === FULL_COURSE_ID ? FULL_COURSE_WAITING : 0,
   };
 }
 

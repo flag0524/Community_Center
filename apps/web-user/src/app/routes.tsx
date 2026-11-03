@@ -1,8 +1,11 @@
 // 주민 앱의 라우트 표. 이식된 화면은 실제 컴포넌트를, 나머지는 임시 화면을 연결한다
 import type { RouteObject } from 'react-router-dom';
+import { RequireLogin } from '../components/RequireLogin';
 import { Layout } from '../layout/Layout';
 import { EXTRA_PLACEHOLDERS, FOOTER_LINKS, NAV_GROUPS, EASY_NAV } from '../layout/navigation';
 import { SERVICE_PAGE_HANDLE } from '../layout/SubLayout';
+import { ApplicationDonePage } from '../pages/apply/ApplicationDonePage';
+import { ApplyPage } from '../pages/apply/ApplyPage';
 import { CategoryCoursesPage } from '../pages/courses/CategoryCoursesPage';
 import { CourseDetailPage } from '../pages/courses/CourseDetailPage';
 import { CourseListPage } from '../pages/courses/CourseListPage';
@@ -62,6 +65,24 @@ export const routes: RouteObject[] = [
       { path: 'courses/:courseId', element: <CourseDetailPage />, handle: SERVICE_PAGE_HANDLE },
       { path: 'courses/:courseId/plan', element: <CoursePlanPage />, handle: SERVICE_PAGE_HANDLE },
       { path: 'login', element: <LoginPage />, handle: SERVICE_PAGE_HANDLE },
+      {
+        path: 'apply/:courseId',
+        element: (
+          <RequireLogin>
+            <ApplyPage />
+          </RequireLogin>
+        ),
+        handle: SERVICE_PAGE_HANDLE,
+      },
+      {
+        path: 'applications/:applicationId/done',
+        element: (
+          <RequireLogin>
+            <ApplicationDonePage />
+          </RequireLogin>
+        ),
+        handle: SERVICE_PAGE_HANDLE,
+      },
       {
         path: 'join',
         element: <JoinFlowLayout />,

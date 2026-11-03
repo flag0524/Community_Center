@@ -26,7 +26,11 @@ export function LoginPage() {
   const mutation = useMutation({
     mutationFn: login,
     // 세션이 바뀌면 아래 Navigate가 next 주소로 보낸다.
-    onSuccess: (info) => queryClient.setQueryData(sessionQuery.queryKey, info),
+    onSuccess: (info) => {
+      // 앞에 남은 다른 회원의 신청·결제 정보가 보이지 않게 회원 전용 캐시를 먼저 지운다.
+      queryClient.removeQueries({ queryKey: ['me'] });
+      queryClient.setQueryData(sessionQuery.queryKey, info);
+    },
     onError: (error) => {
       setMessage(errorMessage(error));
       setPassword('');

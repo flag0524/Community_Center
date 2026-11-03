@@ -4,9 +4,11 @@ import { render } from '@testing-library/react';
 import { setupServer } from 'msw/node';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll } from 'vitest';
+import { login } from '../api/auth';
 import { rememberCsrfToken } from '../api/http';
 import { routes } from '../app/routes';
-import { resetMockAuth } from '../mocks/auth';
+import { resetMockApplications } from '../mocks/applications';
+import { DEMO, resetMockAuth } from '../mocks/auth';
 import { handlers } from '../mocks/handlers';
 
 // Node의 fetch는 상대 경로를 받지 못한다. 브라우저처럼 현재 주소를 기준으로 풀어 준다.
@@ -22,9 +24,15 @@ export function useMockServer(): void {
   afterEach(() => {
     server.resetHandlers();
     resetMockAuth();
+    resetMockApplications();
     rememberCsrfToken(null);
   });
   afterAll(() => server.close());
+}
+
+/** 모의 서버에 시험 계정으로 로그인해 둔다. 이어서 renderApp을 하면 앱이 로그인 상태로 시작한다. */
+export async function signInAsDemo(): Promise<void> {
+  await login({ loginId: DEMO.loginId, password: DEMO.password });
 }
 
 export function renderApp(path = '/') {
@@ -35,5 +43,5 @@ export function renderApp(path = '/') {
       <RouterProvider router={router} />
     </QueryClientProvider>,
   );
-  return { ...view, router };
+  return { ...view, router, queryClient };
 }

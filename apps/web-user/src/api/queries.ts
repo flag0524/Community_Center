@@ -12,6 +12,8 @@ export type CourseSummary = Schemas['CourseSummary'];
 export type CourseDetail = Schemas['CourseDetail'];
 export type CoursePlan = Schemas['CoursePlan'];
 
+export type ApplyPreview = Schemas['ApplyPreview'];
+export type Application = Schemas['Application'];
 export type SessionInfo = Schemas['SessionInfo'];
 export type TermDocument = Schemas['TermDocument'];
 export type TermType = Schemas['TermType'];
@@ -72,4 +74,16 @@ export const coursePlanQuery = (courseId: string) =>
   queryOptions({
     queryKey: ['courses', 'plan', courseId],
     queryFn: ({ signal }) => getJson<CoursePlan>(`/courses/${encodeURIComponent(courseId)}/plan`, signal),
+  });
+
+export const applyPreviewQuery = (courseId: string) =>
+  queryOptions({
+    queryKey: ['me', 'apply-preview', courseId],
+    queryFn: ({ signal }) => getJson<ApplyPreview>(`/courses/${encodeURIComponent(courseId)}/apply-preview`, signal),
+  });
+
+export const applicationQuery = (applicationId: string) =>
+  queryOptions({
+    queryKey: ['me', 'applications', applicationId],
+    queryFn: ({ signal }) => getJson<Application>(`/me/applications/${encodeURIComponent(applicationId)}`, signal),
   });

@@ -18,8 +18,11 @@ export function Header({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { data: session } = useQuery(sessionQuery);
   const signOut = useMutation({
     mutationFn: logout,
-    // 로그아웃하면 세션을 다시 받아 새 토큰과 비로그인 상태를 반영한다.
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionQuery.queryKey }),
+    // 로그아웃하면 앞 회원의 신청·결제 정보를 화면에서 지우고, 세션을 다시 받아 새 토큰과 비로그인 상태를 반영한다.
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ['me'] });
+      return queryClient.invalidateQueries({ queryKey: sessionQuery.queryKey });
+    },
   });
 
   function search(event: FormEvent) {

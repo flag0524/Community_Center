@@ -72,6 +72,10 @@ const MESSAGES: Partial<Record<ErrorCode, string>> = {
   OTP_EXPIRED: '인증번호 유효시간이 지났습니다. 다시 요청해 주세요.',
   OTP_RESEND_TOO_SOON: '인증번호는 잠시 후 다시 요청할 수 있습니다.',
   JOIN_LOGIN_ID_TAKEN: '이미 사용 중인 아이디입니다.',
+  UNAUTHENTICATED: '로그인이 필요합니다.',
+  IDEMPOTENCY_CONFLICT: '같은 요청 키로 다른 내용이 전달되었습니다.',
+  APLY_RCPT_CLOSED: '접수기간이 아닙니다.',
+  APLY_ALREADY_APPLIED: '이미 신청한 강좌입니다.',
 };
 
 const STATUS: Partial<Record<ErrorCode, number>> = {
@@ -84,22 +88,28 @@ const STATUS: Partial<Record<ErrorCode, number>> = {
   OTP_EXPIRED: 422,
   OTP_RESEND_TOO_SOON: 429,
   JOIN_LOGIN_ID_TAKEN: 422,
+  UNAUTHENTICATED: 401,
+  IDEMPOTENCY_CONFLICT: 409,
+  APLY_RCPT_CLOSED: 422,
+  APLY_ALREADY_APPLIED: 422,
 };
 
-function apiError(code: ErrorCode, fields?: Record<string, string>) {
+export function apiError(code: ErrorCode, fields?: Record<string, string>) {
   return HttpResponse.json(
     { code, message: MESSAGES[code] ?? code, fields: fields ?? null, requestId: `mock-${code.toLowerCase()}-0001` },
     { status: STATUS[code] ?? 400 },
   );
 }
 
+/** 지금 로그인한 모의 회원. 로그인하지 않았으면 null이다. */
+export const currentMockMember = (): MemberBrief | null => state.member;
+export const csrfRejected = (request: Request) => request.headers.get('X-CSRF-Token') !== csrfToken();
+
 const csrfToken = () => `mock-csrf-${state.csrfSeq}`;
 const rotateCsrf = () => {
   state.csrfSeq += 1;
 };
 const serverNow = () => new Date().toISOString();
-const csrfRejected = (request: Request) => request.headers.get('X-CSRF-Token') !== csrfToken();
-
 const sessionBody = () => ({
   authenticated: state.member !== null,
   csrfToken: csrfToken(),
