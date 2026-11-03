@@ -139,6 +139,6 @@ test('다른 화면으로 이동해도 머리글과 연락처가 유지된다', 
   // 머리글 드롭다운에도 비슷한 링크가 있지만 마우스를 올려야 보인다. 홈 본문의 보이는 링크를 누른다.
   await page.locator('#services').getByRole('link', { name: /수강·결제 안내/ }).click();
   await expect(page).toHaveURL(/\/guide\/apply$/);
-  await expect(page.getByText('이 화면은 아직 이식 전입니다.')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: '수강 및 결제 안내' })).toBeVisible();
   await expect(page.getByRole('contentinfo')).toContainText('031-941-7742');
 });

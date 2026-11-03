@@ -13,6 +13,7 @@ EXPECTED_OPERATIONS = {
     ("get", "/api/v1/home"),
     ("get", "/api/v1/site/contact"),
     ("get", "/api/v1/terms/{term_type}"),
+    ("get", "/api/v1/contents/{slug}"),
     ("get", "/api/v1/categories"),
     ("get", "/api/v1/courses"),
     ("get", "/api/v1/courses/{course_id}"),
@@ -241,3 +242,20 @@ def test_신청은_목록의_환불상태_칸에_쓸_최근_환불_단계를_가
     summary = spec["components"]["schemas"]["ApplicationSummary"]["properties"]
     # 내 신청 내역 표에 환불상태 칸이 있다. 서버가 정한 값이 없으면 화면이 환불 여부를 알 수 없다.
     assert "refundStage" in summary
+
+
+def test_안내_콘텐츠는_이름_붙은_문서로_절_단위로_내려준다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    # 화면은 서버가 준 문서를 그리기만 한다. 안내·센터소개 글을 화면 코드에 두지 않는다.
+    assert schemas["ContentSlug"]["enum"] == [
+        "guide-apply",
+        "guide-refund",
+        "center-history",
+        "center-facility",
+    ]
+    document = schemas["ContentDocument"]["properties"]
+    assert {"slug", "title", "subtitle", "sections", "updatedOn"} <= set(document)
+    section = schemas["ContentSection"]["properties"]
+    assert {"heading", "paragraphs", "steps", "items", "table", "links"} <= set(section)
+    operation = spec["paths"]["/api/v1/contents/{slug}"]["get"]
+    assert "404" in operation["responses"]

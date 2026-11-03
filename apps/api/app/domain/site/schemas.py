@@ -1,7 +1,8 @@
 # 홈 화면과 센터 연락처 API의 응답 모델
 from datetime import date
+from enum import StrEnum
 
-from pydantic import AwareDatetime
+from pydantic import AwareDatetime, Field
 
 from app.core.schema import ApiModel, SerialId, ServerTimed
 from app.domain.course.schemas import CategoryRef, CycleInfo
@@ -41,3 +42,53 @@ class ContactResponse(ApiModel):
     floor_info: str | None = None
     open_hours: str | None = None
     parking: str | None = None
+
+
+class ContentSlug(StrEnum):
+    """서버가 문서로 내려주는 안내·센터소개 글. 새 유형이 필요하면 스키마 개정을 먼저 요청한다."""
+
+    GUIDE_APPLY = "guide-apply"
+    GUIDE_REFUND = "guide-refund"
+    CENTER_HISTORY = "center-history"
+    CENTER_FACILITY = "center-facility"
+
+
+class ContentLink(ApiModel):
+    label: str
+    url: str = Field(description="사이트 안 경로(/로 시작)이거나 외부 주소")
+
+
+class ContentStep(ApiModel):
+    title: str
+    body: str
+
+
+class ContentItem(ApiModel):
+    """연혁처럼 '날짜 + 내용' 한 줄."""
+
+    label: str | None = None
+    text: str
+
+
+class ContentTable(ApiModel):
+    columns: list[str]
+    rows: list[list[str]]
+
+
+class ContentSection(ApiModel):
+    """한 절. 화면은 문단, 단계, 항목, 표, 링크 순으로 그린다."""
+
+    heading: str
+    paragraphs: list[str]
+    steps: list[ContentStep]
+    items: list[ContentItem]
+    table: ContentTable | None = None
+    links: list[ContentLink]
+
+
+class ContentDocument(ApiModel):
+    slug: ContentSlug
+    title: str
+    subtitle: str | None = None
+    sections: list[ContentSection]
+    updated_on: date | None = None

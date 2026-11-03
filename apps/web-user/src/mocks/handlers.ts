@@ -3,6 +3,7 @@ import { HttpResponse, http } from 'msw';
 import { applicationHandlers } from './applications';
 import { authHandlers } from './auth';
 import { mockNow } from './clock';
+import { CONTENTS } from './contents';
 import {
   buildCategories,
   buildCourseDetail,
@@ -30,6 +31,10 @@ export const handlers = [
   ...applicationHandlers,
   http.get('/api/v1/home', () => HttpResponse.json(buildHome(mockNow()))),
   http.get('/api/v1/site/contact', () => HttpResponse.json(contact)),
+  http.get('/api/v1/contents/:slug', ({ params }) => {
+    const document = CONTENTS[String(params.slug) as keyof typeof CONTENTS];
+    return document ? HttpResponse.json(document) : notFound();
+  }),
   http.get('/api/v1/categories', () => HttpResponse.json(buildCategories())),
   http.get('/api/v1/courses', ({ request }) => {
     const params = new URL(request.url).searchParams;

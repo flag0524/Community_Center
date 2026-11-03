@@ -154,15 +154,15 @@ describe('주 메뉴와 검색', () => {
 
 describe('임시 화면과 없는 경로', () => {
   it('아직 옮기지 않은 화면은 안내와 홈 링크를 보이고 문서 제목을 맞춘다', () => {
-    renderApp('/guide/apply');
-    expect(screen.getByRole('heading', { level: 1, name: '수강 및 결제 안내' })).toBeInTheDocument();
+    renderApp('/board/faq');
+    expect(screen.getByRole('heading', { level: 1, name: '자주하는 질문' })).toBeInTheDocument();
     expect(screen.getByText('이 화면은 아직 이식 전입니다.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/');
-    expect(document.title).toBe('수강 및 결제 안내 | 조리읍주민자치센터');
+    expect(document.title).toBe('자주하는 질문 | 조리읍주민자치센터');
   });
 
   it('메뉴에 있는 모든 경로가 임시 화면으로 연결되어 있다', () => {
-    for (const path of ['/guide/refund', '/instructors/recruit', '/board/gallery', '/me/profile', '/find-id', '/reset-password']) {
+    for (const path of ['/board/notice', '/instructors/recruit', '/board/gallery', '/me/profile', '/find-id', '/reset-password']) {
       const { unmount } = renderApp(path);
       expect(screen.queryByText('페이지를 찾을 수 없습니다')).not.toBeInTheDocument();
       expect(screen.getByText('이 화면은 아직 이식 전입니다.')).toBeInTheDocument();

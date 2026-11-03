@@ -12,6 +12,8 @@ export type CourseSummary = Schemas['CourseSummary'];
 export type CourseDetail = Schemas['CourseDetail'];
 export type CoursePlan = Schemas['CoursePlan'];
 
+export type ContentDocument = Schemas['ContentDocument'];
+export type ContentSlug = Schemas['ContentSlug'];
 export type ApplyPreview = Schemas['ApplyPreview'];
 export type Application = Schemas['Application'];
 export type PaymentMethod = Schemas['PaymentMethod'];
@@ -116,4 +118,11 @@ export const myRefundsQuery = (page: number) =>
   queryOptions({
     queryKey: ['me', 'refunds', page],
     queryFn: ({ signal }) => getJson<RefundPage>(`/me/refunds?page=${page}&size=10`, signal),
+  });
+
+export const contentQuery = (slug: ContentSlug) =>
+  queryOptions({
+    queryKey: ['contents', slug],
+    queryFn: ({ signal }) => getJson<ContentDocument>(`/contents/${slug}`, signal),
+    staleTime: 5 * 60 * 1000,
   });

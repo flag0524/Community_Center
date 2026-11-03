@@ -6,7 +6,7 @@ from fastapi import APIRouter, Path
 from app.core.errors import ErrorCode, not_implemented
 from app.domain.member.schemas import TermDocument
 from app.domain.member.types import TermType
-from app.domain.site.schemas import ContactResponse, HomeResponse
+from app.domain.site.schemas import ContactResponse, ContentDocument, ContentSlug, HomeResponse
 from app.routers.deps import PUBLIC_ERRORS, error_responses
 
 router = APIRouter(tags=["site"], responses=PUBLIC_ERRORS)
@@ -24,4 +24,10 @@ def get_contact() -> ContactResponse:
 
 @router.get("/terms/{term_type}", responses=error_responses(ErrorCode.NOT_FOUND))
 def get_term(term_type: Annotated[TermType, Path()], version: str | None = None) -> TermDocument:
+    not_implemented()
+
+
+@router.get("/contents/{slug}", responses=error_responses(ErrorCode.NOT_FOUND))
+def get_content(slug: Annotated[ContentSlug, Path()]) -> ContentDocument:
+    """안내·센터소개 글. 관리자 콘텐츠 관리(TB_SITE_CONTS)에서 고친 게시본을 내려준다."""
     not_implemented()

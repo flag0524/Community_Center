@@ -10,6 +10,8 @@ import { CategoryCoursesPage } from '../pages/courses/CategoryCoursesPage';
 import { CourseDetailPage } from '../pages/courses/CourseDetailPage';
 import { CourseListPage } from '../pages/courses/CourseListPage';
 import { CoursePlanPage } from '../pages/courses/CoursePlanPage';
+import { ContactPage } from '../pages/content/ContactPage';
+import { ContentPage } from '../pages/content/ContentPage';
 import { Home } from '../pages/Home';
 import { ApplicationCancelledPage } from '../pages/me/ApplicationCancelledPage';
 import { MyApplicationPage } from '../pages/me/MyApplicationPage';
@@ -35,6 +37,11 @@ const IMPLEMENTED_PATHS = new Set([
   '/courses/open',
   '/courses/upcoming',
   '/me/applications',
+  '/guide/apply',
+  '/guide/refund',
+  '/center/history',
+  '/center/facility',
+  '/center/contact',
   '/terms/terms-of-use',
   '/terms/privacy-policy',
   '/terms/email-refusal',
@@ -73,6 +80,11 @@ export const routes: RouteObject[] = [
       { path: 'courses/field/:categoryId', element: <CategoryCoursesPage />, handle: SERVICE_PAGE_HANDLE },
       { path: 'courses/:courseId', element: <CourseDetailPage />, handle: SERVICE_PAGE_HANDLE },
       { path: 'courses/:courseId/plan', element: <CoursePlanPage />, handle: SERVICE_PAGE_HANDLE },
+      { path: 'guide/apply', element: <ContentPage slug="guide-apply" groupTitle="강좌정보" /> },
+      { path: 'guide/refund', element: <ContentPage slug="guide-refund" groupTitle="강좌정보" /> },
+      { path: 'center/history', element: <ContentPage slug="center-history" groupTitle="센터소개" /> },
+      { path: 'center/facility', element: <ContentPage slug="center-facility" groupTitle="센터소개" /> },
+      { path: 'center/contact', element: <ContactPage /> },
       { path: 'login', element: <LoginPage />, handle: SERVICE_PAGE_HANDLE },
       {
         path: 'apply/:courseId',

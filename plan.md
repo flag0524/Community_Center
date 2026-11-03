@@ -24,7 +24,12 @@
 | F8a | 신청 → 무료 등록 / 결제 대기 / 대기신청 | Vitest + Playwright, 변이 검사 |
 | F8b | 결제(성공·실패·확인 중·만료), 10분 카운트다운, 모의 결제 결과 ?mockPay= | Playwright 핵심 여정 |
 | F8c | 내 신청 내역·상세 → 취소 → 영수증 → 환불 | Playwright 핵심 여정 |
-| F9 | 주민 나머지 화면, 관리자 앱 | 화면 ID 대응표 |
+| F9a | 안내·센터소개 6화면, 콘텐츠 API | Vitest + Playwright, 변이 검사 |
+| F9b | 계정(아이디·비밀번호 찾기, 회원정보, 비밀번호 변경, 탈퇴) | Vitest + Playwright |
+| F9c | 커뮤니티 읽기(공지·기관소식·자료실·갤러리·FAQ) | Vitest + Playwright |
+| F9d | 질문과 답변, 수강후기, 내 문의·후기 | Vitest + Playwright |
+| F9e | 강사은행 | Vitest + Playwright |
+| F9f | 관리자 앱(pps/web-admin) | 화면 ID 대응표 |
 
 F6이 커서 로그인·가입을 F7로 나누고 이후 번호를 하나씩 밀었다(2026-11-01 사용자 확정). F8도 크기 때문에 F8a·F8b·F8c로 나눈다(2026-11-03 사용자 확정).
 | P2~ | Docker 설치 후 물리 DDL부터 `spec.md`의 P2~P7 | spec 수락 기준 |

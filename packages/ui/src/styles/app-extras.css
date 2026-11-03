@@ -49,3 +49,10 @@ button.login-link {
 .field-with-action > p {
   grid-column: 1 / -1;
 }
+
+/* 안내 글 안의 링크는 색만으로 구분되지 않게 밑줄을 둔다. 시안의 버튼 모양 링크는 그대로 둔다. */
+.article-text a:not(.button),
+.timeline a:not(.button) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
