@@ -26,6 +26,12 @@ export type InquiryPage = Schemas['InquiryPage'];
 export type InquiryDetail = Schemas['InquiryDetail'];
 export type ReviewPage = Schemas['ReviewPage'];
 export type ReviewDetail = Schemas['ReviewDetail'];
+export type InstructorPage = Schemas['InstructorPage'];
+export type InstructorDetail = Schemas['InstructorDetail'];
+export type RecruitmentPage = Schemas['RecruitmentPage'];
+export type RecruitmentDetail = Schemas['RecruitmentDetail'];
+export type InstructorApplicationPage = Schemas['InstructorApplicationPage'];
+export type InstructorApplication = Schemas['InstructorApplication'];
 export type ApplicationPage = Schemas['ApplicationPage'];
 export type Receipt = Schemas['Receipt'];
 export type RefundPreview = Schemas['RefundPreview'];
@@ -195,3 +201,45 @@ export const reviewableCoursesQuery = queryOptions({
   queryKey: ['me', 'reviewable-courses'],
   queryFn: ({ signal }) => getJson<Schemas['ReviewableCourseList']>('/me/reviewable-courses', signal),
 });
+
+export const instructorListQuery = (params: { q?: string; page?: number }) =>
+  queryOptions({
+    queryKey: ['instructors', 'list', params],
+    queryFn: ({ signal }) =>
+      getJson<InstructorPage>(
+        `/instructors${toQueryString({ q: params.q, page: params.page && params.page > 1 ? params.page : undefined })}`,
+        signal,
+      ),
+  });
+
+export const instructorQuery = (instructorId: string) =>
+  queryOptions({
+    queryKey: ['instructors', 'detail', instructorId],
+    queryFn: ({ signal }) => getJson<InstructorDetail>(`/instructors/${encodeURIComponent(instructorId)}`, signal),
+  });
+
+export const recruitmentListQuery = (page: number) =>
+  queryOptions({
+    queryKey: ['recruitments', 'list', page],
+    queryFn: ({ signal }) => getJson<RecruitmentPage>(`/instructor-recruitments?page=${page}&size=10`, signal),
+  });
+
+export const recruitmentQuery = (recruitmentId: string) =>
+  queryOptions({
+    // 지원 가능 여부가 회원마다 달라 로그아웃 때 지워지는 회원 전용 키 아래에 둔다.
+    queryKey: ['me', 'recruitment', recruitmentId],
+    queryFn: ({ signal }) => getJson<RecruitmentDetail>(`/instructor-recruitments/${encodeURIComponent(recruitmentId)}`, signal),
+  });
+
+export const instructorApplicationsQuery = (page: number) =>
+  queryOptions({
+    queryKey: ['me', 'instructor-applications', page],
+    queryFn: ({ signal }) => getJson<InstructorApplicationPage>(`/me/instructor-applications?page=${page}&size=10`, signal),
+  });
+
+export const instructorApplicationQuery = (applicationId: string) =>
+  queryOptions({
+    queryKey: ['me', 'instructor-application', applicationId],
+    queryFn: ({ signal }) =>
+      getJson<Schemas['InstructorApplication']>(`/me/instructor-applications/${encodeURIComponent(applicationId)}`, signal),
+  });

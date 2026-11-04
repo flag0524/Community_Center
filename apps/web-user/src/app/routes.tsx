@@ -1,8 +1,7 @@
-// 주민 앱의 라우트 표. 이식된 화면은 실제 컴포넌트를, 나머지는 임시 화면을 연결한다
+// 주민 앱의 라우트 표. 메뉴의 모든 경로는 실제 화면이고 없는 주소는 찾을 수 없음 화면이다
 import type { RouteObject } from 'react-router-dom';
 import { RequireLogin } from '../components/RequireLogin';
 import { Layout } from '../layout/Layout';
-import { EXTRA_PLACEHOLDERS, FOOTER_LINKS, NAV_GROUPS, EASY_NAV } from '../layout/navigation';
 import { SERVICE_PAGE_HANDLE } from '../layout/SubLayout';
 import { ApplicationDonePage } from '../pages/apply/ApplicationDonePage';
 import { ApplyPage } from '../pages/apply/ApplyPage';
@@ -21,6 +20,12 @@ import { QnaListPage } from '../pages/community/QnaListPage';
 import { ReviewDetailPage } from '../pages/community/ReviewDetailPage';
 import { ReviewFormPage } from '../pages/community/ReviewFormPage';
 import { ReviewListPage } from '../pages/community/ReviewListPage';
+import { InstructorApplyPage } from '../pages/instructors/InstructorApplyPage';
+import { InstructorDetailPage } from '../pages/instructors/InstructorDetailPage';
+import { InstructorListPage } from '../pages/instructors/InstructorListPage';
+import { MyInstructorApplicationsPage } from '../pages/instructors/MyInstructorApplicationsPage';
+import { RecruitmentDetailPage } from '../pages/instructors/RecruitmentDetailPage';
+import { RecruitmentListPage } from '../pages/instructors/RecruitmentListPage';
 import { BoardListPage } from '../pages/board/BoardListPage';
 import { PostDetailPage } from '../pages/board/PostDetailPage';
 import { ChangePasswordPage } from '../pages/account/ChangePasswordPage';
@@ -44,48 +49,8 @@ import { JoinTermsPage } from '../pages/member/JoinTermsPage';
 import { JoinVerifyPage } from '../pages/member/JoinVerifyPage';
 import { LoginPage } from '../pages/member/LoginPage';
 import { TermPage } from '../pages/member/TermPage';
-import { NotFound, Placeholder } from '../pages/Placeholder';
+import { NotFound } from '../pages/Placeholder';
 import { ViewModeProvider } from '../view/ViewModeProvider';
-
-// 실제 화면으로 옮긴 경로. 임시 화면 목록에서 뺀다.
-const IMPLEMENTED_PATHS = new Set([
-  '/courses',
-  '/courses/open',
-  '/courses/upcoming',
-  '/me/applications',
-  '/board/notice',
-  '/board/news',
-  '/board/resources',
-  '/board/gallery',
-  '/board/faq',
-  '/board/qna',
-  '/board/review',
-  '/me/profile',
-  '/find-id',
-  '/reset-password',
-  '/guide/apply',
-  '/guide/refund',
-  '/center/history',
-  '/center/facility',
-  '/center/contact',
-  '/terms/terms-of-use',
-  '/terms/privacy-policy',
-  '/terms/email-refusal',
-]);
-
-function placeholderRoutes(): RouteObject[] {
-  const byPath = new Map<string, string>();
-  for (const group of NAV_GROUPS) {
-    byPath.set(group.to, byPath.get(group.to) ?? group.items.find((item) => item.to === group.to)?.label ?? group.title);
-    for (const item of group.items) byPath.set(item.to, item.label);
-  }
-  for (const item of [...EASY_NAV, ...FOOTER_LINKS, ...EXTRA_PLACEHOLDERS]) {
-    if (!byPath.has(item.to)) byPath.set(item.to, item.label);
-  }
-  return [...byPath]
-    .filter(([path]) => !IMPLEMENTED_PATHS.has(path))
-    .map(([path, title]) => ({ path, element: <Placeholder title={title} /> }));
-}
 
 function Root() {
   return (
@@ -132,7 +97,19 @@ export const routes: RouteObject[] = [
         element: <RequireLogin>{page}</RequireLogin>,
       })),
       { path: 'board/review', element: <ReviewListPage /> },
-      { path: 'board/review/:postId', element: <ReviewDetailPage /> },      { path: 'login', element: <LoginPage />, handle: SERVICE_PAGE_HANDLE },
+      { path: 'board/review/:postId', element: <ReviewDetailPage /> },      { path: 'instructors', element: <InstructorListPage /> },
+      { path: 'instructors/recruit', element: <RecruitmentListPage /> },
+      { path: 'instructors/recruit/:recruitmentId', element: <RecruitmentDetailPage /> },
+      { path: 'instructors/:instructorId', element: <InstructorDetailPage /> },
+      ...[
+        ['instructors/recruit/:recruitmentId/apply', <InstructorApplyPage mode="create" />],
+        ['me/instructor-applications', <MyInstructorApplicationsPage />],
+        ['me/instructor-applications/:applicationId/edit', <InstructorApplyPage mode="edit" />],
+      ].map(([path, page]) => ({
+        path: path as string,
+        element: <RequireLogin>{page}</RequireLogin>,
+        handle: SERVICE_PAGE_HANDLE,
+      })),      { path: 'login', element: <LoginPage />, handle: SERVICE_PAGE_HANDLE },
       { path: 'find-id', element: <FindIdPage />, handle: SERVICE_PAGE_HANDLE },
       { path: 'withdraw/done', element: <WithdrawDonePage />, handle: SERVICE_PAGE_HANDLE },
       { path: 'reset-password', element: <ResetPasswordPage />, handle: SERVICE_PAGE_HANDLE },
@@ -198,7 +175,6 @@ export const routes: RouteObject[] = [
         ],
       },
       { path: 'terms/:slug', element: <TermPage />, handle: SERVICE_PAGE_HANDLE },
-      ...placeholderRoutes(),
       { path: '*', element: <NotFound /> },
     ],
   },

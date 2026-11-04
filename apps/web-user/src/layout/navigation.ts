@@ -74,9 +74,6 @@ export const FOOTER_LINKS: NavLinkItem[] = [
   { label: '이메일무단수집거부', to: '/terms/email-refusal' },
 ];
 
-// 아직 화면을 옮기지 않은 경로. 이식이 끝나면 이 목록에서 빠지고 실제 라우트가 대신한다.
-export const EXTRA_PLACEHOLDERS: NavLinkItem[] = [];
-
 export function isActiveGroup(group: NavGroup, pathname: string): boolean {
   const roots = new Set([group.to, ...group.items.map((item) => item.to)]);
   return [...roots].some((root) => pathname === root || pathname.startsWith(`${root}/`));

@@ -31,6 +31,14 @@ EXPECTED_OPERATIONS = {
     ("post", "/api/v1/me/reviews"),
     ("put", "/api/v1/me/reviews/{post_id}"),
     ("delete", "/api/v1/me/reviews/{post_id}"),
+    ("get", "/api/v1/instructors"),
+    ("get", "/api/v1/instructors/{instructor_id}"),
+    ("get", "/api/v1/instructor-recruitments"),
+    ("get", "/api/v1/instructor-recruitments/{recruitment_id}"),
+    ("get", "/api/v1/me/instructor-applications"),
+    ("post", "/api/v1/me/instructor-applications"),
+    ("get", "/api/v1/me/instructor-applications/{application_id}"),
+    ("put", "/api/v1/me/instructor-applications/{application_id}"),
     ("put", "/api/v1/me/profile"),
     ("put", "/api/v1/me/password"),
     ("post", "/api/v1/me/withdraw"),
@@ -361,3 +369,42 @@ def test_문의와_후기_작성_요청은_분류와_자격을_서버_값으로�
     # 문의 분류 값은 공통코드(IQ)에서 서버가 내려준다. 화면에 고정하지 않는다(PRD Q26).
     assert "InquiryCategoryList" in schemas
     assert "ReviewableCourseList" in schemas
+
+
+def test_공개_강사는_심사_증빙_없이_소개용_값만_내려준다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    summary = schemas["InstructorSummary"]["properties"]
+    assert set(summary) == {"instructorId", "name", "categoryName", "courseNames"}
+    detail = schemas["InstructorDetail"]["properties"]
+    # 경력·자격은 공식 자료에 없으면 null이다. 지원 심사 증빙은 어떤 공개 응답에도 없다(FN-018).
+    assert {"career", "courseNames", "categoryName"} <= set(detail)
+    assert not any("evidence" in name.lower() or "proof" in name.lower() for name in detail)
+    list_params = {p["name"] for p in spec["paths"]["/api/v1/instructors"]["get"]["parameters"]}
+    assert {"q", "page", "size"} <= list_params
+
+
+def test_모집공고는_지원_가능_여부를_서버가_정한다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert schemas["RecruitmentStatus"]["enum"] == ["UPCOMING", "OPEN", "CLOSED"]
+    summary = schemas["RecruitmentSummary"]["properties"]
+    assert {"recruitmentId", "title", "status", "periodStart", "periodEnd", "headcount"} <= set(summary)
+    # 모집중인 공고에만 지원하기를 보인다(FN-019). 화면은 날짜를 비교하지 않고 이 값을 따른다.
+    assert "canApply" in schemas["RecruitmentDetail"]["properties"]
+
+
+def test_강사_지원서는_텍스트_항목만_받고_심사_상태를_서버가_정한다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    create = schemas["InstructorApplyWrite"]["properties"]
+    assert set(create) == {"recruitmentId", "desiredCourse", "categoryId", "career"}
+    assert create["desiredCourse"]["maxLength"] == 100 and create["career"]["maxLength"] == 2000
+    assert schemas["InstructorApplyStatus"]["enum"] == [
+        "REVIEWING",
+        "SUPPLEMENT",
+        "INTERVIEW",
+        "SELECTED",
+        "REJECTED",
+    ]
+    application = schemas["InstructorApplication"]["properties"]
+    assert {"applicationId", "recruitmentTitle", "desiredCourse", "status", "canEdit", "appliedAt"} <= set(
+        application
+    )

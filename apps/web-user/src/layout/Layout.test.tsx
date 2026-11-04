@@ -1,8 +1,9 @@
-// 머리글·전체 메뉴·글자 크기·화면 전환·임시 화면 같은 공통 틀의 동작을 확인하는 시험
+// 머리글·전체 메뉴·글자 크기·화면 전환·메뉴 연결 같은 공통 틀의 동작을 확인하는 시험
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { renderApp, useMockServer } from '../test/render';
+import { EASY_NAV, FOOTER_LINKS, NAV_GROUPS } from './navigation';
 
 useMockServer();
 
@@ -152,20 +153,18 @@ describe('주 메뉴와 검색', () => {
   });
 });
 
-describe('임시 화면과 없는 경로', () => {
-  it('아직 옮기지 않은 화면은 안내와 홈 링크를 보이고 문서 제목을 맞춘다', () => {
-    renderApp('/instructors');
-    expect(screen.getByRole('heading', { level: 1, name: '강사현황' })).toBeInTheDocument();
-    expect(screen.getByText('이 화면은 아직 이식 전입니다.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/');
-    expect(document.title).toBe('강사현황 | 조리읍주민자치센터');
-  });
-
-  it('메뉴에 있는 모든 경로가 임시 화면으로 연결되어 있다', () => {
-    for (const path of ['/instructors/recruit', '/instructors']) {
+describe('메뉴와 없는 경로', () => {
+  it('메뉴·쉬운 화면 메뉴·바닥글에 있는 모든 경로가 실제 화면으로 연결되어 있다', () => {
+    const paths = new Set([
+      ...NAV_GROUPS.flatMap((group) => [group.to, ...group.items.map((item) => item.to)]),
+      ...EASY_NAV.map((item) => item.to),
+      ...FOOTER_LINKS.map((item) => item.to),
+    ]);
+    expect(paths.size).toBeGreaterThan(20);
+    for (const path of paths) {
       const { unmount } = renderApp(path);
-      expect(screen.queryByText('페이지를 찾을 수 없습니다')).not.toBeInTheDocument();
-      expect(screen.getByText('이 화면은 아직 이식 전입니다.')).toBeInTheDocument();
+      // 연결이 끊긴 메뉴는 곧바로 찾을 수 없음 화면이 된다. 데이터 화면은 불러오는 중이거나 로그인으로 간다.
+      expect(screen.queryByText('페이지를 찾을 수 없습니다'), path).not.toBeInTheDocument();
       unmount();
     }
   });
@@ -175,7 +174,6 @@ describe('임시 화면과 없는 경로', () => {
     expect(screen.getByRole('heading', { level: 1, name: '페이지를 찾을 수 없습니다' })).toBeInTheDocument();
   });
 });
-
 describe('푸터', () => {
   it('연락처 응답으로 주소와 전화번호를 그리고 도로명 주소와 층 안내 사이는 전각 공백으로 띄운다', async () => {
     renderApp('/');
