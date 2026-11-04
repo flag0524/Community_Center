@@ -74,6 +74,19 @@ ADMIN_OPERATIONS = {
     ("get", "/api/admin/v1/auth/session"),
     ("post", "/api/admin/v1/auth/extend"),
     ("get", "/api/admin/v1/me/permissions"),
+    ("get", "/api/admin/v1/cycles"),
+    ("post", "/api/admin/v1/cycles"),
+    ("get", "/api/admin/v1/cycles/{cycle_id}"),
+    ("put", "/api/admin/v1/cycles/{cycle_id}"),
+    ("get", "/api/admin/v1/course-options"),
+    ("get", "/api/admin/v1/courses"),
+    ("post", "/api/admin/v1/courses"),
+    ("get", "/api/admin/v1/courses/{course_id}"),
+    ("put", "/api/admin/v1/courses/{course_id}"),
+    ("post", "/api/admin/v1/courses/{course_id}/publish"),
+    ("post", "/api/admin/v1/courses/{course_id}/close-reception"),
+    ("get", "/api/admin/v1/courses/{course_id}/cancel-preview"),
+    ("post", "/api/admin/v1/courses/{course_id}/cancel-course"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -81,6 +94,8 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/v1/me/applications"),
     ("post", "/api/v1/me/applications/{application_id}/payments"),
     ("post", "/api/v1/me/refunds"),
+    ("post", "/api/admin/v1/cycles"),
+    ("post", "/api/admin/v1/courses"),
 }
 
 
@@ -195,15 +210,12 @@ def test_회원_전용_엔드포인트는_세션_쿠키_보안을_요구한다(s
 
 
 def test_관리자_세션이_필요한_엔드포인트는_관리자_쿠키만_요구한다(spec: Schema) -> None:
-    needs_session = {
-        ("post", "/api/admin/v1/auth/logout"),
-        ("post", "/api/admin/v1/auth/extend"),
-        ("get", "/api/admin/v1/me/permissions"),
-    }
+    # 로그인과 세션 조회만 세션 없이 부른다. 나머지는 모두 관리자 세션 쿠키가 필요하다.
+    open_operations = {("post", "/api/admin/v1/auth/login"), ("get", "/api/admin/v1/auth/session")}
     for (method, path), operation in operations(spec).items():
         if path.startswith(ADMIN_PREFIX):
             expected: list[dict[str, list[str]]] | None = (
-                [{"adminSessionCookie": []}] if (method, path) in needs_session else None
+                None if (method, path) in open_operations else [{"adminSessionCookie": []}]
             )
             assert operation.get("security") == expected, f"{method} {path}"
     scheme = spec["components"]["securitySchemes"]["adminSessionCookie"]
@@ -448,3 +460,34 @@ def test_강사_지원서는_텍스트_항목만_받고_심사_상태를_서버�
     assert {"applicationId", "recruitmentTitle", "desiredCourse", "status", "canEdit", "appliedAt"} <= set(
         application
     )
+
+
+def test_수정_요청은_읽은_버전을_함께_보낸다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    for name in ("CycleUpdate", "CourseUpdate"):
+        assert "version" in schemas[name]["required"], name
+    for name in ("CycleWrite", "CourseWrite"):
+        assert "version" not in schemas[name]["properties"], name
+
+
+def test_강좌_응답은_서버가_정한_버튼_가능_여부를_담고_정원_배분_입력은_없다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert set(schemas["CourseActions"]["properties"]) == {
+        "canEdit",
+        "canPublish",
+        "canCloseReception",
+        "canCancel",
+    }
+    write_fields = set(schemas["CourseWrite"]["properties"])
+    assert not {"onlineCapacity", "visitCapacity"} & write_fields  # FN-048
+    assert "version" in schemas["AdminCourse"]["required"]
+
+
+def test_폐강은_영향_범위_조회_뒤_사유와_함께_요청한다(spec: Schema) -> None:
+    ops = operations(spec)
+    preview = ops[("get", "/api/admin/v1/courses/{course_id}/cancel-preview")]
+    reference = preview["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+    assert reference.endswith("/CancelPreview")
+    assert set(spec["components"]["schemas"]["CancelCourseRequest"]["properties"]) == {"reason"}
+    publish = ops[("post", "/api/admin/v1/courses/{course_id}/publish")]
+    assert "requestBody" not in publish

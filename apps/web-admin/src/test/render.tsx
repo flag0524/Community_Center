@@ -8,6 +8,7 @@ import { login } from '../api/auth';
 import { rememberCsrfToken } from '../api/http';
 import { routes } from '../app/routes';
 import { DEMO_ADMINS, resetMockAuth } from '../mocks/auth';
+import { resetMockEducation } from '../mocks/education';
 import { handlers } from '../mocks/handlers';
 
 // Node의 fetch는 상대 경로를 받지 못한다. 브라우저처럼 현재 주소를 기준으로 풀어 준다.
@@ -23,6 +24,7 @@ export function useMockServer(): void {
   afterEach(() => {
     server.resetHandlers();
     resetMockAuth();
+    resetMockEducation();
     rememberCsrfToken(null);
   });
   afterAll(() => server.close());

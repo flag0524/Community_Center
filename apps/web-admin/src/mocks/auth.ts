@@ -180,14 +180,24 @@ export function resetMockAuth(): void {
 }
 
 const MESSAGES: Partial<Record<ErrorCode, string>> = {
+  CONFLICT_STATE: '현재 상태에서는 처리할 수 없습니다.',
   FORBIDDEN: '요청을 확인할 수 없습니다. 화면을 새로 열고 다시 시도해 주세요.',
+  IDEMPOTENCY_CONFLICT: '같은 요청 키로 다른 내용이 전달되었습니다.',
+  NOT_FOUND: '요청한 정보를 찾을 수 없습니다.',
+  RULE_REJECTED: '처리할 수 없는 요청입니다.',
+  VERSION_CONFLICT: '다른 곳에서 먼저 수정되었습니다. 새로 고친 뒤 다시 시도해 주세요.',
   LOGIN_FAILED: '아이디 또는 비밀번호를 확인해 주세요.',
   LOGIN_LOCKED: '로그인 시도가 많아 잠시 이용할 수 없습니다.',
   UNAUTHENTICATED: '로그인이 필요합니다.',
   VALIDATION_FAILED: '입력 형식이 올바르지 않습니다.',
 };
 const STATUS: Partial<Record<ErrorCode, number>> = {
+  CONFLICT_STATE: 409,
   FORBIDDEN: 403,
+  IDEMPOTENCY_CONFLICT: 409,
+  NOT_FOUND: 404,
+  RULE_REJECTED: 422,
+  VERSION_CONFLICT: 409,
   LOGIN_FAILED: 401,
   LOGIN_LOCKED: 429,
   UNAUTHENTICATED: 401,
@@ -225,6 +235,18 @@ function sessionBody(): Schemas['AdminSession'] {
     serverNow: new Date().toISOString(),
   };
 }
+
+/** 지금 로그인한 모의 관리자가 가진 권한. 로그인하지 않았거나 만료되었으면 빈 배열이다. */
+export const currentAuthorities = (): readonly Authority[] => currentAdmin()?.authorities ?? [];
+
+/** 요청한 권한 중 하나라도 있으면 null, 로그인하지 않았으면 401, 권한이 없으면 403 응답을 돌려준다. */
+export function denyUnless(...anyOf: Authority[]) {
+  if (!currentAdmin()) return apiError('UNAUTHENTICATED');
+  return anyOf.some((code) => currentAuthorities().includes(code)) ? null : apiError('FORBIDDEN');
+}
+
+/** 상태를 바꾸는 요청의 CSRF 검사. 맞지 않으면 403 응답을 돌려준다. */
+export const denyCsrf = (request: Request) => (csrfRejected(request) ? apiError('FORBIDDEN') : null);
 
 export const authHandlers = [
   http.get('/api/admin/v1/auth/session', () => HttpResponse.json(sessionBody())),

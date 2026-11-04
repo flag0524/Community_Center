@@ -8,3 +8,42 @@
 @media (max-width: 1100px) {
   .admin-prototype .adm-who { display: none; }
 }
+
+/* 목록과 양식에서 시안이 정하지 않은 부분. 시안의 색과 간격 규칙을 따른다. */
+.admin-prototype .adm-panel-head { margin-top: 18px; }
+.admin-prototype .adm-count { margin: 14px 0 8px; font-size: 13px; color: #315ab8; }
+.admin-prototype .adm-table-wrap table { width: 100%; border-collapse: collapse; }
+.admin-prototype .adm-table-wrap th,
+.admin-prototype .adm-table-wrap td { padding: 10px; text-align: left; border-bottom: 1px solid #dce0e5; vertical-align: top; }
+.admin-prototype .adm-table-wrap th { border-top: 1px solid #858e9c; font-weight: 500; color: #343c48; white-space: nowrap; }
+.admin-prototype .adm-sub { display: block; font-size: 12px; color: #647080; }
+.admin-prototype .adm-pager { display: flex; gap: 6px; justify-content: center; margin: 18px 0; }
+.admin-prototype .adm-pager a,
+.admin-prototype .adm-pager strong { min-width: 34px; padding: 4px 8px; text-align: center; border: 1px solid #c8ced6; }
+.admin-prototype .adm-pager strong { background: #315ab8; border-color: #315ab8; color: #fff; }
+.admin-prototype .adm-section { margin: 22px 0 0; padding-top: 10px; border-top: 1px solid #858e9c; font-size: 15px; }
+.admin-prototype .adm-form { margin-top: 6px; }
+.admin-prototype .adm-form fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.admin-prototype .adm-form .adm-form-grid { margin: 0 0 8px; }
+.admin-prototype .adm-field { display: grid; grid-template-columns: 125px minmax(0, 1fr); align-items: start; gap: 10px; padding: 10px 0; border-bottom: 1px solid #dce0e5; font-size: 13px; }
+.admin-prototype .adm-field.full { grid-column: 1 / -1; }
+.admin-prototype .adm-field > label { padding-top: 7px; }
+.admin-prototype .adm-field input,
+.admin-prototype .adm-field select,
+.admin-prototype .adm-field textarea { width: 100%; min-height: 36px; padding: 6px 8px; border: 1px solid #aab3c0; background: #fff; }
+.admin-prototype .adm-required { color: #a1453b; margin-left: 2px; }
+.admin-prototype .adm-field-hint { margin: 4px 0 0; font-size: 12px; color: #647080; }
+.admin-prototype .adm-field-error { margin: 4px 0 0; font-size: 12px; color: #a1453b; }
+.admin-prototype .adm-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+.admin-prototype .adm-notice { margin: 12px 0; padding: 10px 12px; background: #f5f6f7; border: 1px solid #d7dbe1; font-size: 13px; }
+.admin-prototype .adm-state { font-size: 13px; color: #343c48; margin: 12px 0 0; }
+@media (max-width: 760px) {
+  .admin-prototype .adm-field { grid-template-columns: 1fr; gap: 4px; }
+  .admin-prototype .adm-field > label { padding-top: 0; }
+}
+
+/* 시안은 머리글 안의 링크를 파란 글자로 정해 둬서, 같은 자리의 버튼 모양 링크가 파란 바탕에 파란 글자가 된다. */
+.admin-prototype .adm-panel-head a.adm-button { color: #fff; }
+.admin-prototype .adm-panel-head a.adm-button.secondary { color: #343c48; }
+/* 시안의 label은 자식을 세로로 쌓는다. 이름표와 필수 표시(*)는 한 줄에 둔다. */
+.admin-prototype .adm-field > label { display: block; }
