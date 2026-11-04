@@ -87,6 +87,16 @@ ADMIN_OPERATIONS = {
     ("post", "/api/admin/v1/courses/{course_id}/close-reception"),
     ("get", "/api/admin/v1/courses/{course_id}/cancel-preview"),
     ("post", "/api/admin/v1/courses/{course_id}/cancel-course"),
+    ("get", "/api/admin/v1/facilities"),
+    ("post", "/api/admin/v1/facilities"),
+    ("get", "/api/admin/v1/facilities/{facility_id}"),
+    ("put", "/api/admin/v1/facilities/{facility_id}"),
+    ("get", "/api/admin/v1/courses/{course_id}/schedules"),
+    ("post", "/api/admin/v1/courses/{course_id}/schedules"),
+    ("put", "/api/admin/v1/courses/{course_id}/schedules/{schedule_id}"),
+    ("delete", "/api/admin/v1/courses/{course_id}/schedules/{schedule_id}"),
+    ("post", "/api/admin/v1/courses/{course_id}/schedule-changes"),
+    ("delete", "/api/admin/v1/courses/{course_id}/schedule-changes/{change_id}"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -96,6 +106,9 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/v1/me/refunds"),
     ("post", "/api/admin/v1/cycles"),
     ("post", "/api/admin/v1/courses"),
+    ("post", "/api/admin/v1/facilities"),
+    ("post", "/api/admin/v1/courses/{course_id}/schedules"),
+    ("post", "/api/admin/v1/courses/{course_id}/schedule-changes"),
 }
 
 
@@ -491,3 +504,28 @@ def test_폐강은_영향_범위_조회_뒤_사유와_함께_요청한다(spec: 
     assert set(spec["components"]["schemas"]["CancelCourseRequest"]["properties"]) == {"reason"}
     publish = ops[("post", "/api/admin/v1/courses/{course_id}/publish")]
     assert "requestBody" not in publish
+
+
+def test_시설과_일정_수정_요청은_읽은_버전을_함께_보낸다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    for name in ("FacilityUpdate", "ScheduleUpdate"):
+        assert "version" in schemas[name]["required"], name
+    for name in ("FacilityWrite", "ScheduleWrite", "ScheduleChangeWrite"):
+        assert "version" not in schemas[name]["properties"], name
+
+
+def test_일정과_휴보강은_시각을_HH_MM_문자열로_받는다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    for name in ("ScheduleWrite", "ScheduleChangeWrite"):
+        for field in ("startTime", "endTime"):
+            options = schemas[name]["properties"][field]
+            patterns = [options.get("pattern")] + [
+                option.get("pattern") for option in options.get("anyOf", [])
+            ]
+            assert any(pattern and "2[0-3]" in pattern for pattern in patterns), f"{name}.{field}"
+
+
+def test_강의실_선택지는_강좌_옵션에_있고_시설_조회는_시설_권한_전용이다(spec: Schema) -> None:
+    assert "rooms" in spec["components"]["schemas"]["CourseOptions"]["properties"]
+    facility_paths = [path for path in spec["paths"] if path.startswith("/api/admin/v1/facilities")]
+    assert len(facility_paths) == 2

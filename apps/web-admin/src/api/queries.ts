@@ -14,6 +14,9 @@ export type CourseOptions = Schemas['CourseOptions'];
 export type AdminCoursePage = Schemas['AdminCoursePage'];
 export type AdminCourse = Schemas['AdminCourse'];
 export type CancelPreview = Schemas['CancelPreview'];
+export type FacilityList = Schemas['FacilityList'];
+export type Facility = Schemas['Facility'];
+export type CourseSchedules = Schemas['CourseSchedules'];
 
 export const sessionQuery = queryOptions({
   queryKey: ['session'],
@@ -51,6 +54,8 @@ export interface AdminCourseParams {
   dongId?: string;
   status?: Schemas['CourseAdminStatus'];
   page?: number;
+  /** 선택 목록처럼 한꺼번에 받을 때만 쓴다. 비우면 서버 기본 크기다. */
+  size?: number;
 }
 
 export const adminCourseListQuery = (params: AdminCourseParams) =>
@@ -74,4 +79,20 @@ export const cancelPreviewQuery = (courseId: string) =>
     queryKey: ['courses', 'cancel-preview', courseId],
     queryFn: ({ signal }) => getJson<CancelPreview>(`/courses/${encodeURIComponent(courseId)}/cancel-preview`, signal),
     gcTime: 0,
+  });
+export const facilityListQuery = queryOptions({
+  queryKey: ['facilities', 'list'],
+  queryFn: ({ signal }) => getJson<FacilityList>('/facilities', signal),
+});
+
+export const facilityQuery = (facilityId: string) =>
+  queryOptions({
+    queryKey: ['facilities', 'detail', facilityId],
+    queryFn: ({ signal }) => getJson<Facility>(`/facilities/${encodeURIComponent(facilityId)}`, signal),
+  });
+
+export const courseSchedulesQuery = (courseId: string) =>
+  queryOptions({
+    queryKey: ['schedules', courseId],
+    queryFn: ({ signal }) => getJson<CourseSchedules>(`/courses/${encodeURIComponent(courseId)}/schedules`, signal),
   });

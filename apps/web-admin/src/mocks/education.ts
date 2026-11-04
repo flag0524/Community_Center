@@ -118,6 +118,25 @@ export function resetMockEducation(): void {
   state = initialState();
 }
 
+/** 강의실 선택지는 시설 모의 서버가 정한다. 두 모의 서버가 서로를 불러오지 않도록 등록해서 쓴다. */
+let roomOptions: () => Array<{ id: string; name: string }> = () => [];
+export const registerRoomOptions = (provider: typeof roomOptions) => {
+  roomOptions = provider;
+};
+
+/** 일정·휴보강 모의 서버가 읽는 강좌 정보. 일정은 공개·접수마감 상태에서 고칠 수 있고 폐강한 강좌는 고칠 수 없다. */
+export function getCourseInfo(courseId: string) {
+  const course = state.courses.find((item) => item.courseId === courseId);
+  if (!course) return undefined;
+  return {
+    courseId,
+    name: course.name,
+    educationStart: course.educationStart,
+    educationEnd: course.educationEnd,
+    canEdit: currentAuthorities().includes('AU.CORS_W') && course.status !== 'CANCELLED',
+  };
+}
+
 /** 일정 모의 서버가 강좌의 일정 수를 맞춘다. */
 export function setScheduleCount(courseId: string, count: number): void {
   const course = state.courses.find((item) => item.courseId === courseId);
@@ -195,8 +214,8 @@ function remember(request: Request, body: unknown, result: Cycle | Course) {
 const READ = ['AU.CORS_R', 'AU.CORS_W'] as const;
 const PAGE_SIZE = 20;
 
-function paged<T>(items: T[], page: number) {
-  return { items: items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), page, size: PAGE_SIZE, total: items.length, criteria: { basisAt: now(), description: null } };
+function paged<T>(items: T[], page: number, size = PAGE_SIZE) {
+  return { items: items.slice((page - 1) * size, page * size), page, size, total: items.length, criteria: { basisAt: now(), description: null } };
 }
 
 const findCourse = (id: string) => state.courses.find((course) => course.courseId === id);
@@ -253,6 +272,7 @@ export const educationHandlers = [
       dongs: [{ id: DONG_ID, name: '조리읍' }],
       classes: CLASSES,
       instructors: INSTRUCTORS,
+      rooms: roomOptions(),
     } satisfies Schemas['CourseOptions']);
   }),
 
@@ -284,7 +304,7 @@ export const educationHandlers = [
       status: course.status,
       receptionState: course.receptionState,
     }));
-    return HttpResponse.json(paged(summaries, Number(params.get('page') ?? 1)));
+    return HttpResponse.json(paged(summaries, Number(params.get('page') ?? 1), Number(params.get('size') ?? PAGE_SIZE)));
   }),
 
   http.post('/api/admin/v1/courses', async ({ request }) => {

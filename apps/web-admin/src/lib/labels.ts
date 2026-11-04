@@ -25,3 +25,17 @@ export const CYCLE_STATUS: Record<Schemas['CycleStatus'], string> = {
   ACTIVE: '사용중',
   INACTIVE: '사용중지',
 };
+
+export const WEEKDAY: Record<Schemas['Weekday'], string> = {
+  MON: '월',
+  TUE: '화',
+  WED: '수',
+  THU: '목',
+  FRI: '금',
+  SAT: '토',
+  SUN: '일',
+};
+
+export const CHANGE_KIND: Record<Schemas['ScheduleChangeKind'], string> = { CANCEL: '휴강', MAKEUP: '보강' };
+
+export const FACILITY_KIND: Record<Schemas['FacilityKind'], string> = { CENTER: '센터', ROOM: '강의실' };

@@ -15,3 +15,13 @@ class CycleStatus(StrEnum):
     DRAFT = "DRAFT"  # 작성중
     ACTIVE = "ACTIVE"  # 사용중
     INACTIVE = "INACTIVE"  # 사용중지
+
+
+class FacilityKind(StrEnum):
+    CENTER = "CENTER"  # 센터
+    ROOM = "ROOM"  # 강의실
+
+
+class ScheduleChangeKind(StrEnum):
+    CANCEL = "CANCEL"  # 휴강
+    MAKEUP = "MAKEUP"  # 보강

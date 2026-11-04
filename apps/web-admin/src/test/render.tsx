@@ -8,6 +8,7 @@ import { login } from '../api/auth';
 import { rememberCsrfToken } from '../api/http';
 import { routes } from '../app/routes';
 import { DEMO_ADMINS, resetMockAuth } from '../mocks/auth';
+import { resetMockCampus } from '../mocks/campus';
 import { resetMockEducation } from '../mocks/education';
 import { handlers } from '../mocks/handlers';
 
@@ -25,6 +26,7 @@ export function useMockServer(): void {
     server.resetHandlers();
     resetMockAuth();
     resetMockEducation();
+    resetMockCampus();
     rememberCsrfToken(null);
   });
   afterAll(() => server.close());

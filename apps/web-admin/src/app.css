@@ -47,3 +47,10 @@
 .admin-prototype .adm-panel-head a.adm-button.secondary { color: #343c48; }
 /* 시안의 label은 자식을 세로로 쌓는다. 이름표와 필수 표시(*)는 한 줄에 둔다. */
 .admin-prototype .adm-field > label { display: block; }
+
+/* 센터·강의실 트리. 센터 아래에 강의실을 들여써서 묶는다. */
+.admin-prototype .adm-tree,
+.admin-prototype .adm-tree ul { list-style: none; margin: 0; padding: 0; }
+.admin-prototype .adm-tree ul { margin-left: 24px; border-left: 2px solid #dce0e5; padding-left: 14px; }
+.admin-prototype .adm-tree li { padding: 6px 0; }
+.admin-prototype .adm-tree-line { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }

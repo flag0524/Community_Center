@@ -220,7 +220,7 @@ function CourseForm({ options, course }: { options: CourseOptions; course?: Admi
           <>
             <h2 className="adm-section">일정</h2>
             <p>
-              등록 {course.scheduleCount}건 · <Link to="/edu/schedules">일정 관리</Link>
+              등록 {course.scheduleCount}건 · <Link to={`/edu/schedules?courseId=${course.courseId}`}>일정 관리</Link>
             </p>
           </>
         )}

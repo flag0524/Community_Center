@@ -51,7 +51,7 @@ export function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
 
 type SendOptions = { signal?: AbortSignal; headers?: Record<string, string> };
 
-async function sendJson<T>(method: 'POST' | 'PUT', path: string, body: unknown, options: SendOptions): Promise<T> {
+async function sendJson<T>(method: 'POST' | 'PUT' | 'DELETE', path: string, body: unknown, options: SendOptions): Promise<T> {
   const { signal, headers } = options;
   if (csrfToken === null) await getJson('/auth/session', signal);
   return request<T>(path, {
@@ -72,3 +72,5 @@ export const postJson = <T = null>(path: string, body?: unknown, options: SendOp
 
 export const putJson = <T = null>(path: string, body?: unknown, options: SendOptions = {}) =>
   sendJson<T>('PUT', path, body, options);
+
+export const deleteJson = (path: string, options: SendOptions = {}) => sendJson<null>('DELETE', path, undefined, options);
