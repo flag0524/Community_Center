@@ -7,6 +7,7 @@ from fastapi.security import APIKeyCookie
 from app.core.errors import ERROR_STATUS, ErrorCode, ErrorResponse
 
 SESSION_COOKIE_NAME = "jori_session"
+ADMIN_SESSION_COOKIE_NAME = "jori_admin_session"
 CSRF_HEADER_NAME = "X-CSRF-Token"
 IDEMPOTENCY_HEADER_NAME = "Idempotency-Key"
 
@@ -16,6 +17,15 @@ member_session = APIKeyCookie(
     scheme_name="sessionCookie",
     auto_error=False,
     description="로그인 뒤 서버가 내려주는 HttpOnly 세션 쿠키",
+)
+
+
+# 관리자 앱은 주민 사이트와 도메인·쿠키를 분리한다(FN-056). 쿠키 이름도 다르다.
+admin_session = APIKeyCookie(
+    name=ADMIN_SESSION_COOKIE_NAME,
+    scheme_name="adminSessionCookie",
+    auto_error=False,
+    description="관리자 로그인 뒤 서버가 내려주는 HttpOnly 세션 쿠키. 유휴 15분에 만료된다.",
 )
 
 

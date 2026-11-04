@@ -1,0 +1,10 @@
+/* 관리자 앱이 시안 CSS 위에 더하는 최소 스타일. 시안에 없는 세션 표시와 불러오는 중 문구만 다룬다. */
+.admin-prototype .adm-who { font-size: 12px; color: #5b626d; }
+.admin-prototype .adm-session { font-size: 12px; font-variant-numeric: tabular-nums; color: #315ab8; }
+.admin-prototype .adm-loading { padding: 24px; color: #647080; }
+.admin-prototype .adm-session-dialog { width: min(420px, calc(100vw - 30px)); }
+.admin-prototype .adm-top-tools .adm-message { margin: 0; }
+/* 시안의 상단 막대는 이름·역할 표시가 없어 좁은 화면에서 넘친다. 이름·역할은 넓은 화면에서만 보인다. */
+@media (max-width: 1100px) {
+  .admin-prototype .adm-who { display: none; }
+}

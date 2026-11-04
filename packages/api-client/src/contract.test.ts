@@ -12,11 +12,12 @@ describe('생성된 API 타입', () => {
     components: { schemas: Record<string, { properties?: Record<string, { type?: string; 'x-serial'?: boolean }> }> };
   };
 
-  it('경로 48개에 엔드포인트 57개를 담고 있다', () => {
+  it('경로 53개에 엔드포인트 62개를 담고 있다', () => {
     const paths = Object.values(openapi.paths) as Record<string, unknown>[];
-    expect(paths.length).toBe(48);
-    expect(paths.reduce((count, item) => count + Object.keys(item).length, 0)).toBe(57);
+    expect(paths.length).toBe(53);
+    expect(paths.reduce((count, item) => count + Object.keys(item).length, 0)).toBe(62);
     expect(types).toContain('"/api/v1/me/applications"');
+    expect(types).toContain('"/api/admin/v1/me/permissions"');
   });
 
   it('Id로 끝나는 필드가 number로 선언되지 않는다', () => {

@@ -1,0 +1,64 @@
+// 생성된 관리자 API 타입을 쓰는 fetch 도우미. 오류 응답은 ApiRequestError로 바꿔 던진다
+import type { ErrorResponse } from '@jori/api-client';
+
+const API_BASE = '/api/admin/v1';
+
+export class ApiRequestError extends Error {
+  readonly status: number;
+  readonly body: ErrorResponse | null;
+
+  constructor(status: number, body: ErrorResponse | null) {
+    super(body?.message ?? `요청에 실패했습니다 (${status})`);
+    this.name = 'ApiRequestError';
+    this.status = status;
+    this.body = body;
+  }
+}
+
+function isErrorResponse(value: unknown): value is ErrorResponse {
+  return typeof value === 'object' && value !== null && 'code' in value && 'requestId' in value;
+}
+
+function parseJson(text: string): unknown {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+// 상태를 바꾸는 요청의 X-CSRF-Token 값. 세션 응답이 올 때마다 바뀔 수 있어 모듈 안에서만 들고 있다.
+let csrfToken: string | null = null;
+
+export function rememberCsrfToken(token: string | null | undefined): void {
+  csrfToken = token ?? null;
+}
+
+async function request<T>(path: string, init: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, { credentials: 'include', ...init });
+  const payload = parseJson(await response.text());
+  if (!response.ok) throw new ApiRequestError(response.status, isErrorResponse(payload) ? payload : null);
+  if (typeof payload === 'object' && payload !== null && 'csrfToken' in payload) {
+    rememberCsrfToken((payload as { csrfToken?: string | null }).csrfToken);
+  }
+  return payload as T;
+}
+
+export function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return request<T>(path, { headers: { Accept: 'application/json' }, signal });
+}
+
+export async function postJson<T = null>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+  if (csrfToken === null) await getJson('/auth/session', signal);
+  return request<T>(path, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(csrfToken === null ? {} : { 'X-CSRF-Token': csrfToken }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
+  });
+}

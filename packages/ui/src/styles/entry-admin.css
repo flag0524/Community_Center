@@ -1,3 +1,4 @@
-/* 관리자 앱이 불러오는 스타일 진입점. 폰트와 시안의 admin CSS를 묶는다. */
+/* 관리자 앱이 불러오는 스타일 진입점. 폰트와 시안의 admin CSS를 묶고 접근성 보정을 마지막에 더한다. */
 @import '@fontsource-variable/noto-sans-kr';
 @import './admin.css';
+@import './admin-a11y-fixes.css';

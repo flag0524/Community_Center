@@ -18,18 +18,19 @@
 | F9c | 공지사항·기관소식·자료실·센터 갤러리·자주하는 질문 | 완료 |
 | F9d | 질문과 답변, 수강후기, 내 문의·내 후기 | 완료 |
 | F9e | 강사은행(강사현황, 강사등록신청) | 완료 |
-| F9f | 관리자 앱(`apps/web-admin`) | 예정 |
+| F9f | 관리자 앱(`apps/web-admin`) | 진행 중(F9f-1 로그인·공통 레이아웃·권한·세션 만료 완료) |
 | P2~ | DB(MariaDB) 물리 설계와 실제 백엔드 구현 | 예정 |
 
 ## 검증 현황
 
-`pnpm check`가 린트, 타입 검사, 단위 시험, 빌드, 브라우저 시험(Edge, 접근성 axe 포함)을 모두 실행합니다. 최근 결과는 파이썬 59개, 앱 단위 320개, 브라우저 177개 통과입니다. 브라우저 시험은 기본·쉬운 화면과 데스크톱·모바일 조합으로 걷습니다.
+`pnpm check`가 린트, 타입 검사, 단위 시험, 빌드, 브라우저 시험(Edge, 접근성 axe 포함)을 모두 실행합니다. 최근 결과는 파이썬 65개, 앱 단위 382개(주민 339, 관리자 35, 공통 8), 브라우저 217개(주민 202, 관리자 15) 통과입니다. 브라우저 시험은 기본·쉬운 화면과 데스크톱·모바일 조합으로 걷습니다.
 ## 구성
 
 ```
 apps/
   api/           FastAPI 백엔드 뼈대. 라우터와 Pydantic 모델로 OpenAPI를 정의한다
   web-user/      주민 앱 (React, 기본 화면 + 쉬운 화면)
+  web-admin/     관리자 앱 (React, 시안의 관리자 화면)
 packages/
   ui/            시안 CSS와 공통 자원
   api-client/    OpenAPI에서 생성한 TypeScript 타입
@@ -52,6 +53,7 @@ docs/            PRD, TRD, ADR, TDD, 화면설계서, DB 스키마 설계안
 ```powershell
 pnpm install
 pnpm --filter @jori/web-user dev        # http://localhost:5173 (모의 서버로 동작)
+pnpm --filter @jori/web-admin dev       # 관리자 앱 (모의 서버로 동작)
 pnpm check                              # 린트, 타입, 단위 시험, 빌드, 브라우저 시험을 모두 실행
 ```
 

@@ -68,6 +68,14 @@ EXPECTED_OPERATIONS = {
     ("post", "/api/v1/me/refunds"),
     ("get", "/api/v1/me/refunds"),
 }
+ADMIN_OPERATIONS = {
+    ("post", "/api/admin/v1/auth/login"),
+    ("post", "/api/admin/v1/auth/logout"),
+    ("get", "/api/admin/v1/auth/session"),
+    ("post", "/api/admin/v1/auth/extend"),
+    ("get", "/api/admin/v1/me/permissions"),
+}
+ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
 IDEMPOTENT_POSTS = {
     ("post", "/api/v1/me/applications"),
@@ -108,11 +116,11 @@ def type_names(prop: Schema) -> set[str]:
 
 
 def test_기대한_엔드포인트가_정확히_있다(spec: Schema) -> None:
-    assert set(operations(spec)) == EXPECTED_OPERATIONS
+    assert set(operations(spec)) == EXPECTED_OPERATIONS | ADMIN_OPERATIONS
 
 
-def test_모든_경로는_api_v1_아래에_있다(spec: Schema) -> None:
-    assert all(path.startswith("/api/v1/") for path in spec["paths"])
+def test_모든_경로는_주민_또는_관리자_api_아래에_있다(spec: Schema) -> None:
+    assert all(path.startswith(("/api/v1/", ADMIN_PREFIX)) for path in spec["paths"])
 
 
 def test_operationId는_유일하고_함수_이름이다(spec: Schema) -> None:
@@ -184,6 +192,38 @@ def test_회원_전용_엔드포인트는_세션_쿠키_보안을_요구한다(s
         if path.startswith(member_prefixes):
             assert operation.get("security") == [{"sessionCookie": []}], f"{method} {path}"
     assert spec["components"]["securitySchemes"]["sessionCookie"]["in"] == "cookie"
+
+
+def test_관리자_세션이_필요한_엔드포인트는_관리자_쿠키만_요구한다(spec: Schema) -> None:
+    needs_session = {
+        ("post", "/api/admin/v1/auth/logout"),
+        ("post", "/api/admin/v1/auth/extend"),
+        ("get", "/api/admin/v1/me/permissions"),
+    }
+    for (method, path), operation in operations(spec).items():
+        if path.startswith(ADMIN_PREFIX):
+            expected: list[dict[str, list[str]]] | None = (
+                [{"adminSessionCookie": []}] if (method, path) in needs_session else None
+            )
+            assert operation.get("security") == expected, f"{method} {path}"
+    scheme = spec["components"]["securitySchemes"]["adminSessionCookie"]
+    assert scheme["in"] == "cookie"
+    assert scheme["name"] != spec["components"]["securitySchemes"]["sessionCookie"]["name"]
+
+
+def test_권한_응답은_서버가_만든_메뉴와_기능권한_코드를_담는다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    permission_fields = set(schemas["AdminPermissions"]["properties"])
+    assert permission_fields == {"roleNames", "scopeLabel", "authorities", "menu"}
+    codes = set(schemas["AdminAuthority"]["enum"])
+    assert "AU.RFND_A" in codes and "AU.RFND_X" in codes
+    assert "AU.MBR_W" not in codes  # 회원 수정은 비활성(FN-065)
+    assert all(code.startswith("AU.") for code in codes)
+
+
+def test_관리자_세션_응답은_만료_시각과_서버_시각을_담는다(spec: Schema) -> None:
+    properties = spec["components"]["schemas"]["AdminSession"]["properties"]
+    assert {"serverNow", "expiresAt", "idleTimeoutSeconds", "csrfToken", "admin"} <= set(properties)
 
 
 def test_GET이_아닌_요청은_CSRF_헤더를_계약에_가진다(spec: Schema) -> None:
