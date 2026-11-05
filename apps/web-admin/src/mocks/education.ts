@@ -118,6 +118,15 @@ export function resetMockEducation(): void {
   state = initialState();
 }
 
+/** 출석 모의 서버가 읽는 강좌 요약. */
+export const courseBriefs = () =>
+  state.courses.map((course) => ({
+    courseId: course.courseId,
+    name: course.name,
+    cycleId: course.cycleId,
+    instructorName: instructorName(course.instructorId),
+  }));
+
 /** 강의실 선택지는 시설 모의 서버가 정한다. 두 모의 서버가 서로를 불러오지 않도록 등록해서 쓴다. */
 let roomOptions: () => Array<{ id: string; name: string }> = () => [];
 export const registerRoomOptions = (provider: typeof roomOptions) => {
@@ -265,13 +274,14 @@ export const educationHandlers = [
   }),
 
   http.get('/api/admin/v1/course-options', () => {
-    const denied = denyUnless(...READ, 'AU.CONF_W');
+    const denied = denyUnless(...READ, 'AU.CONF_W', 'AU.ATND_R');
     if (denied) return denied;
     return HttpResponse.json({
       cycles: state.cycles.map((cycle) => ({ id: cycle.cycleId, name: cycle.name })),
       dongs: [{ id: DONG_ID, name: '조리읍' }],
       classes: CLASSES,
       instructors: INSTRUCTORS,
+      courses: state.courses.map((course) => ({ id: course.courseId, name: course.name })),
       rooms: roomOptions(),
     } satisfies Schemas['CourseOptions']);
   }),

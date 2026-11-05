@@ -17,6 +17,10 @@ export type CancelPreview = Schemas['CancelPreview'];
 export type FacilityList = Schemas['FacilityList'];
 export type Facility = Schemas['Facility'];
 export type CourseSchedules = Schemas['CourseSchedules'];
+export type InstructorReviewPage = Schemas['InstructorReviewPage'];
+export type InstructorReview = Schemas['InstructorReview'];
+export type AttendancePage = Schemas['AttendancePage'];
+export type AttendanceDetail = Schemas['AttendanceDetail'];
 
 export const sessionQuery = queryOptions({
   queryKey: ['session'],
@@ -95,4 +99,47 @@ export const courseSchedulesQuery = (courseId: string) =>
   queryOptions({
     queryKey: ['schedules', courseId],
     queryFn: ({ signal }) => getJson<CourseSchedules>(`/courses/${encodeURIComponent(courseId)}/schedules`, signal),
+  });
+export interface InstructorReviewParams {
+  q?: string;
+  status?: Schemas['ReviewStatus'];
+  isPublic?: 'true' | 'false';
+  page?: number;
+}
+
+export const instructorReviewListQuery = (params: InstructorReviewParams) =>
+  queryOptions({
+    queryKey: ['reviews', 'list', params],
+    queryFn: ({ signal }) =>
+      getJson<InstructorReviewPage>(
+        `/instructor-applications${toQueryString({ ...params, page: params.page && params.page > 1 ? params.page : undefined })}`,
+        signal,
+      ),
+  });
+
+export const instructorReviewQuery = (applicationId: string) =>
+  queryOptions({
+    queryKey: ['reviews', 'detail', applicationId],
+    queryFn: ({ signal }) => getJson<InstructorReview>(`/instructor-applications/${encodeURIComponent(applicationId)}`, signal),
+  });
+
+export interface AttendanceParams {
+  cycleId?: string;
+  courseId?: string;
+  classDate?: string;
+  inputStatus?: Schemas['AttendanceInputStatus'];
+  page?: number;
+}
+
+export const attendanceListQuery = (params: AttendanceParams) =>
+  queryOptions({
+    queryKey: ['attendance', 'list', params],
+    queryFn: ({ signal }) =>
+      getJson<AttendancePage>(`/attendance${toQueryString({ ...params, page: params.page && params.page > 1 ? params.page : undefined })}`, signal),
+  });
+
+export const attendanceQuery = (attendanceId: string) =>
+  queryOptions({
+    queryKey: ['attendance', 'detail', attendanceId],
+    queryFn: ({ signal }) => getJson<AttendanceDetail>(`/attendance/${encodeURIComponent(attendanceId)}`, signal),
   });

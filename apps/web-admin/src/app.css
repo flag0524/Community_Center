@@ -54,3 +54,17 @@
 .admin-prototype .adm-tree ul { margin-left: 24px; border-left: 2px solid #dce0e5; padding-left: 14px; }
 .admin-prototype .adm-tree li { padding: 6px 0; }
 .admin-prototype .adm-tree-line { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+
+/* 읽기 전용 정보(지원 내용, 출석부 요약)와 심사 결과 선택지. 시안의 색과 간격 규칙을 따른다. */
+.admin-prototype .adm-facts { display: grid; grid-template-columns: 160px minmax(0, 1fr); margin: 10px 0 0; border-top: 1px solid #858e9c; font-size: 13px; }
+.admin-prototype .adm-facts dt,
+.admin-prototype .adm-facts dd { margin: 0; padding: 10px 0; border-bottom: 1px solid #dce0e5; }
+.admin-prototype .adm-facts dt { color: #343c48; }
+.admin-prototype .adm-pre { white-space: pre-wrap; }
+.admin-prototype .adm-legend { padding-top: 7px; }
+.admin-prototype .adm-radio { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; margin-right: 18px; min-height: 36px; }
+.admin-prototype .adm-radio input { width: auto; min-height: 0; }
+@media (max-width: 760px) {
+  .admin-prototype .adm-facts { grid-template-columns: 1fr; }
+  .admin-prototype .adm-facts dt { border-bottom: 0; padding-bottom: 0; color: #647080; }
+}

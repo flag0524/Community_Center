@@ -1,12 +1,16 @@
 // 관리자 화면 경로 표. 경로가 여기 있으면 알려진 화면이고, 메뉴(권한 응답)에 없으면 접근 권한이 없는 화면이다
 import type { ReactElement } from 'react';
 import { ComingSoonPage } from '../pages/ComingSoonPage';
+import { AttendanceDetailPage } from '../pages/education/AttendanceDetailPage';
+import { AttendanceListPage } from '../pages/education/AttendanceListPage';
 import { CourseFormPage } from '../pages/education/CourseFormPage';
 import { CourseListPage } from '../pages/education/CourseListPage';
 import { CycleFormPage } from '../pages/education/CycleFormPage';
 import { CycleListPage } from '../pages/education/CycleListPage';
 import { FacilityFormPage } from '../pages/education/FacilityFormPage';
 import { FacilityListPage } from '../pages/education/FacilityListPage';
+import { InstructorReviewFormPage } from '../pages/education/InstructorReviewFormPage';
+import { InstructorReviewListPage } from '../pages/education/InstructorReviewListPage';
 import { ScheduleChangeFormPage } from '../pages/education/ScheduleChangeFormPage';
 import { ScheduleFormPage } from '../pages/education/ScheduleFormPage';
 import { SchedulePage } from '../pages/education/SchedulePage';
@@ -15,8 +19,6 @@ import { SchedulePage } from '../pages/education/SchedulePage';
 const PENDING = [
   '/dashboard',
   '/stats',
-  '/edu/instructors',
-  '/edu/attendance',
   '/pay/applications',
   '/pay/waitlist',
   '/pay/transactions',
@@ -42,6 +44,11 @@ export const SCREENS: Array<{ path: string; element: ReactElement }> = [
   { path: '/edu/schedules/:courseId/new', element: <ScheduleFormPage mode="create" /> },
   { path: '/edu/schedules/:courseId/changes/new', element: <ScheduleChangeFormPage /> },
   { path: '/edu/schedules/:courseId/:scheduleId', element: <ScheduleFormPage mode="edit" /> },
+  { path: '/edu/instructors', element: <InstructorReviewListPage /> },
+  { path: '/edu/instructors/new', element: <InstructorReviewFormPage mode="create" /> },
+  { path: '/edu/instructors/:applicationId', element: <InstructorReviewFormPage mode="review" /> },
+  { path: '/edu/attendance', element: <AttendanceListPage /> },
+  { path: '/edu/attendance/:attendanceId', element: <AttendanceDetailPage /> },
   { path: '/edu/facilities', element: <FacilityListPage /> },
   { path: '/edu/facilities/new', element: <FacilityFormPage mode="create" /> },
   { path: '/edu/facilities/:facilityId', element: <FacilityFormPage mode="edit" /> },

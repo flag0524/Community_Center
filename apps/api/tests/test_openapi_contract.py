@@ -97,6 +97,12 @@ ADMIN_OPERATIONS = {
     ("delete", "/api/admin/v1/courses/{course_id}/schedules/{schedule_id}"),
     ("post", "/api/admin/v1/courses/{course_id}/schedule-changes"),
     ("delete", "/api/admin/v1/courses/{course_id}/schedule-changes/{change_id}"),
+    ("get", "/api/admin/v1/instructor-applications"),
+    ("post", "/api/admin/v1/instructor-applications"),
+    ("get", "/api/admin/v1/instructor-applications/{application_id}"),
+    ("put", "/api/admin/v1/instructor-applications/{application_id}"),
+    ("get", "/api/admin/v1/attendance"),
+    ("get", "/api/admin/v1/attendance/{attendance_id}"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -109,6 +115,7 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/admin/v1/facilities"),
     ("post", "/api/admin/v1/courses/{course_id}/schedules"),
     ("post", "/api/admin/v1/courses/{course_id}/schedule-changes"),
+    ("post", "/api/admin/v1/instructor-applications"),
 }
 
 
@@ -529,3 +536,31 @@ def test_강의실_선택지는_강좌_옵션에_있고_시설_조회는_시설_
     assert "rooms" in spec["components"]["schemas"]["CourseOptions"]["properties"]
     facility_paths = [path for path in spec["paths"] if path.startswith("/api/admin/v1/facilities")]
     assert len(facility_paths) == 2
+
+
+def test_강사_심사_수정은_읽은_버전을_보내고_승인해도_권한을_주지_않는다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert "version" in schemas["InstructorReviewWrite"]["required"]
+    assert set(schemas["ReviewStatus"]["enum"]) == {"PENDING", "APPROVED", "REJECTED", "SUSPENDED"}
+    # 심사 요청에는 강좌 배정이나 관리자 권한을 부여하는 필드가 없다(FN-051).
+    assert set(schemas["InstructorReviewWrite"]["properties"]) == {
+        "status",
+        "reason",
+        "isPublic",
+        "memo",
+        "version",
+    }
+
+
+def test_출석_응답은_조회_전용이고_연락처_생년_결제정보를_담지_않는다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert set(schemas["AttendanceRow"]["properties"]) == {"name", "applicationNo", "memberStatus", "mark"}
+    forbidden = {"phone", "birth", "birthDate", "amount", "payment", "email"}
+    for name in ("AttendanceSummary", "AttendanceDetail", "AttendanceRow"):
+        assert not forbidden & set(schemas[name]["properties"]), name
+    attendance_ops = {key for key in operations(spec) if key[1].startswith("/api/admin/v1/attendance")}
+    assert {method for method, _ in attendance_ops} == {"get"}
+
+
+def test_강좌_선택지는_범위_안의_강좌를_담는다(spec: Schema) -> None:
+    assert "courses" in spec["components"]["schemas"]["CourseOptions"]["properties"]

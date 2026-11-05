@@ -1,8 +1,8 @@
 # 관리자 앱이 호출하는 /api/admin/v1 라우터를 하나로 묶는다
 from fastapi import APIRouter
 
-from app.routers.admin import auth, education, facility, me, schedule
+from app.routers.admin import attendance, auth, education, facility, instructor_review, me, schedule
 
 admin_router = APIRouter(prefix="/api/admin/v1")
-for module in (auth, me, education, facility, schedule):
+for module in (auth, me, education, facility, schedule, instructor_review, attendance):
     admin_router.include_router(module.router)

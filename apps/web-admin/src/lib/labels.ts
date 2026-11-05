@@ -39,3 +39,20 @@ export const WEEKDAY: Record<Schemas['Weekday'], string> = {
 export const CHANGE_KIND: Record<Schemas['ScheduleChangeKind'], string> = { CANCEL: '휴강', MAKEUP: '보강' };
 
 export const FACILITY_KIND: Record<Schemas['FacilityKind'], string> = { CENTER: '센터', ROOM: '강의실' };
+
+export const REVIEW_STATUS: Record<Schemas['ReviewStatus'], string> = {
+  PENDING: '심사대기',
+  APPROVED: '승인',
+  REJECTED: '반려',
+  SUSPENDED: '활동중지',
+};
+
+export const APPLICATION_SOURCE: Record<Schemas['ApplicationSource'], string> = {
+  ONLINE: '온라인 지원',
+  VISIT: '방문 접수',
+  EXTERNAL: '외부 접수',
+};
+
+export const INPUT_STATUS: Record<Schemas['AttendanceInputStatus'], string> = { IN_PROGRESS: '입력중', DONE: '완료' };
+
+export const ATTENDANCE_MARK: Record<Schemas['AttendanceMark'], string> = { PRESENT: '출석', ABSENT: '결석', UNCHECKED: '미체크' };

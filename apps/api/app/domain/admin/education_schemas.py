@@ -45,6 +45,7 @@ class CourseOptions(ApiModel):
     dongs: list[Option]
     classes: list[Option]
     instructors: list[Option] = Field(description="승인·활동 강사만이다(FN-051).")
+    courses: list[Option] = Field(description="범위 안의 강좌. 출석·일정 화면의 강좌 선택에 쓴다.")
     rooms: list[Option] = Field(description="일정에 배정할 수 있는 사용 중인 강의실. 이름에 센터가 붙는다.")
 
 
