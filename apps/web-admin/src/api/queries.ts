@@ -27,6 +27,8 @@ export type WaitlistPage = Schemas['WaitlistPage'];
 export type WaitlistDetail = Schemas['WaitlistDetail'];
 export type TransactionPage = Schemas['TransactionPage'];
 export type Transaction = Schemas['Transaction'];
+export type AdminRefundPage = Schemas['AdminRefundPage'];
+export type AdminRefund = Schemas['AdminRefund'];
 
 export const sessionQuery = queryOptions({
   queryKey: ['session'],
@@ -205,4 +207,24 @@ export const transactionQuery = (transactionId: string) =>
   queryOptions({
     queryKey: ['transactions', 'detail', transactionId],
     queryFn: ({ signal }) => getJson<Transaction>(`/transactions/${encodeURIComponent(transactionId)}`, signal),
+  });
+export interface AdminRefundParams {
+  status?: Schemas['RefundStatus'];
+  requester?: Schemas['RefundRequester'];
+  from?: string;
+  to?: string;
+  page?: number;
+}
+
+export const adminRefundListQuery = (params: AdminRefundParams) =>
+  queryOptions({
+    queryKey: ['refunds', 'list', params],
+    queryFn: ({ signal }) =>
+      getJson<AdminRefundPage>(`/refunds${toQueryString({ ...params, page: params.page && params.page > 1 ? params.page : undefined })}`, signal),
+  });
+
+export const adminRefundQuery = (refundId: string) =>
+  queryOptions({
+    queryKey: ['refunds', 'detail', refundId],
+    queryFn: ({ signal }) => getJson<AdminRefund>(`/refunds/${encodeURIComponent(refundId)}`, signal),
   });

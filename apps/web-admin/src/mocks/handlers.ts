@@ -4,7 +4,8 @@ import { attendanceHandlers } from './attendance';
 import { authHandlers } from './auth';
 import { campusHandlers } from './campus';
 import { educationHandlers } from './education';
+import { refundHandlers } from './refunds';
 import { reviewHandlers } from './review';
 import { transactionHandlers } from './transactions';
 
-export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers];
+export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers, ...refundHandlers];

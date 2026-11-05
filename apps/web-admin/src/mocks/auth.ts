@@ -184,6 +184,7 @@ const MESSAGES: Partial<Record<ErrorCode, string>> = {
   FORBIDDEN: '요청을 확인할 수 없습니다. 화면을 새로 열고 다시 시도해 주세요.',
   IDEMPOTENCY_CONFLICT: '같은 요청 키로 다른 내용이 전달되었습니다.',
   NOT_FOUND: '요청한 정보를 찾을 수 없습니다.',
+  RFND_LIMIT_EXCEEDED: '환불 가능 금액을 초과합니다.',
   RULE_REJECTED: '처리할 수 없는 요청입니다.',
   VERSION_CONFLICT: '다른 곳에서 먼저 수정되었습니다. 새로 고친 뒤 다시 시도해 주세요.',
   LOGIN_FAILED: '아이디 또는 비밀번호를 확인해 주세요.',
@@ -196,6 +197,7 @@ const STATUS: Partial<Record<ErrorCode, number>> = {
   FORBIDDEN: 403,
   IDEMPOTENCY_CONFLICT: 409,
   NOT_FOUND: 404,
+  RFND_LIMIT_EXCEEDED: 422,
   RULE_REJECTED: 422,
   VERSION_CONFLICT: 409,
   LOGIN_FAILED: 401,
@@ -238,6 +240,9 @@ function sessionBody(): Schemas['AdminSession'] {
 
 /** 지금 로그인한 모의 관리자가 가진 권한. 로그인하지 않았거나 만료되었으면 빈 배열이다. */
 export const currentAuthorities = (): readonly Authority[] => currentAdmin()?.authorities ?? [];
+
+/** 지금 로그인한 모의 관리자의 번호. 승인자와 집행자가 같은지 가릴 때 쓴다. */
+export const currentAdminId = (): string => currentAdmin()?.adminId ?? '';
 
 /** 지금 로그인한 모의 관리자의 이름. 처리 이력의 처리자에 쓴다. */
 export const currentAdminName = (): string => currentAdmin()?.name ?? '';

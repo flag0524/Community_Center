@@ -33,3 +33,13 @@ class ReconcileOutcome(StrEnum):
 
     PAID = "PAID"  # 성공
     FAILED = "FAILED"  # 실패
+
+
+class RefundRequester(StrEnum):
+    MEMBER = "MEMBER"  # 본인 온라인 요청
+    ADMIN = "ADMIN"  # 담당자가 방문·유선으로 대리 접수
+
+
+class ExecutionMethod(StrEnum):
+    CANCEL_PAYMENT = "CANCEL_PAYMENT"  # 원결제 취소(PG)
+    MANUAL_TRANSFER = "MANUAL_TRANSFER"  # 수동 계좌환불

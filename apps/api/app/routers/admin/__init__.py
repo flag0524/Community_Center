@@ -9,6 +9,7 @@ from app.routers.admin import (
     facility,
     instructor_review,
     me,
+    refund,
     schedule,
     transaction,
 )
@@ -24,5 +25,6 @@ for module in (
     attendance,
     application,
     transaction,
+    refund,
 ):
     admin_router.include_router(module.router)

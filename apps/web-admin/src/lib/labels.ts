@@ -112,3 +112,9 @@ export const NOTICE_HANDLING: Record<Schemas['NoticeHandling'], string> = {
 export const ACTION_KIND: Record<Schemas['ActionKind'], string> = { RECHECK: 'PG 재조회', MANUAL_RECONCILE: '수동 대사' };
 
 export const RECONCILE_OUTCOME: Record<Schemas['ReconcileOutcome'], string> = { PAID: '성공', FAILED: '실패' };
+
+export const REFUND_REQUESTER: Record<Schemas['RefundRequester'], string> = { MEMBER: '회원 요청', ADMIN: '담당자 대리 접수' };
+
+export const EXECUTION_METHOD: Record<Schemas['ExecutionMethod'], string> = { CANCEL_PAYMENT: '원결제 취소', MANUAL_TRANSFER: '수동 계좌환불' };
+
+export const REFUND_RULE: Record<Schemas['RefundRule'], string> = { BEFORE_START: '개강 전 전액', AFTER_START: '개강 후 당월분 제외' };

@@ -73,3 +73,6 @@
 .admin-prototype .adm-tabs { display: flex; gap: 0; margin: 12px 0 0; border-bottom: 1px solid #bfc6d0; }
 .admin-prototype .adm-tabs a { padding: 8px 16px; border-bottom: 3px solid transparent; font-size: 14px; }
 .admin-prototype .adm-tabs a[aria-current='page'] { border-bottom-color: #315ab8; color: #315ab8; font-weight: 600; }
+
+/* 심사 목표를 넘긴 환불은 색과 글자로 함께 알린다. */
+.admin-prototype .adm-overdue { color: #a1453b; font-weight: 600; }

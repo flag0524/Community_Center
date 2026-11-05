@@ -111,6 +111,15 @@ ADMIN_OPERATIONS = {
     ("get", "/api/admin/v1/transactions/{transaction_id}"),
     ("post", "/api/admin/v1/transactions/{transaction_id}/recheck"),
     ("post", "/api/admin/v1/transactions/{transaction_id}/manual-reconcile"),
+    ("get", "/api/admin/v1/refunds"),
+    ("post", "/api/admin/v1/refunds"),
+    ("get", "/api/admin/v1/refunds/{refund_id}"),
+    ("put", "/api/admin/v1/refunds/{refund_id}/hold"),
+    ("post", "/api/admin/v1/refunds/{refund_id}/release-hold"),
+    ("put", "/api/admin/v1/refunds/{refund_id}/approve"),
+    ("put", "/api/admin/v1/refunds/{refund_id}/reject"),
+    ("post", "/api/admin/v1/refunds/{refund_id}/execute"),
+    ("post", "/api/admin/v1/refunds/{refund_id}/confirm-done"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -124,6 +133,7 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/admin/v1/courses/{course_id}/schedules"),
     ("post", "/api/admin/v1/courses/{course_id}/schedule-changes"),
     ("post", "/api/admin/v1/instructor-applications"),
+    ("post", "/api/admin/v1/refunds"),
 }
 
 
@@ -619,3 +629,31 @@ def test_결제_조치는_거래_번호_아래_두_개뿐이고_취소나_실패
         "/api/admin/v1/transactions/{transaction_id}/recheck",
         "/api/admin/v1/transactions/{transaction_id}/manual-reconcile",
     }
+
+
+def test_환불_결정과_집행_요청은_읽은_버전을_함께_보낸다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    for name in ("RefundHoldRequest", "RefundApproveRequest", "RefundRejectRequest", "RefundVersionRequest"):
+        assert "version" in schemas[name]["required"], name
+    assert "version" not in schemas["AdminRefundCreate"]["properties"]
+
+
+def test_환불_응답은_서버가_정한_가능_여부와_계산값을_담고_계좌는_가려서_준다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    properties = schemas["AdminRefund"]["properties"]
+    flags = {"canReview", "canExecute", "canConfirmTransfer", "executeNote"}
+    assert flags <= set(properties)
+    assert {"paidAmount", "reservedAmount", "remainingAmount", "baselineAmount", "baselineRule"} <= set(
+        properties
+    )
+    assert set(schemas["ManualAccount"]["properties"]) == {"bankName", "holderMasked", "accountMasked"}
+
+
+def test_승인과_집행은_별도_엔드포인트이고_원결제액을_바꾸는_필드는_없다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert set(schemas["RefundApproveRequest"]["properties"]) == {"amount", "version"}
+    paths = {path for (_, path) in operations(spec) if "/refunds/" in path}
+    assert "/api/admin/v1/refunds/{refund_id}/approve" in paths
+    assert "/api/admin/v1/refunds/{refund_id}/execute" in paths
+    for name in ("AdminRefundCreate", "RefundApproveRequest"):
+        assert "paidAmount" not in schemas[name]["properties"], name
