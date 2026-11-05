@@ -16,6 +16,8 @@ import { ScheduleFormPage } from '../pages/education/ScheduleFormPage';
 import { SchedulePage } from '../pages/education/SchedulePage';
 import { ApplicationDetailPage } from '../pages/payment/ApplicationDetailPage';
 import { ApplicationListPage } from '../pages/payment/ApplicationListPage';
+import { TransactionDetailPage } from '../pages/payment/TransactionDetailPage';
+import { TransactionListPage } from '../pages/payment/TransactionListPage';
 import { WaitlistDetailPage } from '../pages/payment/WaitlistDetailPage';
 import { WaitlistPage } from '../pages/payment/WaitlistPage';
 
@@ -23,7 +25,6 @@ import { WaitlistPage } from '../pages/payment/WaitlistPage';
 const PENDING = [
   '/dashboard',
   '/stats',
-  '/pay/transactions',
   '/pay/refunds',
   '/mbr/members',
   '/mbr/posts',
@@ -53,6 +54,8 @@ export const SCREENS: Array<{ path: string; element: ReactElement }> = [
   { path: '/edu/attendance/:attendanceId', element: <AttendanceDetailPage /> },
   { path: '/pay/applications', element: <ApplicationListPage /> },
   { path: '/pay/applications/:applicationId', element: <ApplicationDetailPage /> },
+  { path: '/pay/transactions', element: <TransactionListPage /> },
+  { path: '/pay/transactions/:transactionId', element: <TransactionDetailPage /> },
   { path: '/pay/waitlist', element: <WaitlistPage /> },
   { path: '/pay/waitlist/:courseId', element: <WaitlistDetailPage /> },
   { path: '/edu/facilities', element: <FacilityListPage /> },

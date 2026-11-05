@@ -5,5 +5,6 @@ import { authHandlers } from './auth';
 import { campusHandlers } from './campus';
 import { educationHandlers } from './education';
 import { reviewHandlers } from './review';
+import { transactionHandlers } from './transactions';
 
-export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers];
+export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers];

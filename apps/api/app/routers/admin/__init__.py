@@ -10,8 +10,19 @@ from app.routers.admin import (
     instructor_review,
     me,
     schedule,
+    transaction,
 )
 
 admin_router = APIRouter(prefix="/api/admin/v1")
-for module in (auth, me, education, facility, schedule, instructor_review, attendance, application):
+for module in (
+    auth,
+    me,
+    education,
+    facility,
+    schedule,
+    instructor_review,
+    attendance,
+    application,
+    transaction,
+):
     admin_router.include_router(module.router)

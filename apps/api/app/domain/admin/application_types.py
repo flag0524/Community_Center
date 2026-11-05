@@ -13,3 +13,23 @@ class SmsResult(StrEnum):
     PENDING = "PENDING"  # 발송 대기
     SENT = "SENT"  # 발송 완료
     FAILED = "FAILED"  # 발송 실패
+
+
+class NoticeHandling(StrEnum):
+    """PG 통보를 처리한 결과."""
+
+    DONE = "DONE"  # 처리 완료
+    DUPLICATE = "DUPLICATE"  # 중복 통보라 기존 결과를 돌려줌
+    CONFLICT = "CONFLICT"  # 기존 결과와 충돌해 격리(보안 사건)
+
+
+class ActionKind(StrEnum):
+    RECHECK = "RECHECK"  # PG 재조회
+    MANUAL_RECONCILE = "MANUAL_RECONCILE"  # 수동 대사
+
+
+class ReconcileOutcome(StrEnum):
+    """수동 대사로 정하는 결과. PG 관리자 화면에서 확인한 사실만 입력한다(FN-042)."""
+
+    PAID = "PAID"  # 성공
+    FAILED = "FAILED"  # 실패

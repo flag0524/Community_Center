@@ -239,6 +239,9 @@ function sessionBody(): Schemas['AdminSession'] {
 /** 지금 로그인한 모의 관리자가 가진 권한. 로그인하지 않았거나 만료되었으면 빈 배열이다. */
 export const currentAuthorities = (): readonly Authority[] => currentAdmin()?.authorities ?? [];
 
+/** 지금 로그인한 모의 관리자의 이름. 처리 이력의 처리자에 쓴다. */
+export const currentAdminName = (): string => currentAdmin()?.name ?? '';
+
 /** 요청한 권한 중 하나라도 있으면 null, 로그인하지 않았으면 401, 권한이 없으면 403 응답을 돌려준다. */
 export function denyUnless(...anyOf: Authority[]) {
   if (!currentAdmin()) return apiError('UNAUTHENTICATED');

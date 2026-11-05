@@ -102,3 +102,13 @@ export const PAYMENT_METHOD: Record<Schemas['PaymentMethod'], string> = { CARD: 
 export const SMS_RESULT: Record<Schemas['SmsResult'], string> = { PENDING: '발송 대기', SENT: '발송 완료', FAILED: '발송 실패' };
 
 export const REPLAY_OUTCOME: Record<Schemas['ReplayOutcome'], string> = { SAME_RESULT: '이전 결과 반환', CONFLICT: '내용 불일치(409)' };
+
+export const NOTICE_HANDLING: Record<Schemas['NoticeHandling'], string> = {
+  DONE: '처리 완료',
+  DUPLICATE: '중복(기존 결과 반환)',
+  CONFLICT: '충돌(격리, 보안사건)',
+};
+
+export const ACTION_KIND: Record<Schemas['ActionKind'], string> = { RECHECK: 'PG 재조회', MANUAL_RECONCILE: '수동 대사' };
+
+export const RECONCILE_OUTCOME: Record<Schemas['ReconcileOutcome'], string> = { PAID: '성공', FAILED: '실패' };

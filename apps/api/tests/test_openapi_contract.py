@@ -107,6 +107,10 @@ ADMIN_OPERATIONS = {
     ("get", "/api/admin/v1/applications/{application_id}"),
     ("get", "/api/admin/v1/waitlist"),
     ("get", "/api/admin/v1/waitlist/{course_id}"),
+    ("get", "/api/admin/v1/transactions"),
+    ("get", "/api/admin/v1/transactions/{transaction_id}"),
+    ("post", "/api/admin/v1/transactions/{transaction_id}/recheck"),
+    ("post", "/api/admin/v1/transactions/{transaction_id}/manual-reconcile"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -589,3 +593,29 @@ def test_신청_상세는_원장_이력과_연결_결제_환불_멱등_재요청
     detail = spec["components"]["schemas"]["AdminApplication"]["properties"]
     assert {"history", "payment", "refund", "replays", "seatAllottedAt", "paymentDeadlineAt"} <= set(detail)
     assert set(spec["components"]["schemas"]["ReplayOutcome"]["enum"]) == {"SAME_RESULT", "CONFLICT"}
+
+
+def test_수동_대사는_근거를_필수로_받고_결과는_성공과_실패뿐이다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    request = schemas["ReconcileRequest"]
+    assert {"outcome", "evidence", "version"} <= set(request["required"])
+    assert set(schemas["ReconcileOutcome"]["enum"]) == {"PAID", "FAILED"}
+    assert request["properties"]["evidence"]["minLength"] >= 5
+
+
+def test_거래_응답은_서버가_정한_조치_가능_여부와_통보_이력을_담고_통보_원문은_없다(spec: Schema) -> None:
+    properties = spec["components"]["schemas"]["Transaction"]["properties"]
+    assert {"canRecheck", "canReconcile", "notices", "actions", "recheckCount", "recheckMax"} <= set(
+        properties
+    )
+    notice = spec["components"]["schemas"]["PgNotice"]["properties"]
+    assert set(notice) == {"at", "hashPrefix", "handling"}
+    assert set(spec["components"]["schemas"]["NoticeHandling"]["enum"]) == {"DONE", "DUPLICATE", "CONFLICT"}
+
+
+def test_결제_조치는_거래_번호_아래_두_개뿐이고_취소나_실패_강제_엔드포인트는_없다(spec: Schema) -> None:
+    posts = {path for (method, path) in operations(spec) if method == "post" and "/transactions/" in path}
+    assert posts == {
+        "/api/admin/v1/transactions/{transaction_id}/recheck",
+        "/api/admin/v1/transactions/{transaction_id}/manual-reconcile",
+    }

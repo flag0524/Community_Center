@@ -25,6 +25,8 @@ export type AdminApplicationPage = Schemas['AdminApplicationPage'];
 export type AdminApplication = Schemas['AdminApplication'];
 export type WaitlistPage = Schemas['WaitlistPage'];
 export type WaitlistDetail = Schemas['WaitlistDetail'];
+export type TransactionPage = Schemas['TransactionPage'];
+export type Transaction = Schemas['Transaction'];
 
 export const sessionQuery = queryOptions({
   queryKey: ['session'],
@@ -181,4 +183,26 @@ export const waitlistDetailQuery = (courseId: string) =>
   queryOptions({
     queryKey: ['waitlist', 'detail', courseId],
     queryFn: ({ signal }) => getJson<WaitlistDetail>(`/waitlist/${encodeURIComponent(courseId)}`, signal),
+  });
+export interface TransactionParams {
+  q?: string;
+  status?: Schemas['PaymentStatus'];
+  method?: Schemas['PaymentMethod'];
+  from?: string;
+  to?: string;
+  conflictOnly?: 'true';
+  page?: number;
+}
+
+export const transactionListQuery = (params: TransactionParams) =>
+  queryOptions({
+    queryKey: ['transactions', 'list', params],
+    queryFn: ({ signal }) =>
+      getJson<TransactionPage>(`/transactions${toQueryString({ ...params, page: params.page && params.page > 1 ? params.page : undefined })}`, signal),
+  });
+
+export const transactionQuery = (transactionId: string) =>
+  queryOptions({
+    queryKey: ['transactions', 'detail', transactionId],
+    queryFn: ({ signal }) => getJson<Transaction>(`/transactions/${encodeURIComponent(transactionId)}`, signal),
   });

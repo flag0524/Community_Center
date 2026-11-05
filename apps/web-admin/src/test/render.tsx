@@ -10,6 +10,7 @@ import { routes } from '../app/routes';
 import { DEMO_ADMINS, resetMockAuth } from '../mocks/auth';
 import { resetMockCampus } from '../mocks/campus';
 import { resetMockReview } from '../mocks/review';
+import { resetMockTransactions } from '../mocks/transactions';
 import { resetMockEducation } from '../mocks/education';
 import { handlers } from '../mocks/handlers';
 
@@ -29,6 +30,7 @@ export function useMockServer(): void {
     resetMockEducation();
     resetMockCampus();
     resetMockReview();
+    resetMockTransactions();
     rememberCsrfToken(null);
   });
   afterAll(() => server.close());
