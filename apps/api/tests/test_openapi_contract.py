@@ -120,6 +120,19 @@ ADMIN_OPERATIONS = {
     ("put", "/api/admin/v1/refunds/{refund_id}/reject"),
     ("post", "/api/admin/v1/refunds/{refund_id}/execute"),
     ("post", "/api/admin/v1/refunds/{refund_id}/confirm-done"),
+    ("get", "/api/admin/v1/members"),
+    ("get", "/api/admin/v1/members/{member_id}"),
+    ("post", "/api/admin/v1/members/{member_id}/reveal"),
+    ("post", "/api/admin/v1/members/{member_id}/reviews"),
+    ("post", "/api/admin/v1/members/{member_id}/reviews/{review_id}/close"),
+    ("post", "/api/admin/v1/members/{member_id}/residence"),
+    ("get", "/api/admin/v1/boards"),
+    ("put", "/api/admin/v1/boards/{board_key}"),
+    ("get", "/api/admin/v1/posts"),
+    ("post", "/api/admin/v1/posts"),
+    ("get", "/api/admin/v1/posts/{post_id}"),
+    ("put", "/api/admin/v1/posts/{post_id}"),
+    ("delete", "/api/admin/v1/posts/{post_id}"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -134,6 +147,8 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/admin/v1/courses/{course_id}/schedule-changes"),
     ("post", "/api/admin/v1/instructor-applications"),
     ("post", "/api/admin/v1/refunds"),
+    ("post", "/api/admin/v1/members/{member_id}/reviews"),
+    ("post", "/api/admin/v1/posts"),
 }
 
 
@@ -657,3 +672,38 @@ def test_승인과_집행은_별도_엔드포인트이고_원결제액을_바꾸
     assert "/api/admin/v1/refunds/{refund_id}/execute" in paths
     for name in ("AdminRefundCreate", "RefundApproveRequest"):
         assert "paidAmount" not in schemas[name]["properties"], name
+
+
+def test_회원_API에는_회원_정보를_수정하는_요청이_없다(spec: Schema) -> None:
+    member_ops = {
+        (method, path) for (method, path) in operations(spec) if path.startswith("/api/admin/v1/members")
+    }
+    assert not {key for key in member_ops if key[0] in ("put", "patch", "delete")}  # FN-065
+    schemas = spec["components"]["schemas"]
+    for name in ("AdminMember", "AdminMemberSummary"):
+        assert not {"birthDate", "age", "ageBand", "address"} & set(schemas[name]["properties"]), name
+    assert set(schemas["MemberStatus"]["enum"]) == {"ACTIVE", "LOCKED", "WITHDRAWN"}
+
+
+def test_회원_응답은_이름과_연락처를_가려서_주고_원문은_사유와_함께_따로_받는다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert {"nameMasked"} <= set(schemas["AdminMemberSummary"]["properties"])
+    assert {"phoneMasked", "emailMasked"} <= set(schemas["AdminMember"]["properties"])
+    assert "phone" not in schemas["AdminMember"]["properties"]
+    assert schemas["RevealRequest"]["properties"]["reason"]["minLength"] >= 5
+    assert set(schemas["MemberContact"]["properties"]) == {"phone", "email"}
+
+
+def test_게시판_설정은_스키마의_네_정책만_담고_이름과_키는_바꾸지_않는다(spec: Schema) -> None:
+    update = spec["components"]["schemas"]["BoardSettingUpdate"]
+    assert set(update["properties"]) == {"memberWrite", "answerEnabled", "attachEnabled", "inUse", "version"}
+    assert "version" in update["required"]
+
+
+def test_게시물_수정은_읽은_버전을_보내고_삭제는_논리_삭제_하나다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert "version" in schemas["AdminPostUpdate"]["required"]
+    assert "version" not in schemas["AdminPostWrite"]["properties"]
+    assert {"canEditContent", "memberAuthored"} <= set(schemas["AdminPost"]["properties"])
+    delete = operations(spec)[("delete", "/api/admin/v1/posts/{post_id}")]
+    assert "204" in delete["responses"]

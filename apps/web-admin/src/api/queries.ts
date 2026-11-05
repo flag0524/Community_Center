@@ -29,6 +29,11 @@ export type TransactionPage = Schemas['TransactionPage'];
 export type Transaction = Schemas['Transaction'];
 export type AdminRefundPage = Schemas['AdminRefundPage'];
 export type AdminRefund = Schemas['AdminRefund'];
+export type AdminMemberPage = Schemas['AdminMemberPage'];
+export type AdminMember = Schemas['AdminMember'];
+export type BoardSettingList = Schemas['BoardSettingList'];
+export type AdminPostPage = Schemas['AdminPostPage'];
+export type AdminPost = Schemas['AdminPost'];
 
 export const sessionQuery = queryOptions({
   queryKey: ['session'],
@@ -227,4 +232,46 @@ export const adminRefundQuery = (refundId: string) =>
   queryOptions({
     queryKey: ['refunds', 'detail', refundId],
     queryFn: ({ signal }) => getJson<AdminRefund>(`/refunds/${encodeURIComponent(refundId)}`, signal),
+  });
+export interface MemberParams {
+  q?: string;
+  status?: Schemas['MemberStatus'];
+  page?: number;
+}
+
+export const memberListQuery = (params: MemberParams) =>
+  queryOptions({
+    queryKey: ['members', 'list', params],
+    queryFn: ({ signal }) =>
+      getJson<AdminMemberPage>(`/members${toQueryString({ ...params, page: params.page && params.page > 1 ? params.page : undefined })}`, signal),
+  });
+
+export const memberQuery = (memberId: string) =>
+  queryOptions({
+    queryKey: ['members', 'detail', memberId],
+    queryFn: ({ signal }) => getJson<AdminMember>(`/members/${encodeURIComponent(memberId)}`, signal),
+  });
+
+export const boardListQuery = queryOptions({
+  queryKey: ['boards', 'list'],
+  queryFn: ({ signal }) => getJson<BoardSettingList>('/boards', signal),
+});
+
+export interface AdminPostParams {
+  board?: Schemas['BoardKey'];
+  q?: string;
+  page?: number;
+}
+
+export const adminPostListQuery = (params: AdminPostParams) =>
+  queryOptions({
+    queryKey: ['posts', 'list', params],
+    queryFn: ({ signal }) =>
+      getJson<AdminPostPage>(`/posts${toQueryString({ ...params, page: params.page && params.page > 1 ? params.page : undefined })}`, signal),
+  });
+
+export const adminPostQuery = (postId: string) =>
+  queryOptions({
+    queryKey: ['posts', 'detail', postId],
+    queryFn: ({ signal }) => getJson<AdminPost>(`/posts/${encodeURIComponent(postId)}`, signal),
   });

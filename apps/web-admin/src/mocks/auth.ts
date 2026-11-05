@@ -97,7 +97,8 @@ const MENU: Array<{ key: string; title: string; items: MenuDef[] }> = [
     title: '회원·콘텐츠',
     items: [
       { key: 'members', label: '회원 관리', path: '/mbr/members', anyOf: ['AU.MBR_R'] },
-      { key: 'posts', label: '게시물·게시판', path: '/mbr/posts', anyOf: ['AU.POST_W', 'AU.BBS_W'] },
+      { key: 'posts', label: '게시물', path: '/mbr/posts', anyOf: ['AU.POST_W'] },
+      { key: 'boards', label: '게시판 설정', path: '/mbr/boards', anyOf: ['AU.BBS_W'] },
       { key: 'inquiries', label: '문의·답변', path: '/mbr/inquiries', anyOf: ['AU.POST_W'] },
       { key: 'contents', label: '홈·센터 콘텐츠', path: '/mbr/contents', anyOf: ['AU.SITE_W'] },
       { key: 'terms', label: '약관·동의문', path: '/mbr/terms', anyOf: ['AU.SITE_W'] },

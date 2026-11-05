@@ -2,10 +2,12 @@
 import { applicationHandlers } from './applications';
 import { attendanceHandlers } from './attendance';
 import { authHandlers } from './auth';
+import { boardHandlers } from './boards';
 import { campusHandlers } from './campus';
 import { educationHandlers } from './education';
+import { memberHandlers } from './members';
 import { refundHandlers } from './refunds';
 import { reviewHandlers } from './review';
 import { transactionHandlers } from './transactions';
 
-export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers, ...refundHandlers];
+export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers, ...refundHandlers, ...memberHandlers, ...boardHandlers];

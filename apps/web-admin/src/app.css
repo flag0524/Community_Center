@@ -76,3 +76,8 @@
 
 /* 심사 목표를 넘긴 환불은 색과 글자로 함께 알린다. */
 .admin-prototype .adm-overdue { color: #a1453b; font-weight: 600; }
+
+/* 시안의 입력칸 규칙이 체크박스와 라디오 버튼까지 크게 만든다. 선택 상자는 글자 크기에 맞춘다. */
+.admin-prototype input[type='checkbox'],
+.admin-prototype .adm-field input[type='checkbox'],
+.admin-prototype .adm-field input[type='radio'] { width: 18px; height: 18px; min-height: 0; padding: 0; }

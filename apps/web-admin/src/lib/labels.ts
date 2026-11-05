@@ -118,3 +118,13 @@ export const REFUND_REQUESTER: Record<Schemas['RefundRequester'], string> = { ME
 export const EXECUTION_METHOD: Record<Schemas['ExecutionMethod'], string> = { CANCEL_PAYMENT: '원결제 취소', MANUAL_TRANSFER: '수동 계좌환불' };
 
 export const REFUND_RULE: Record<Schemas['RefundRule'], string> = { BEFORE_START: '개강 전 전액', AFTER_START: '개강 후 당월분 제외' };
+
+export const MEMBER_STATUS: Record<Schemas['MemberStatus'], string> = { ACTIVE: '정상', LOCKED: '잠금', WITHDRAWN: '탈퇴' };
+
+export const RESIDENCE_DECLARED: Record<Schemas['ResidenceDeclared'], string> = { JORI: '조리읍', OTHER_PAJU: '파주시 다른 지역' };
+
+export const RESIDENCE_STATUS: Record<Schemas['ResidenceStatus'], string> = { UNVERIFIED: '확인 전', VERIFIED: '확인 완료' };
+
+export const REVIEW_KIND: Record<Schemas['MemberReviewKind'], string> = { RESTRICT: '이용제한 검토', WITHDRAW: '탈퇴 검토', NAME_CHANGE: '이름 변경 요청 검토' };
+
+export const REVIEW_STATE: Record<Schemas['MemberReviewState'], string> = { OPEN: '검토 중', CLOSED: '처리 완료' };
