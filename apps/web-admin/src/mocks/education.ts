@@ -125,6 +125,9 @@ export const courseBriefs = () =>
     name: course.name,
     cycleId: course.cycleId,
     instructorName: instructorName(course.instructorId),
+    capacity: course.capacity,
+    occupied: course.occupied,
+    waiting: course.waiting,
   }));
 
 /** 강의실 선택지는 시설 모의 서버가 정한다. 두 모의 서버가 서로를 불러오지 않도록 등록해서 쓴다. */
@@ -274,7 +277,7 @@ export const educationHandlers = [
   }),
 
   http.get('/api/admin/v1/course-options', () => {
-    const denied = denyUnless(...READ, 'AU.CONF_W', 'AU.ATND_R');
+    const denied = denyUnless(...READ, 'AU.CONF_W', 'AU.ATND_R', 'AU.APLY_R');
     if (denied) return denied;
     return HttpResponse.json({
       cycles: state.cycles.map((cycle) => ({ id: cycle.cycleId, name: cycle.name })),

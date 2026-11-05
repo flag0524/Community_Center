@@ -21,6 +21,10 @@ export type InstructorReviewPage = Schemas['InstructorReviewPage'];
 export type InstructorReview = Schemas['InstructorReview'];
 export type AttendancePage = Schemas['AttendancePage'];
 export type AttendanceDetail = Schemas['AttendanceDetail'];
+export type AdminApplicationPage = Schemas['AdminApplicationPage'];
+export type AdminApplication = Schemas['AdminApplication'];
+export type WaitlistPage = Schemas['WaitlistPage'];
+export type WaitlistDetail = Schemas['WaitlistDetail'];
 
 export const sessionQuery = queryOptions({
   queryKey: ['session'],
@@ -142,4 +146,39 @@ export const attendanceQuery = (attendanceId: string) =>
   queryOptions({
     queryKey: ['attendance', 'detail', attendanceId],
     queryFn: ({ signal }) => getJson<AttendanceDetail>(`/attendance/${encodeURIComponent(attendanceId)}`, signal),
+  });
+export interface AdminApplicationParams {
+  q?: string;
+  cycleId?: string;
+  courseId?: string;
+  status?: Schemas['ApplicationStatus'];
+  paymentStatus?: Schemas['PaymentStatus'];
+  from?: string;
+  to?: string;
+  page?: number;
+}
+
+export const adminApplicationListQuery = (params: AdminApplicationParams) =>
+  queryOptions({
+    queryKey: ['applications', 'list', params],
+    queryFn: ({ signal }) =>
+      getJson<AdminApplicationPage>(`/applications${toQueryString({ ...params, page: params.page && params.page > 1 ? params.page : undefined })}`, signal),
+  });
+
+export const adminApplicationQuery = (applicationId: string) =>
+  queryOptions({
+    queryKey: ['applications', 'detail', applicationId],
+    queryFn: ({ signal }) => getJson<AdminApplication>(`/applications/${encodeURIComponent(applicationId)}`, signal),
+  });
+
+export const waitlistQuery = (page: number) =>
+  queryOptions({
+    queryKey: ['waitlist', 'list', page],
+    queryFn: ({ signal }) => getJson<WaitlistPage>(`/waitlist${toQueryString({ page: page > 1 ? page : undefined })}`, signal),
+  });
+
+export const waitlistDetailQuery = (courseId: string) =>
+  queryOptions({
+    queryKey: ['waitlist', 'detail', courseId],
+    queryFn: ({ signal }) => getJson<WaitlistDetail>(`/waitlist/${encodeURIComponent(courseId)}`, signal),
   });

@@ -103,6 +103,10 @@ ADMIN_OPERATIONS = {
     ("put", "/api/admin/v1/instructor-applications/{application_id}"),
     ("get", "/api/admin/v1/attendance"),
     ("get", "/api/admin/v1/attendance/{attendance_id}"),
+    ("get", "/api/admin/v1/applications"),
+    ("get", "/api/admin/v1/applications/{application_id}"),
+    ("get", "/api/admin/v1/waitlist"),
+    ("get", "/api/admin/v1/waitlist/{course_id}"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -564,3 +568,24 @@ def test_출석_응답은_조회_전용이고_연락처_생년_결제정보를_�
 
 def test_강좌_선택지는_범위_안의_강좌를_담는다(spec: Schema) -> None:
     assert "courses" in spec["components"]["schemas"]["CourseOptions"]["properties"]
+
+
+def test_신청과_대기_조회는_조회_전용이다(spec: Schema) -> None:
+    paths = ("/api/admin/v1/applications", "/api/admin/v1/waitlist")
+    methods = {method for (method, path) in operations(spec) if path.startswith(paths)}
+    assert methods == {"get"}  # 관리자의 신청 상태 직접 변경·수동 승격은 없다(FN-035)
+
+
+def test_신청_응답은_가려진_이름과_서버가_정한_표시_상태를_담는다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    summary = schemas["AdminApplicationSummary"]["properties"]
+    assert {"applicantName", "displayState", "status", "paymentStatus", "refundStatus"} <= set(summary)
+    forbidden = {"phone", "birth", "birthDate", "email", "address"}
+    for name in ("AdminApplicationSummary", "AdminApplication", "Waiter"):
+        assert not forbidden & set(schemas[name]["properties"]), name
+
+
+def test_신청_상세는_원장_이력과_연결_결제_환불_멱등_재요청을_담는다(spec: Schema) -> None:
+    detail = spec["components"]["schemas"]["AdminApplication"]["properties"]
+    assert {"history", "payment", "refund", "replays", "seatAllottedAt", "paymentDeadlineAt"} <= set(detail)
+    assert set(spec["components"]["schemas"]["ReplayOutcome"]["enum"]) == {"SAME_RESULT", "CONFLICT"}

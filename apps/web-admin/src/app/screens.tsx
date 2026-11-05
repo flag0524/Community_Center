@@ -14,13 +14,15 @@ import { InstructorReviewListPage } from '../pages/education/InstructorReviewLis
 import { ScheduleChangeFormPage } from '../pages/education/ScheduleChangeFormPage';
 import { ScheduleFormPage } from '../pages/education/ScheduleFormPage';
 import { SchedulePage } from '../pages/education/SchedulePage';
+import { ApplicationDetailPage } from '../pages/payment/ApplicationDetailPage';
+import { ApplicationListPage } from '../pages/payment/ApplicationListPage';
+import { WaitlistDetailPage } from '../pages/payment/WaitlistDetailPage';
+import { WaitlistPage } from '../pages/payment/WaitlistPage';
 
 // 단계마다 아래 임시 자리(ComingSoonPage)를 실제 화면으로 바꾼다. 마지막 단계에서 ComingSoonPage를 지운다.
 const PENDING = [
   '/dashboard',
   '/stats',
-  '/pay/applications',
-  '/pay/waitlist',
   '/pay/transactions',
   '/pay/refunds',
   '/mbr/members',
@@ -49,6 +51,10 @@ export const SCREENS: Array<{ path: string; element: ReactElement }> = [
   { path: '/edu/instructors/:applicationId', element: <InstructorReviewFormPage mode="review" /> },
   { path: '/edu/attendance', element: <AttendanceListPage /> },
   { path: '/edu/attendance/:attendanceId', element: <AttendanceDetailPage /> },
+  { path: '/pay/applications', element: <ApplicationListPage /> },
+  { path: '/pay/applications/:applicationId', element: <ApplicationDetailPage /> },
+  { path: '/pay/waitlist', element: <WaitlistPage /> },
+  { path: '/pay/waitlist/:courseId', element: <WaitlistDetailPage /> },
   { path: '/edu/facilities', element: <FacilityListPage /> },
   { path: '/edu/facilities/new', element: <FacilityFormPage mode="create" /> },
   { path: '/edu/facilities/:facilityId', element: <FacilityFormPage mode="edit" /> },

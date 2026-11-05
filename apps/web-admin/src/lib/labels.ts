@@ -56,3 +56,49 @@ export const APPLICATION_SOURCE: Record<Schemas['ApplicationSource'], string> = 
 export const INPUT_STATUS: Record<Schemas['AttendanceInputStatus'], string> = { IN_PROGRESS: '입력중', DONE: '완료' };
 
 export const ATTENDANCE_MARK: Record<Schemas['AttendanceMark'], string> = { PRESENT: '출석', ABSENT: '결석', UNCHECKED: '미체크' };
+
+export const DISPLAY_STATE: Record<Schemas['ApplicationDisplayState'], string> = {
+  WAITING: '대기',
+  PAYMENT_DUE: '결제대기',
+  PAYMENT_FAILED: '결제실패',
+  PAYMENT_UNKNOWN: '결제 결과 확인 중',
+  CONFIRMED: '수강확정',
+  CONFIRMED_FREE: '수강확정(무료)',
+  EXPIRED: '결제기한 만료',
+  CANCELLED: '신청취소',
+  COURSE_CLOSED: '폐강',
+  COMPLETED: '수강종료',
+};
+
+export const APPLICATION_STATUS: Record<Schemas['ApplicationStatus'], string> = {
+  WAITING: '대기',
+  HOLD: '자리 점유(결제 대기)',
+  CONFIRMED: '확정',
+  CANCELLED: '취소',
+  EXPIRED: '만료',
+  COMPLETED: '종료',
+};
+
+export const PAYMENT_STATUS: Record<Schemas['PaymentStatus'], string> = {
+  READY: '결제 준비',
+  PENDING: '승인 결과 확인 중',
+  PAID: '결제완료',
+  FAILED: '결제실패',
+  CANCELLED: '결제취소',
+};
+
+export const REFUND_STATUS: Record<Schemas['RefundStatus'], string> = {
+  REQUESTED: '접수',
+  ON_HOLD: '보류',
+  REJECTED: '반려',
+  APPROVED: '승인',
+  PENDING: '처리중',
+  DONE: '완료',
+  FAILED: '실패',
+};
+
+export const PAYMENT_METHOD: Record<Schemas['PaymentMethod'], string> = { CARD: '카드', TRANSFER: '계좌이체' };
+
+export const SMS_RESULT: Record<Schemas['SmsResult'], string> = { PENDING: '발송 대기', SENT: '발송 완료', FAILED: '발송 실패' };
+
+export const REPLAY_OUTCOME: Record<Schemas['ReplayOutcome'], string> = { SAME_RESULT: '이전 결과 반환', CONFLICT: '내용 불일치(409)' };
