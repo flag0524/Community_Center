@@ -17,9 +17,3 @@ export function useHasAuthority(code: AdminPermissions['authorities'][number]): 
   const { data } = useQuery(permissionsQuery);
   return data?.authorities.includes(code) ?? false;
 }
-
-/** 현재 경로의 메뉴 이름. 메뉴에 없으면 빈 문자열이다. */
-export function useMenuLabel(pathname: string): string {
-  const { data } = useQuery(permissionsQuery);
-  return (data && findItem(data.menu, pathname)?.label) ?? '';
-}

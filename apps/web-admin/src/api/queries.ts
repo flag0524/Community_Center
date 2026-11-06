@@ -385,3 +385,24 @@ export const smsQuery = (smsId: string) =>
     queryKey: ['sms', 'detail', smsId],
     queryFn: ({ signal }) => getJson<Schemas['SmsRequestDetail']>(`/sms/${encodeURIComponent(smsId)}`, signal),
   });
+
+export type RoleAssignmentPage = Schemas['RoleAssignmentPage'];
+export interface AssignmentParams {
+  status?: Schemas['AssignmentStatus'];
+  q?: string;
+  page?: number;
+}
+export const assignmentListQuery = (params: AssignmentParams) =>
+  queryOptions({
+    queryKey: ['roles', 'list', params],
+    queryFn: ({ signal }) => getJson<RoleAssignmentPage>(`/role-assignments${toQueryString({ ...params, page: params.page && params.page > 1 ? params.page : undefined })}`, signal),
+  });
+export const assignmentQuery = (assignmentId: string) =>
+  queryOptions({
+    queryKey: ['roles', 'detail', assignmentId],
+    queryFn: ({ signal }) => getJson<Schemas['RoleAssignment']>(`/role-assignments/${encodeURIComponent(assignmentId)}`, signal),
+  });
+export const assignmentOptionsQuery = queryOptions({
+  queryKey: ['roles', 'options'],
+  queryFn: ({ signal }) => getJson<Schemas['AssignmentOptions']>('/role-assignment-options', signal),
+});

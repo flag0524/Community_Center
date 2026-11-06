@@ -1,6 +1,5 @@
 // 관리자 화면 경로 표. 경로가 여기 있으면 알려진 화면이고, 메뉴(권한 응답)에 없으면 접근 권한이 없는 화면이다
 import type { ReactElement } from 'react';
-import { ComingSoonPage } from '../pages/ComingSoonPage';
 import { BoardSettingsPage } from '../pages/board/BoardSettingsPage';
 import { PostFormPage } from '../pages/board/PostFormPage';
 import { PostListPage } from '../pages/board/PostListPage';
@@ -12,6 +11,9 @@ import { InquiryDetailPage } from '../pages/inquiry/InquiryDetailPage';
 import { InquiryListPage } from '../pages/inquiry/InquiryListPage';
 import { MemberDetailPage } from '../pages/member/MemberDetailPage';
 import { MemberListPage } from '../pages/member/MemberListPage';
+import { RoleDetailPage } from '../pages/role/RoleDetailPage';
+import { RoleFormPage } from '../pages/role/RoleFormPage';
+import { RoleListPage } from '../pages/role/RoleListPage';
 import { SmsDetailPage } from '../pages/sms/SmsDetailPage';
 import { SmsListPage } from '../pages/sms/SmsListPage';
 import { SmsSendPage } from '../pages/sms/SmsSendPage';
@@ -41,11 +43,6 @@ import { TransactionDetailPage } from '../pages/payment/TransactionDetailPage';
 import { TransactionListPage } from '../pages/payment/TransactionListPage';
 import { WaitlistDetailPage } from '../pages/payment/WaitlistDetailPage';
 import { WaitlistPage } from '../pages/payment/WaitlistPage';
-
-// 단계마다 아래 임시 자리(ComingSoonPage)를 실제 화면으로 바꾼다. 마지막 단계에서 ComingSoonPage를 지운다.
-const PENDING = [
-  '/sys/roles',
-];
 
 export const SCREENS: Array<{ path: string; element: ReactElement }> = [
   { path: '/edu/courses', element: <CourseListPage /> },
@@ -88,6 +85,9 @@ export const SCREENS: Array<{ path: string; element: ReactElement }> = [
   { path: '/sys/sms', element: <SmsListPage /> },
   { path: '/sys/sms/new', element: <SmsSendPage /> },
   { path: '/sys/sms/:smsId', element: <SmsDetailPage /> },
+  { path: '/sys/roles', element: <RoleListPage /> },
+  { path: '/sys/roles/new', element: <RoleFormPage /> },
+  { path: '/sys/roles/:assignmentId', element: <RoleDetailPage /> },
   { path: '/pay/refunds', element: <RefundListPage /> },
   { path: '/pay/refunds/new', element: <RefundReceivePage /> },
   { path: '/pay/refunds/:refundId', element: <RefundDetailPage /> },
@@ -96,5 +96,4 @@ export const SCREENS: Array<{ path: string; element: ReactElement }> = [
   { path: '/edu/facilities', element: <FacilityListPage /> },
   { path: '/edu/facilities/new', element: <FacilityFormPage mode="create" /> },
   { path: '/edu/facilities/:facilityId', element: <FacilityFormPage mode="edit" /> },
-  ...PENDING.map((path) => ({ path, element: <ComingSoonPage /> })),
 ];

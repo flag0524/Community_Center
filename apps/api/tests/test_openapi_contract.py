@@ -159,6 +159,11 @@ ADMIN_OPERATIONS = {
     ("get", "/api/admin/v1/sms/{sms_id}"),
     ("post", "/api/admin/v1/sms/preview"),
     ("post", "/api/admin/v1/sms"),
+    ("get", "/api/admin/v1/role-assignment-options"),
+    ("get", "/api/admin/v1/role-assignments"),
+    ("get", "/api/admin/v1/role-assignments/{assignment_id}"),
+    ("post", "/api/admin/v1/role-assignments"),
+    ("post", "/api/admin/v1/role-assignments/{assignment_id}/revoke"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -178,6 +183,7 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/admin/v1/contents"),
     ("post", "/api/admin/v1/terms/{term_type}/versions"),
     ("post", "/api/admin/v1/sms"),
+    ("post", "/api/admin/v1/role-assignments"),
 }
 
 
@@ -856,3 +862,19 @@ def test_문자_이력은_수신번호와_이름을_가려서_주고_원문_번�
         assert not forbidden & set(schemas[name]["properties"]), name
     assert set(schemas["SmsTargetState"]["enum"]) == {"WAIT", "SENDING", "SENT", "FAIL", "UNKNOWN", "SKIP"}
     assert set(schemas["SmsKind"]["enum"]) == {"AUTO", "MANUAL"}
+
+
+def test_권한_배정은_수정과_삭제_없이_새로_배정하거나_회수만_한다(spec: Schema) -> None:
+    role_ops = {key for key in operations(spec) if "/role-assignment" in key[1]}
+    assert not {key for key in role_ops if key[0] in {"put", "patch", "delete"}}
+    schemas = spec["components"]["schemas"]
+    assert "version" in schemas["AssignmentRevoke"]["required"]
+    assert {"canRevoke", "authorities", "version"} <= set(schemas["RoleAssignment"]["properties"])
+    assert set(schemas["AssignmentStatus"]["enum"]) == {"ACTIVE", "SCHEDULED", "EXPIRED", "REVOKED"}
+
+
+def test_배정_요청은_역할_범위_유효기간을_한_행으로_받고_동은_선택이다(spec: Schema) -> None:
+    create = spec["components"]["schemas"]["AssignmentCreate"]
+    assert {"adminId", "roleId", "scope", "validFrom"} <= set(create["required"])
+    assert "dongId" not in create["required"]
+    assert "validTo" not in create["required"]
