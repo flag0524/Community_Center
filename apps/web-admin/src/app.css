@@ -60,7 +60,7 @@
 .admin-prototype .adm-facts dt,
 .admin-prototype .adm-facts dd { margin: 0; padding: 10px 0; border-bottom: 1px solid #dce0e5; }
 .admin-prototype .adm-facts dt { color: #343c48; }
-.admin-prototype .adm-pre { white-space: pre-wrap; }
+.admin-prototype .adm-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .admin-prototype .adm-legend { padding-top: 7px; }
 .admin-prototype .adm-radio { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; margin-right: 18px; min-height: 36px; }
 .admin-prototype .adm-radio input { width: auto; min-height: 0; }

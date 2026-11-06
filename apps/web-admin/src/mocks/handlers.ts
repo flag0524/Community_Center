@@ -6,10 +6,12 @@ import { boardHandlers } from './boards';
 import { campusHandlers } from './campus';
 import { contentHandlers } from './contents';
 import { educationHandlers } from './education';
+import { fileHandlers } from './files';
 import { inquiryHandlers } from './inquiries';
 import { memberHandlers } from './members';
 import { refundHandlers } from './refunds';
 import { reviewHandlers } from './review';
+import { termHandlers } from './terms';
 import { transactionHandlers } from './transactions';
 
-export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers, ...refundHandlers, ...memberHandlers, ...boardHandlers, ...inquiryHandlers, ...contentHandlers];
+export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers, ...refundHandlers, ...memberHandlers, ...boardHandlers, ...inquiryHandlers, ...contentHandlers, ...termHandlers, ...fileHandlers];

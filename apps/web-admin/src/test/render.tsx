@@ -11,6 +11,8 @@ import { DEMO_ADMINS, resetMockAuth } from '../mocks/auth';
 import { resetMockBoards } from '../mocks/boards';
 import { resetMockCampus } from '../mocks/campus';
 import { resetMockContents } from '../mocks/contents';
+import { resetMockFiles } from '../mocks/files';
+import { resetMockTerms } from '../mocks/terms';
 import { resetMockInquiries } from '../mocks/inquiries';
 import { resetMockMembers } from '../mocks/members';
 import { resetMockRefunds } from '../mocks/refunds';
@@ -40,6 +42,8 @@ export function useMockServer(): void {
     resetMockBoards();
     resetMockInquiries();
     resetMockContents();
+    resetMockTerms();
+    resetMockFiles();
     resetMockTransactions();
     rememberCsrfToken(null);
   });

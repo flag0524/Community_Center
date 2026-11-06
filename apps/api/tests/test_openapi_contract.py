@@ -141,6 +141,14 @@ ADMIN_OPERATIONS = {
     ("post", "/api/admin/v1/contents"),
     ("get", "/api/admin/v1/contents/{content_id}"),
     ("put", "/api/admin/v1/contents/{content_id}"),
+    ("get", "/api/admin/v1/terms"),
+    ("get", "/api/admin/v1/terms/versions/{version_id}"),
+    ("post", "/api/admin/v1/terms/{term_type}/versions"),
+    ("put", "/api/admin/v1/terms/versions/{version_id}"),
+    ("post", "/api/admin/v1/terms/versions/{version_id}/fix"),
+    ("post", "/api/admin/v1/terms/versions/{version_id}/publish"),
+    ("get", "/api/admin/v1/files"),
+    ("get", "/api/admin/v1/files/{file_id}"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -158,6 +166,7 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/admin/v1/members/{member_id}/reviews"),
     ("post", "/api/admin/v1/posts"),
     ("post", "/api/admin/v1/contents"),
+    ("post", "/api/admin/v1/terms/{term_type}/versions"),
 }
 
 
@@ -758,3 +767,32 @@ def test_콘텐츠_유형은_여덟_가지이고_연락처만_구조_입력을_�
     assert "canCreate" in schemas["AdminContentPage"]["properties"]
     content_ops = {method for (method, path) in operations(spec) if path.startswith("/api/admin/v1/contents")}
     assert "delete" not in content_ops  # 이력이 있는 콘텐츠는 삭제 대신 게시 여부로 끈다
+
+
+def test_약관_버전은_검토_확정_게시_순서로만_나아가고_수정은_검토_상태만_받는다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert set(schemas["TermStatus"]["enum"]) == {"REVIEW", "FIXED", "PUBLISHED", "ENDED"}
+    for name in ("TermVersionUpdate", "TermVersionAction"):
+        assert "version" in schemas[name]["required"], name
+    assert {"canEdit", "canFix", "canPublish", "contentHash"} <= set(schemas["TermVersion"]["properties"])
+    term_ops = {key for key in operations(spec) if "/terms" in key[1]}
+    assert not {
+        key for key in term_ops if key[0] == "delete"
+    }  # 게시된 문안은 지우거나 덮어쓰지 않는다(FN-055)
+
+
+def test_약관_새_버전은_복제_원본을_받고_본문은_선택이다(spec: Schema) -> None:
+    create = spec["components"]["schemas"]["TermVersionCreate"]
+    assert {"baseVersionId", "body"} <= set(create["properties"])
+    assert "body" not in create["required"]
+    assert "version" not in create["properties"]
+
+
+def test_첨부파일은_조회_전용이고_차단_사유와_내려받기_감사기록을_담는다(spec: Schema) -> None:
+    file_ops = {method for (method, path) in operations(spec) if path.startswith("/api/admin/v1/files")}
+    assert file_ops == {"get"}
+    schemas = spec["components"]["schemas"]
+    assert {"blockReason", "downloads", "hashPrefix"} <= set(schemas["AdminFile"]["properties"])
+    assert set(schemas["FileStatus"]["enum"]) == {"PENDING", "SAFE", "BLOCK", "DELETE"}
+    forbidden = {"storageKey", "strgKey", "path", "url"}
+    assert not forbidden & set(schemas["AdminFile"]["properties"])  # 저장소 키·경로는 내보내지 않는다

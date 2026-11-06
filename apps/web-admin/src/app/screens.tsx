@@ -6,10 +6,14 @@ import { PostFormPage } from '../pages/board/PostFormPage';
 import { PostListPage } from '../pages/board/PostListPage';
 import { ContentFormPage } from '../pages/content/ContentFormPage';
 import { ContentListPage } from '../pages/content/ContentListPage';
+import { FileDetailPage } from '../pages/file/FileDetailPage';
+import { FileListPage } from '../pages/file/FileListPage';
 import { InquiryDetailPage } from '../pages/inquiry/InquiryDetailPage';
 import { InquiryListPage } from '../pages/inquiry/InquiryListPage';
 import { MemberDetailPage } from '../pages/member/MemberDetailPage';
 import { MemberListPage } from '../pages/member/MemberListPage';
+import { TermFormPage } from '../pages/term/TermFormPage';
+import { TermListPage } from '../pages/term/TermListPage';
 import { AttendanceDetailPage } from '../pages/education/AttendanceDetailPage';
 import { AttendanceListPage } from '../pages/education/AttendanceListPage';
 import { CourseFormPage } from '../pages/education/CourseFormPage';
@@ -37,8 +41,6 @@ import { WaitlistPage } from '../pages/payment/WaitlistPage';
 const PENDING = [
   '/dashboard',
   '/stats',
-  '/mbr/terms',
-  '/mbr/files',
   '/sys/sms',
   '/sys/roles',
 ];
@@ -74,6 +76,11 @@ export const SCREENS: Array<{ path: string; element: ReactElement }> = [
   { path: '/mbr/contents', element: <ContentListPage /> },
   { path: '/mbr/contents/new', element: <ContentFormPage mode="create" /> },
   { path: '/mbr/contents/:contentId', element: <ContentFormPage mode="edit" /> },
+  { path: '/mbr/terms', element: <TermListPage /> },
+  { path: '/mbr/terms/new', element: <TermFormPage mode="create" /> },
+  { path: '/mbr/terms/:versionId', element: <TermFormPage mode="edit" /> },
+  { path: '/mbr/files', element: <FileListPage /> },
+  { path: '/mbr/files/:fileId', element: <FileDetailPage /> },
   { path: '/pay/refunds', element: <RefundListPage /> },
   { path: '/pay/refunds/new', element: <RefundReceivePage /> },
   { path: '/pay/refunds/:refundId', element: <RefundDetailPage /> },

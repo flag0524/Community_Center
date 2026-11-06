@@ -9,12 +9,14 @@ from app.routers.admin import (
     content,
     education,
     facility,
+    file,
     inquiry,
     instructor_review,
     me,
     member,
     refund,
     schedule,
+    term,
     transaction,
 )
 
@@ -34,5 +36,7 @@ for module in (
     board,
     inquiry,
     content,
+    term,
+    file,
 ):
     admin_router.include_router(module.router)

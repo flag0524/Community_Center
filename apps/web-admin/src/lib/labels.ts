@@ -143,3 +143,23 @@ export const CONTENT_TYPE: Record<Schemas['ContentType'], string> = {
   GUIDE: '수강·환불 안내',
   FACILITY: '시설안내',
 };
+
+export const TERM_TYPE: Record<Schemas['TermType'], string> = {
+  TERMS_OF_USE: '이용약관',
+  PRIVACY_CONSENT: '개인정보 수집·이용 동의',
+  MARKETING_CONSENT: '마케팅 수신 동의',
+  PRIVACY_POLICY: '개인정보처리방침',
+  EMAIL_REFUSAL: '이메일 무단수집 거부',
+};
+export const TERM_STATUS: Record<Schemas['TermStatus'], string> = { REVIEW: '검토', FIXED: '확정', PUBLISHED: '게시', ENDED: '게시 종료' };
+export const FILE_STATUS: Record<Schemas['FileStatus'], string> = { PENDING: '검사 대기', SAFE: '정상', BLOCK: '차단', DELETE: '삭제' };
+export const FILE_OWNER: Record<Schemas['FileOwnerKind'], string> = {
+  POST: '게시물',
+  COURSE: '강좌',
+  INSTRUCTOR_APPLICATION: '강사 지원',
+  CONTENT: '홈·센터 콘텐츠',
+  APPLICATION: '수강신청',
+  REFUND: '환불',
+  STATS_SOURCE: '통계 자료',
+};
+export const FILE_PURPOSE: Record<Schemas['FilePurpose'], string> = { ATTACH: '첨부', PLAN: '강의계획서', PROOF: '증빙', IMAGE: '이미지' };

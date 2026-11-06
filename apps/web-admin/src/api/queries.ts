@@ -322,3 +322,33 @@ export const adminContentQuery = (contentId: string) =>
     queryKey: ['contents', 'detail', contentId],
     queryFn: ({ signal }) => getJson<AdminContent>(`/contents/${encodeURIComponent(contentId)}`, signal),
   });
+
+export type TermVersionPage = Schemas['TermVersionPage'];
+export type AdminFilePage = Schemas['AdminFilePage'];
+export type AdminFile = Schemas['AdminFile'];
+export const termVersionListQuery = (type: Schemas['TermType'], page?: number) =>
+  queryOptions({
+    queryKey: ['terms', 'list', type, page ?? 1],
+    queryFn: ({ signal }) => getJson<TermVersionPage>(`/terms${toQueryString({ type, page: page && page > 1 ? page : undefined })}`, signal),
+  });
+export const termVersionQuery = (versionId: string) =>
+  queryOptions({
+    queryKey: ['terms', 'detail', versionId],
+    queryFn: ({ signal }) => getJson<Schemas['TermVersion']>(`/terms/versions/${encodeURIComponent(versionId)}`, signal),
+  });
+export interface AdminFileParams {
+  ownerKind?: Schemas['FileOwnerKind'];
+  status?: Schemas['FileStatus'];
+  q?: string;
+  page?: number;
+}
+export const adminFileListQuery = (params: AdminFileParams) =>
+  queryOptions({
+    queryKey: ['files', 'list', params],
+    queryFn: ({ signal }) => getJson<AdminFilePage>(`/files${toQueryString({ ...params, page: params.page && params.page > 1 ? params.page : undefined })}`, signal),
+  });
+export const adminFileQuery = (fileId: string) =>
+  queryOptions({
+    queryKey: ['files', 'detail', fileId],
+    queryFn: ({ signal }) => getJson<AdminFile>(`/files/${encodeURIComponent(fileId)}`, signal),
+  });
