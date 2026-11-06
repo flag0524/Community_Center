@@ -16,6 +16,7 @@ import { resetMockTerms } from '../mocks/terms';
 import { resetMockInquiries } from '../mocks/inquiries';
 import { resetMockMembers } from '../mocks/members';
 import { resetMockRefunds } from '../mocks/refunds';
+import { resetMockReductions } from '../mocks/reductions';
 import { resetMockReview } from '../mocks/review';
 import { resetMockRoles } from '../mocks/roles';
 import { resetMockSms } from '../mocks/sms';
@@ -47,6 +48,7 @@ export function useMockServer(): void {
     resetMockTerms();
     resetMockSms();
     resetMockRoles();
+    resetMockReductions();
     resetMockFiles();
     resetMockTransactions();
     rememberCsrfToken(null);

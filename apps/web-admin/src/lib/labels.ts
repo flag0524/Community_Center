@@ -187,3 +187,7 @@ export const SMS_AUDIENCE: Record<Schemas['SmsAudienceStatus'], string> = { CONF
 
 export const ASSIGNMENT_SCOPE: Record<Schemas['AssignmentScope'], string> = { SYSTEM: '전체 운영구조', GROUP: '운영묶음 전체', DONG: '동' };
 export const ASSIGNMENT_STATUS: Record<Schemas['AssignmentStatus'], string> = { ACTIVE: '유효', SCHEDULED: '시작 전', EXPIRED: '기간 종료', REVOKED: '회수됨' };
+
+export const REDUCTION_TYPE: Record<Schemas['ReductionType'], string> = { LIVELIHOOD: '기초생활보장 수급자 본인', VETERAN: '국가유공자 본인', DISABLED: '등록 장애인 본인' };
+export const REDUCTION_STATUS: Record<Schemas['ReductionStatus'], string> = { RECEIVED: '접수', APPROVED: '승인', REJECTED: '반려', REVOKED: '철회' };
+export const REDUCTION_DECISION: Record<Schemas['ReductionDecision'], string> = { APPROVE: '승인', REJECT: '반려' };

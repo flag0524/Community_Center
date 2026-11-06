@@ -31,7 +31,7 @@ describe('메뉴는 권한 응답으로만 구성된다', () => {
     expect(within(nav).getByRole('link', { name: '수강·정산' })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: '교육 운영' })).not.toHaveAttribute('aria-current');
     const side = screen.getByRole('navigation', { name: '수강·정산 하위 메뉴' });
-    expect(labels(side)).toEqual(['수강신청', '대기·자리 배정', '결제·거래 대조', '환불 검토']);
+    expect(labels(side)).toEqual(['수강신청', '대기·자리 배정', '결제·거래 대조', '환불 검토', '감면 검토', '감면 처리 이력']);
     expect(within(side).getByRole('link', { name: '대기·자리 배정' })).toHaveAttribute('aria-current', 'page');
   });
 

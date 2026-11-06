@@ -14,6 +14,7 @@ from app.routers.admin import (
     instructor_review,
     me,
     member,
+    reduction,
     refund,
     role,
     schedule,
@@ -44,5 +45,6 @@ for module in (
     stats,
     sms,
     role,
+    reduction,
 ):
     admin_router.include_router(module.router)

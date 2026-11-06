@@ -164,6 +164,12 @@ ADMIN_OPERATIONS = {
     ("get", "/api/admin/v1/role-assignments/{assignment_id}"),
     ("post", "/api/admin/v1/role-assignments"),
     ("post", "/api/admin/v1/role-assignments/{assignment_id}/revoke"),
+    ("get", "/api/admin/v1/reductions"),
+    ("get", "/api/admin/v1/reductions/{review_id}"),
+    ("post", "/api/admin/v1/reductions/{review_id}/evidence-views"),
+    ("post", "/api/admin/v1/reductions/{review_id}/decision"),
+    ("post", "/api/admin/v1/reductions/{review_id}/re-review"),
+    ("get", "/api/admin/v1/reduction-history"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -184,6 +190,7 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/admin/v1/terms/{term_type}/versions"),
     ("post", "/api/admin/v1/sms"),
     ("post", "/api/admin/v1/role-assignments"),
+    ("post", "/api/admin/v1/reductions/{review_id}/re-review"),
 }
 
 
@@ -878,3 +885,23 @@ def test_배정_요청은_역할_범위_유효기간을_한_행으로_받고_동
     assert {"adminId", "roleId", "scope", "validFrom"} <= set(create["required"])
     assert "dongId" not in create["required"]
     assert "validTo" not in create["required"]
+
+
+def test_감면_심사는_결정에_버전과_결과를_받고_삭제_수정_없이_재심사로_새_건을_만든다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert {"decision", "version"} <= set(schemas["ReductionDecisionRequest"]["required"])
+    assert set(schemas["ReductionDecision"]["enum"]) == {"APPROVE", "REJECT"}
+    assert set(schemas["ReductionStatus"]["enum"]) == {"RECEIVED", "APPROVED", "REJECTED", "REVOKED"}
+    assert {"canDecide", "canReReview", "residenceConfirmed", "evidenceViews"} <= set(
+        schemas["ReductionReview"]["properties"]
+    )
+    reduction_ops = {key for key in operations(spec) if "/reduction" in key[1]}
+    assert not {key for key in reduction_ops if key[0] in {"put", "patch", "delete"}}
+
+
+def test_감면_이력은_조회_전용이고_증빙_파일의_저장_위치를_담지_않는다(spec: Schema) -> None:
+    history_ops = {method for (method, path) in operations(spec) if path == "/api/admin/v1/reduction-history"}
+    assert history_ops == {"get"}
+    forbidden = {"storageKey", "strgKey", "path", "url"}
+    for name in ("ReductionEvidence", "ReductionHistoryRow", "ReductionReview"):
+        assert not forbidden & set(spec["components"]["schemas"][name]["properties"]), name

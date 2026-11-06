@@ -11,6 +11,9 @@ import { InquiryDetailPage } from '../pages/inquiry/InquiryDetailPage';
 import { InquiryListPage } from '../pages/inquiry/InquiryListPage';
 import { MemberDetailPage } from '../pages/member/MemberDetailPage';
 import { MemberListPage } from '../pages/member/MemberListPage';
+import { ReductionDetailPage } from '../pages/reduction/ReductionDetailPage';
+import { ReductionHistoryPage } from '../pages/reduction/ReductionHistoryPage';
+import { ReductionListPage } from '../pages/reduction/ReductionListPage';
 import { RoleDetailPage } from '../pages/role/RoleDetailPage';
 import { RoleFormPage } from '../pages/role/RoleFormPage';
 import { RoleListPage } from '../pages/role/RoleListPage';
@@ -88,6 +91,9 @@ export const SCREENS: Array<{ path: string; element: ReactElement }> = [
   { path: '/sys/roles', element: <RoleListPage /> },
   { path: '/sys/roles/new', element: <RoleFormPage /> },
   { path: '/sys/roles/:assignmentId', element: <RoleDetailPage /> },
+  { path: '/pay/reductions', element: <ReductionListPage /> },
+  { path: '/pay/reductions/:reviewId', element: <ReductionDetailPage /> },
+  { path: '/pay/reduction-history', element: <ReductionHistoryPage /> },
   { path: '/pay/refunds', element: <RefundListPage /> },
   { path: '/pay/refunds/new', element: <RefundReceivePage /> },
   { path: '/pay/refunds/:refundId', element: <RefundDetailPage /> },

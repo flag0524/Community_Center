@@ -406,3 +406,31 @@ export const assignmentOptionsQuery = queryOptions({
   queryKey: ['roles', 'options'],
   queryFn: ({ signal }) => getJson<Schemas['AssignmentOptions']>('/role-assignment-options', signal),
 });
+
+export type ReductionReviewPage = Schemas['ReductionReviewPage'];
+export interface ReductionParams {
+  status?: Schemas['ReductionStatus'];
+  cycleId?: string;
+  page?: number;
+}
+export const reductionListQuery = (params: ReductionParams) =>
+  queryOptions({
+    queryKey: ['reductions', 'list', params],
+    queryFn: ({ signal }) => getJson<ReductionReviewPage>(`/reductions${toQueryString({ ...params, page: params.page && params.page > 1 ? params.page : undefined })}`, signal),
+  });
+export const reductionQuery = (reviewId: string) =>
+  queryOptions({
+    queryKey: ['reductions', 'detail', reviewId],
+    queryFn: ({ signal }) => getJson<Schemas['ReductionReview']>(`/reductions/${encodeURIComponent(reviewId)}`, signal),
+  });
+export interface ReductionHistoryParams {
+  result?: Schemas['ReductionDecision'];
+  from?: string;
+  to?: string;
+  page?: number;
+}
+export const reductionHistoryQuery = (params: ReductionHistoryParams) =>
+  queryOptions({
+    queryKey: ['reduction-history', params],
+    queryFn: ({ signal }) => getJson<Schemas['ReductionHistoryPage']>(`/reduction-history${toQueryString({ ...params, page: params.page && params.page > 1 ? params.page : undefined })}`, signal),
+  });

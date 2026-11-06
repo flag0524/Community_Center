@@ -90,6 +90,8 @@ const MENU: Array<{ key: string; title: string; items: MenuDef[] }> = [
       { key: 'waitlist', label: '대기·자리 배정', path: '/pay/waitlist', anyOf: ['AU.APLY_R'] },
       { key: 'transactions', label: '결제·거래 대조', path: '/pay/transactions', anyOf: ['AU.STLM_R', 'AU.STLM_W'] },
       { key: 'refunds', label: '환불 검토', path: '/pay/refunds', anyOf: ['AU.RFND_A', 'AU.RFND_X'] },
+      { key: 'reductions', label: '감면 검토', path: '/pay/reductions', anyOf: ['AU.APLY_R'] },
+      { key: 'reduction-history', label: '감면 처리 이력', path: '/pay/reduction-history', anyOf: ['AU.APLY_R'] },
     ],
   },
   {
