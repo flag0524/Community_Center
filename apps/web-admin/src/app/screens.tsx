@@ -12,6 +12,9 @@ import { InquiryDetailPage } from '../pages/inquiry/InquiryDetailPage';
 import { InquiryListPage } from '../pages/inquiry/InquiryListPage';
 import { MemberDetailPage } from '../pages/member/MemberDetailPage';
 import { MemberListPage } from '../pages/member/MemberListPage';
+import { SmsDetailPage } from '../pages/sms/SmsDetailPage';
+import { SmsListPage } from '../pages/sms/SmsListPage';
+import { SmsSendPage } from '../pages/sms/SmsSendPage';
 import { DashboardPage } from '../pages/stats/DashboardPage';
 import { StatsPage } from '../pages/stats/StatsPage';
 import { TermFormPage } from '../pages/term/TermFormPage';
@@ -41,7 +44,6 @@ import { WaitlistPage } from '../pages/payment/WaitlistPage';
 
 // 단계마다 아래 임시 자리(ComingSoonPage)를 실제 화면으로 바꾼다. 마지막 단계에서 ComingSoonPage를 지운다.
 const PENDING = [
-  '/sys/sms',
   '/sys/roles',
 ];
 
@@ -83,6 +85,9 @@ export const SCREENS: Array<{ path: string; element: ReactElement }> = [
   { path: '/mbr/files/:fileId', element: <FileDetailPage /> },
   { path: '/dashboard', element: <DashboardPage /> },
   { path: '/stats', element: <StatsPage /> },
+  { path: '/sys/sms', element: <SmsListPage /> },
+  { path: '/sys/sms/new', element: <SmsSendPage /> },
+  { path: '/sys/sms/:smsId', element: <SmsDetailPage /> },
   { path: '/pay/refunds', element: <RefundListPage /> },
   { path: '/pay/refunds/new', element: <RefundReceivePage /> },
   { path: '/pay/refunds/:refundId', element: <RefundDetailPage /> },

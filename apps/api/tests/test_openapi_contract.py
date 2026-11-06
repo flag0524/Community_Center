@@ -155,6 +155,10 @@ ADMIN_OPERATIONS = {
     ("get", "/api/admin/v1/stats/attendance"),
     ("get", "/api/admin/v1/stats/age-gender"),
     ("get", "/api/admin/v1/stats/satisfaction"),
+    ("get", "/api/admin/v1/sms"),
+    ("get", "/api/admin/v1/sms/{sms_id}"),
+    ("post", "/api/admin/v1/sms/preview"),
+    ("post", "/api/admin/v1/sms"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -173,6 +177,7 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/admin/v1/posts"),
     ("post", "/api/admin/v1/contents"),
     ("post", "/api/admin/v1/terms/{term_type}/versions"),
+    ("post", "/api/admin/v1/sms"),
 }
 
 
@@ -831,3 +836,23 @@ def test_통계는_조회_전용이고_집계_기준과_자료_없음을_구분�
         "INQUIRY_ANSWER",
         "SMS_FAILED",
     }
+
+
+def test_문자_발송은_최종_확인과_예상_수신자_수를_받고_멱등키를_요구한다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert {"confirmed", "expectedRecipientCount"} <= set(schemas["SmsSendRequest"]["required"])
+    assert {"scope", "statuses", "content"} <= set(schemas["SmsAudience"]["required"])
+    assert "idempotency-key" in {
+        param["name"].lower() for param in spec["paths"]["/api/admin/v1/sms"]["post"]["parameters"]
+    }
+    assert "/api/admin/v1/sms/{sms_id}" in spec["paths"]
+    assert {method for method in spec["paths"]["/api/admin/v1/sms/{sms_id}"]} == {"get"}  # 수정·삭제 없음
+
+
+def test_문자_이력은_수신번호와_이름을_가려서_주고_원문_번호를_담지_않는다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    forbidden = {"rawPhone", "phoneNumber", "telno", "encryptedPhone"}
+    for name in ("SmsTargetRow", "SmsRecipient"):
+        assert not forbidden & set(schemas[name]["properties"]), name
+    assert set(schemas["SmsTargetState"]["enum"]) == {"WAIT", "SENDING", "SENT", "FAIL", "UNKNOWN", "SKIP"}
+    assert set(schemas["SmsKind"]["enum"]) == {"AUTO", "MANUAL"}

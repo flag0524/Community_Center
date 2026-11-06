@@ -179,3 +179,8 @@ export const DASHBOARD_TASK_LINK: Record<Schemas['DashboardTaskKind'], string> =
   INQUIRY_ANSWER: '/mbr/inquiries?status=RECEIVED',
   SMS_FAILED: '/sys/sms',
 };
+
+export const SMS_KIND: Record<Schemas['SmsKind'], string> = { AUTO: '자동 알림', MANUAL: '관리자 발송' };
+export const SMS_SCOPE: Record<Schemas['SmsScope'], string> = { CENTER: '센터 전체', COURSE: '선택 강좌', EVENT: '업무사건' };
+export const SMS_TARGET_STATE: Record<Schemas['SmsTargetState'], string> = { WAIT: '발송 대기', SENDING: '요청 중', SENT: '성공', FAIL: '실패', UNKNOWN: '확인 중', SKIP: '제외' };
+export const SMS_AUDIENCE: Record<Schemas['SmsAudienceStatus'], string> = { CONFIRMED: '수강확정', PAYMENT_PENDING: '결제대기', WAITING: '대기' };

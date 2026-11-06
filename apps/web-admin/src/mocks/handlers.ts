@@ -11,8 +11,9 @@ import { inquiryHandlers } from './inquiries';
 import { memberHandlers } from './members';
 import { refundHandlers } from './refunds';
 import { reviewHandlers } from './review';
+import { smsHandlers } from './sms';
 import { statsHandlers } from './stats';
 import { termHandlers } from './terms';
 import { transactionHandlers } from './transactions';
 
-export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers, ...refundHandlers, ...memberHandlers, ...boardHandlers, ...inquiryHandlers, ...contentHandlers, ...termHandlers, ...fileHandlers, ...statsHandlers];
+export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers, ...refundHandlers, ...memberHandlers, ...boardHandlers, ...inquiryHandlers, ...contentHandlers, ...termHandlers, ...fileHandlers, ...statsHandlers, ...smsHandlers];

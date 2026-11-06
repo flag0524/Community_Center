@@ -373,3 +373,15 @@ export const attendanceStatsQuery = (params: StatsParams) =>
   queryOptions({ queryKey: ['stats', 'attendance', params], queryFn: ({ signal }) => getJson<Schemas['AttendanceStatsReport']>(`/stats/attendance${toQueryString({ ...params })}`, signal) });
 export const ageGenderStatsQuery = queryOptions({ queryKey: ['stats', 'age-gender'], queryFn: ({ signal }) => getJson<Schemas['AgeGenderStats']>('/stats/age-gender', signal) });
 export const satisfactionStatsQuery = queryOptions({ queryKey: ['stats', 'satisfaction'], queryFn: ({ signal }) => getJson<Schemas['SatisfactionStats']>('/stats/satisfaction', signal) });
+
+export type SmsRequestPage = Schemas['SmsRequestPage'];
+export const smsListQuery = (kind: Schemas['SmsKind'], page?: number) =>
+  queryOptions({
+    queryKey: ['sms', 'list', kind, page ?? 1],
+    queryFn: ({ signal }) => getJson<SmsRequestPage>(`/sms${toQueryString({ kind, page: page && page > 1 ? page : undefined })}`, signal),
+  });
+export const smsQuery = (smsId: string) =>
+  queryOptions({
+    queryKey: ['sms', 'detail', smsId],
+    queryFn: ({ signal }) => getJson<Schemas['SmsRequestDetail']>(`/sms/${encodeURIComponent(smsId)}`, signal),
+  });

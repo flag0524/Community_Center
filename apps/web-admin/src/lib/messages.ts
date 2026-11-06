@@ -8,3 +8,5 @@ export function allFieldMessages(error: unknown): string {
 
 export const isVersionConflict = (error: unknown): boolean =>
   error instanceof ApiRequestError && error.body?.code === 'VERSION_CONFLICT';
+
+export const isStateConflict = (error: unknown): boolean => error instanceof ApiRequestError && error.body?.code === 'CONFLICT_STATE';

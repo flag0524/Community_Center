@@ -277,7 +277,7 @@ export const educationHandlers = [
   }),
 
   http.get('/api/admin/v1/course-options', () => {
-    const denied = denyUnless(...READ, 'AU.CONF_W', 'AU.ATND_R', 'AU.APLY_R', 'AU.STAT_R');
+    const denied = denyUnless(...READ, 'AU.CONF_W', 'AU.ATND_R', 'AU.APLY_R', 'AU.STAT_R', 'AU.SMS_SEND');
     if (denied) return denied;
     return HttpResponse.json({
       cycles: state.cycles.map((cycle) => ({ id: cycle.cycleId, name: cycle.name })),
@@ -411,3 +411,7 @@ export const educationHandlers = [
     return HttpResponse.json(withActions(course));
   }),
 ];
+
+/** 문자 발송 모의 서버가 수신 대상을 산정할 때 쓰는 강좌 번호와 이름. */
+export const mockCourseIds = (): string[] => state.courses.map((course) => course.courseId);
+export const mockCourseName = (courseId: string): string => state.courses.find((course) => course.courseId === courseId)?.name ?? '';
