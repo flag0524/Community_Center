@@ -15,6 +15,9 @@ class BoardSetting(ApiModel):
     member_write: bool = Field(description="회원이 글을 쓸 수 있는지(MBR_WRT_YN)")
     answer_enabled: bool = Field(description="답변을 쓸 수 있는지(ANS_USE_YN)")
     attach_enabled: bool = Field(description="첨부를 받을 수 있는지(ATCH_USE_YN)")
+    allow_private: bool = Field(
+        description="회원이 비공개 글을 쓸 수 있는지(스키마 개정 요청 R11의 추가 정책)"
+    )
     in_use: bool = Field(description="사용 여부(USE_YN)")
     post_count: int = Field(ge=0)
     version: int = Field(ge=1)
@@ -28,6 +31,7 @@ class BoardSettingUpdate(ApiModel):
     member_write: bool
     answer_enabled: bool
     attach_enabled: bool
+    allow_private: bool
     in_use: bool
     version: int = Field(ge=1)
 

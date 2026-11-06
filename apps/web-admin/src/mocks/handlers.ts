@@ -4,10 +4,12 @@ import { attendanceHandlers } from './attendance';
 import { authHandlers } from './auth';
 import { boardHandlers } from './boards';
 import { campusHandlers } from './campus';
+import { contentHandlers } from './contents';
 import { educationHandlers } from './education';
+import { inquiryHandlers } from './inquiries';
 import { memberHandlers } from './members';
 import { refundHandlers } from './refunds';
 import { reviewHandlers } from './review';
 import { transactionHandlers } from './transactions';
 
-export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers, ...refundHandlers, ...memberHandlers, ...boardHandlers];
+export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers, ...refundHandlers, ...memberHandlers, ...boardHandlers, ...inquiryHandlers, ...contentHandlers];

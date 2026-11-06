@@ -27,6 +27,7 @@ export function BoardSettingsPage() {
                 <th scope="col">회원 작성</th>
                 <th scope="col">답변 사용</th>
                 <th scope="col">첨부 사용</th>
+                <th scope="col">비공개 허용</th>
                 <th scope="col">사용 여부</th>
                 <th scope="col">관리</th>
               </tr>
@@ -45,7 +46,7 @@ export function BoardSettingsPage() {
 
 function BoardRow({ board }: { board: BoardSetting }) {
   const queryClient = useQueryClient();
-  const [values, setValues] = useState({ memberWrite: board.memberWrite, answerEnabled: board.answerEnabled, attachEnabled: board.attachEnabled, inUse: board.inUse });
+  const [values, setValues] = useState({ memberWrite: board.memberWrite, answerEnabled: board.answerEnabled, attachEnabled: board.attachEnabled, allowPrivate: board.allowPrivate, inUse: board.inUse });
   const changed = (Object.keys(values) as Array<keyof typeof values>).some((name) => values[name] !== board[name]);
 
   const mutation = useMutation({
@@ -74,6 +75,7 @@ function BoardRow({ board }: { board: BoardSetting }) {
       {checkbox('memberWrite', '회원 작성')}
       {checkbox('answerEnabled', '답변 사용')}
       {checkbox('attachEnabled', '첨부 사용')}
+      {checkbox('allowPrivate', '비공개 허용')}
       {checkbox('inUse', '사용 여부')}
       <td>
         <button className="adm-button" type="button" aria-label={`저장 (${board.name})`} disabled={!changed || mutation.isPending} onClick={() => mutation.mutate()}>

@@ -34,6 +34,10 @@ export type AdminMember = Schemas['AdminMember'];
 export type BoardSettingList = Schemas['BoardSettingList'];
 export type AdminPostPage = Schemas['AdminPostPage'];
 export type AdminPost = Schemas['AdminPost'];
+export type AdminInquiryPage = Schemas['AdminInquiryPage'];
+export type AdminInquiry = Schemas['AdminInquiry'];
+export type AdminContentPage = Schemas['AdminContentPage'];
+export type AdminContent = Schemas['AdminContent'];
 
 export const sessionQuery = queryOptions({
   queryKey: ['session'],
@@ -274,4 +278,47 @@ export const adminPostQuery = (postId: string) =>
   queryOptions({
     queryKey: ['posts', 'detail', postId],
     queryFn: ({ signal }) => getJson<AdminPost>(`/posts/${encodeURIComponent(postId)}`, signal),
+  });
+export const adminInquiryCategoriesQuery = queryOptions({
+  queryKey: ['inquiry-categories'],
+  queryFn: ({ signal }) => getJson<Schemas['AdminInquiryCategoryList']>('/inquiry-categories', signal),
+  staleTime: 5 * 60 * 1000,
+});
+
+export interface AdminInquiryParams {
+  status?: Schemas['InquiryStatus'];
+  categoryId?: string;
+  q?: string;
+  page?: number;
+}
+
+export const adminInquiryListQuery = (params: AdminInquiryParams) =>
+  queryOptions({
+    queryKey: ['inquiries', 'list', params],
+    queryFn: ({ signal }) =>
+      getJson<AdminInquiryPage>(`/inquiries${toQueryString({ ...params, page: params.page && params.page > 1 ? params.page : undefined })}`, signal),
+  });
+
+export const adminInquiryQuery = (inquiryId: string) =>
+  queryOptions({
+    queryKey: ['inquiries', 'detail', inquiryId],
+    queryFn: ({ signal }) => getJson<AdminInquiry>(`/inquiries/${encodeURIComponent(inquiryId)}`, signal),
+  });
+
+export interface AdminContentParams {
+  type?: Schemas['ContentType'];
+  page?: number;
+}
+
+export const adminContentListQuery = (params: AdminContentParams) =>
+  queryOptions({
+    queryKey: ['contents', 'list', params],
+    queryFn: ({ signal }) =>
+      getJson<AdminContentPage>(`/contents${toQueryString({ ...params, page: params.page && params.page > 1 ? params.page : undefined })}`, signal),
+  });
+
+export const adminContentQuery = (contentId: string) =>
+  queryOptions({
+    queryKey: ['contents', 'detail', contentId],
+    queryFn: ({ signal }) => getJson<AdminContent>(`/contents/${encodeURIComponent(contentId)}`, signal),
   });

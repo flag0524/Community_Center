@@ -4,6 +4,10 @@ import { ComingSoonPage } from '../pages/ComingSoonPage';
 import { BoardSettingsPage } from '../pages/board/BoardSettingsPage';
 import { PostFormPage } from '../pages/board/PostFormPage';
 import { PostListPage } from '../pages/board/PostListPage';
+import { ContentFormPage } from '../pages/content/ContentFormPage';
+import { ContentListPage } from '../pages/content/ContentListPage';
+import { InquiryDetailPage } from '../pages/inquiry/InquiryDetailPage';
+import { InquiryListPage } from '../pages/inquiry/InquiryListPage';
 import { MemberDetailPage } from '../pages/member/MemberDetailPage';
 import { MemberListPage } from '../pages/member/MemberListPage';
 import { AttendanceDetailPage } from '../pages/education/AttendanceDetailPage';
@@ -33,8 +37,6 @@ import { WaitlistPage } from '../pages/payment/WaitlistPage';
 const PENDING = [
   '/dashboard',
   '/stats',
-  '/mbr/inquiries',
-  '/mbr/contents',
   '/mbr/terms',
   '/mbr/files',
   '/sys/sms',
@@ -67,6 +69,11 @@ export const SCREENS: Array<{ path: string; element: ReactElement }> = [
   { path: '/mbr/posts/new', element: <PostFormPage mode="create" /> },
   { path: '/mbr/posts/:postId', element: <PostFormPage mode="edit" /> },
   { path: '/mbr/boards', element: <BoardSettingsPage /> },
+  { path: '/mbr/inquiries', element: <InquiryListPage /> },
+  { path: '/mbr/inquiries/:inquiryId', element: <InquiryDetailPage /> },
+  { path: '/mbr/contents', element: <ContentListPage /> },
+  { path: '/mbr/contents/new', element: <ContentFormPage mode="create" /> },
+  { path: '/mbr/contents/:contentId', element: <ContentFormPage mode="edit" /> },
   { path: '/pay/refunds', element: <RefundListPage /> },
   { path: '/pay/refunds/new', element: <RefundReceivePage /> },
   { path: '/pay/refunds/:refundId', element: <RefundDetailPage /> },

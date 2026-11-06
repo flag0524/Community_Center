@@ -10,6 +10,8 @@ import { routes } from '../app/routes';
 import { DEMO_ADMINS, resetMockAuth } from '../mocks/auth';
 import { resetMockBoards } from '../mocks/boards';
 import { resetMockCampus } from '../mocks/campus';
+import { resetMockContents } from '../mocks/contents';
+import { resetMockInquiries } from '../mocks/inquiries';
 import { resetMockMembers } from '../mocks/members';
 import { resetMockRefunds } from '../mocks/refunds';
 import { resetMockReview } from '../mocks/review';
@@ -36,6 +38,8 @@ export function useMockServer(): void {
     resetMockRefunds();
     resetMockMembers();
     resetMockBoards();
+    resetMockInquiries();
+    resetMockContents();
     resetMockTransactions();
     rememberCsrfToken(null);
   });

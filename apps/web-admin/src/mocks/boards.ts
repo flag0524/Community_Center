@@ -18,7 +18,7 @@ interface State {
 }
 
 function initialState(): State {
-  const board = (boardKey: BoardKey, name: string, memberWrite: boolean, answerEnabled: boolean, attachEnabled: boolean) => ({ boardKey, name, memberWrite, answerEnabled, attachEnabled, inUse: true, version: 1 });
+  const board = (boardKey: BoardKey, name: string, memberWrite: boolean, answerEnabled: boolean, attachEnabled: boolean, allowPrivate = false) => ({ boardKey, name, memberWrite, answerEnabled, attachEnabled, allowPrivate, inUse: true, version: 1 });
   const post = (n: number, boardKey: BoardKey, title: string, registeredOn: string, extra: Partial<Post> = {}): Post => ({
     postId: pid(n), boardKey, title, authorName: '김관리', pinned: false, registeredOn, content: `${title}\n\n자세한 내용은 센터로 문의해 주세요.`,
     periodStart: null, periodEnd: null, memberAuthored: false, canEditContent: true, version: 1, ...extra,
@@ -30,7 +30,7 @@ function initialState(): State {
       board('resources', '자료실', false, false, true),
       board('gallery', '센터 갤러리', false, false, true),
       board('faq', '자주하는 질문', false, false, false),
-      board('qna', '질문과 답변', true, true, true),
+      board('qna', '질문과 답변', true, true, true, true),
       board('review', '수강후기', true, false, true),
     ],
     posts: [

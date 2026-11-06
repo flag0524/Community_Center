@@ -133,6 +133,14 @@ ADMIN_OPERATIONS = {
     ("get", "/api/admin/v1/posts/{post_id}"),
     ("put", "/api/admin/v1/posts/{post_id}"),
     ("delete", "/api/admin/v1/posts/{post_id}"),
+    ("get", "/api/admin/v1/inquiry-categories"),
+    ("get", "/api/admin/v1/inquiries"),
+    ("get", "/api/admin/v1/inquiries/{inquiry_id}"),
+    ("put", "/api/admin/v1/inquiries/{inquiry_id}/answer"),
+    ("get", "/api/admin/v1/contents"),
+    ("post", "/api/admin/v1/contents"),
+    ("get", "/api/admin/v1/contents/{content_id}"),
+    ("put", "/api/admin/v1/contents/{content_id}"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -149,6 +157,7 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/admin/v1/refunds"),
     ("post", "/api/admin/v1/members/{member_id}/reviews"),
     ("post", "/api/admin/v1/posts"),
+    ("post", "/api/admin/v1/contents"),
 }
 
 
@@ -694,9 +703,16 @@ def test_회원_응답은_이름과_연락처를_가려서_주고_원문은_사�
     assert set(schemas["MemberContact"]["properties"]) == {"phone", "email"}
 
 
-def test_게시판_설정은_스키마의_네_정책만_담고_이름과_키는_바꾸지_않는다(spec: Schema) -> None:
+def test_게시판_설정은_다섯_정책만_담고_이름과_키는_바꾸지_않는다(spec: Schema) -> None:
     update = spec["components"]["schemas"]["BoardSettingUpdate"]
-    assert set(update["properties"]) == {"memberWrite", "answerEnabled", "attachEnabled", "inUse", "version"}
+    assert set(update["properties"]) == {
+        "memberWrite",
+        "answerEnabled",
+        "attachEnabled",
+        "allowPrivate",
+        "inUse",
+        "version",
+    }
     assert "version" in update["required"]
 
 
@@ -707,3 +723,38 @@ def test_게시물_수정은_읽은_버전을_보내고_삭제는_논리_삭제_
     assert {"canEditContent", "memberAuthored"} <= set(schemas["AdminPost"]["properties"])
     delete = operations(spec)[("delete", "/api/admin/v1/posts/{post_id}")]
     assert "204" in delete["responses"]
+
+
+def test_문의_답변은_한_단계로_쓰고_고치며_읽은_버전을_보낸다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    write = schemas["InquiryAnswerWrite"]
+    assert set(write["properties"]) == {"content", "relatedLink", "version"}
+    assert write["properties"]["version"]["minimum"] == 0  # 0은 아직 답변이 없다는 뜻
+    answer_ops = {key for key in operations(spec) if "/answer" in key[1]}
+    assert answer_ops == {("put", "/api/admin/v1/inquiries/{inquiry_id}/answer")}  # 답변 삭제·다단계 없음
+
+
+def test_문의_응답은_가려진_작성자와_수정_이력을_담는다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert {"authorName", "isPrivate", "status"} <= set(schemas["AdminInquirySummary"]["properties"])
+    assert {"answer", "history", "canAnswer", "content"} <= set(schemas["AdminInquiry"]["properties"])
+    assert set(schemas["AnswerAction"]["enum"]) == {"CREATED", "EDITED"}
+    assert not {"phone", "email", "memberId"} & set(schemas["AdminInquiry"]["properties"])
+
+
+def test_콘텐츠_유형은_여덟_가지이고_연락처만_구조_입력을_가진다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert set(schemas["ContentType"]["enum"]) == {
+        "VISUAL",
+        "BANNER",
+        "POPUP",
+        "HISTORY",
+        "INTRO",
+        "CONTACT",
+        "GUIDE",
+        "FACILITY",
+    }
+    assert "contact" in schemas["AdminContentWrite"]["properties"]
+    assert "canCreate" in schemas["AdminContentPage"]["properties"]
+    content_ops = {method for (method, path) in operations(spec) if path.startswith("/api/admin/v1/contents")}
+    assert "delete" not in content_ops  # 이력이 있는 콘텐츠는 삭제 대신 게시 여부로 끈다

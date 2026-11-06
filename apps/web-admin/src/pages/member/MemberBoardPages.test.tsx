@@ -159,6 +159,8 @@ describe('게시판 설정', () => {
     ]);
     expect(screen.getByRole('checkbox', { name: '회원 작성 (질문과 답변)' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: '회원 작성 (공지사항)' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: '비공개 허용 (질문과 답변)' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: '비공개 허용 (수강후기)' })).not.toBeChecked();
   });
 
   it('바꾸지 않으면 저장을 막고 바꾼 뒤 저장하면 유지된다', async () => {
@@ -173,6 +175,14 @@ describe('게시판 설정', () => {
     expect(screen.getByRole('checkbox', { name: '첨부 사용 (공지사항)' })).not.toBeChecked();
   });
 
+  it('비공개 글 허용을 켜고 저장하면 유지된다', async () => {
+    await signInAs('group');
+    renderApp('/mbr/boards');
+    await userEvent.click(await screen.findByRole('checkbox', { name: '비공개 허용 (수강후기)' }));
+    await userEvent.click(screen.getByRole('button', { name: '저장 (수강후기)' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: '저장 (수강후기)' })).toBeDisabled());
+    expect(screen.getByRole('checkbox', { name: '비공개 허용 (수강후기)' })).toBeChecked();
+  });
   it('사용을 중지한 게시판은 새 글 선택지에서 빠진다', async () => {
     await signInAs('group');
     const first = renderApp('/mbr/boards');

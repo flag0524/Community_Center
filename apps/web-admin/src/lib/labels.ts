@@ -128,3 +128,18 @@ export const RESIDENCE_STATUS: Record<Schemas['ResidenceStatus'], string> = { UN
 export const REVIEW_KIND: Record<Schemas['MemberReviewKind'], string> = { RESTRICT: '이용제한 검토', WITHDRAW: '탈퇴 검토', NAME_CHANGE: '이름 변경 요청 검토' };
 
 export const REVIEW_STATE: Record<Schemas['MemberReviewState'], string> = { OPEN: '검토 중', CLOSED: '처리 완료' };
+
+export const INQUIRY_STATUS: Record<Schemas['InquiryStatus'], string> = { RECEIVED: '접수', ANSWERED: '답변완료' };
+
+export const ANSWER_ACTION: Record<Schemas['AnswerAction'], string> = { CREATED: '답변 작성', EDITED: '답변 수정' };
+
+export const CONTENT_TYPE: Record<Schemas['ContentType'], string> = {
+  VISUAL: '비주얼',
+  BANNER: '배너',
+  POPUP: '팝업',
+  HISTORY: '연혁',
+  INTRO: '센터소개',
+  CONTACT: '연락처',
+  GUIDE: '수강·환불 안내',
+  FACILITY: '시설안내',
+};
