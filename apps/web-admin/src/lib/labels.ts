@@ -163,3 +163,19 @@ export const FILE_OWNER: Record<Schemas['FileOwnerKind'], string> = {
   STATS_SOURCE: '통계 자료',
 };
 export const FILE_PURPOSE: Record<Schemas['FilePurpose'], string> = { ATTACH: '첨부', PLAN: '강의계획서', PROOF: '증빙', IMAGE: '이미지' };
+
+export const DASHBOARD_TASK: Record<Schemas['DashboardTaskKind'], string> = {
+  PAYMENT_UNKNOWN: '승인 결과 확인',
+  REFUND_REVIEW: '환불 검토 대기',
+  INSTRUCTOR_REVIEW: '강사 심사 대기',
+  INQUIRY_ANSWER: '문의 답변 대기',
+  SMS_FAILED: '문자 발송 실패',
+};
+// 확인할 업무를 누르면 해당 목록에 조건을 걸어 연다
+export const DASHBOARD_TASK_LINK: Record<Schemas['DashboardTaskKind'], string> = {
+  PAYMENT_UNKNOWN: '/pay/transactions?status=PENDING',
+  REFUND_REVIEW: '/pay/refunds?status=REQUESTED',
+  INSTRUCTOR_REVIEW: '/edu/instructors?status=PENDING',
+  INQUIRY_ANSWER: '/mbr/inquiries?status=RECEIVED',
+  SMS_FAILED: '/sys/sms',
+};

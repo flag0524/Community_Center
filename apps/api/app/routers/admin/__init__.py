@@ -16,6 +16,7 @@ from app.routers.admin import (
     member,
     refund,
     schedule,
+    stats,
     term,
     transaction,
 )
@@ -38,5 +39,6 @@ for module in (
     content,
     term,
     file,
+    stats,
 ):
     admin_router.include_router(module.router)

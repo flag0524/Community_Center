@@ -277,7 +277,7 @@ export const educationHandlers = [
   }),
 
   http.get('/api/admin/v1/course-options', () => {
-    const denied = denyUnless(...READ, 'AU.CONF_W', 'AU.ATND_R', 'AU.APLY_R');
+    const denied = denyUnless(...READ, 'AU.CONF_W', 'AU.ATND_R', 'AU.APLY_R', 'AU.STAT_R');
     if (denied) return denied;
     return HttpResponse.json({
       cycles: state.cycles.map((cycle) => ({ id: cycle.cycleId, name: cycle.name })),

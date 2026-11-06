@@ -352,3 +352,24 @@ export const adminFileQuery = (fileId: string) =>
     queryKey: ['files', 'detail', fileId],
     queryFn: ({ signal }) => getJson<AdminFile>(`/files/${encodeURIComponent(fileId)}`, signal),
   });
+
+export type Dashboard = Schemas['Dashboard'];
+export const dashboardQuery = (cycleId?: string) =>
+  queryOptions({
+    queryKey: ['dashboard', cycleId ?? ''],
+    queryFn: ({ signal }) => getJson<Dashboard>(`/dashboard${toQueryString({ cycleId })}`, signal),
+  });
+export interface StatsParams {
+  cycleId?: string;
+  from?: string;
+  to?: string;
+  categoryId?: string;
+}
+export const demandStatsQuery = (params: StatsParams) =>
+  queryOptions({ queryKey: ['stats', 'demand', params], queryFn: ({ signal }) => getJson<Schemas['DemandStats']>(`/stats/demand${toQueryString({ ...params })}`, signal) });
+export const settlementStatsQuery = (params: StatsParams) =>
+  queryOptions({ queryKey: ['stats', 'settlement', params], queryFn: ({ signal }) => getJson<Schemas['SettlementStats']>(`/stats/settlement${toQueryString({ ...params })}`, signal) });
+export const attendanceStatsQuery = (params: StatsParams) =>
+  queryOptions({ queryKey: ['stats', 'attendance', params], queryFn: ({ signal }) => getJson<Schemas['AttendanceStatsReport']>(`/stats/attendance${toQueryString({ ...params })}`, signal) });
+export const ageGenderStatsQuery = queryOptions({ queryKey: ['stats', 'age-gender'], queryFn: ({ signal }) => getJson<Schemas['AgeGenderStats']>('/stats/age-gender', signal) });
+export const satisfactionStatsQuery = queryOptions({ queryKey: ['stats', 'satisfaction'], queryFn: ({ signal }) => getJson<Schemas['SatisfactionStats']>('/stats/satisfaction', signal) });

@@ -81,3 +81,8 @@
 .admin-prototype input[type='checkbox'],
 .admin-prototype .adm-field input[type='checkbox'],
 .admin-prototype .adm-field input[type='radio'] { width: 18px; height: 18px; min-height: 0; padding: 0; }
+.admin-prototype .adm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 0; }
+.admin-prototype .adm-kpis > div { border: 1px solid #d0d7de; padding: 10px 12px; }
+.admin-prototype .adm-kpis dt { font-size: 13px; color: #4b5563; }
+.admin-prototype .adm-kpis dd { margin: 4px 0 0; font-size: 20px; font-weight: 700; }
+.admin-prototype .adm-list { margin: 0; padding-left: 20px; line-height: 1.9; }

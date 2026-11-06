@@ -149,6 +149,12 @@ ADMIN_OPERATIONS = {
     ("post", "/api/admin/v1/terms/versions/{version_id}/publish"),
     ("get", "/api/admin/v1/files"),
     ("get", "/api/admin/v1/files/{file_id}"),
+    ("get", "/api/admin/v1/dashboard"),
+    ("get", "/api/admin/v1/stats/demand"),
+    ("get", "/api/admin/v1/stats/settlement"),
+    ("get", "/api/admin/v1/stats/attendance"),
+    ("get", "/api/admin/v1/stats/age-gender"),
+    ("get", "/api/admin/v1/stats/satisfaction"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -796,3 +802,32 @@ def test_첨부파일은_조회_전용이고_차단_사유와_내려받기_감�
     assert set(schemas["FileStatus"]["enum"]) == {"PENDING", "SAFE", "BLOCK", "DELETE"}
     forbidden = {"storageKey", "strgKey", "path", "url"}
     assert not forbidden & set(schemas["AdminFile"]["properties"])  # 저장소 키·경로는 내보내지 않는다
+
+
+def test_통계는_조회_전용이고_집계_기준과_자료_없음을_구분해_싣는다(spec: Schema) -> None:
+    stat_ops = {
+        key
+        for key in operations(spec)
+        if key[1].startswith(("/api/admin/v1/stats", "/api/admin/v1/dashboard"))
+    }
+    assert {method for method, _ in stat_ops} == {"get"}
+    schemas = spec["components"]["schemas"]
+    for name in (
+        "Dashboard",
+        "DemandStats",
+        "SettlementStats",
+        "AttendanceStatsReport",
+        "AgeGenderStats",
+        "SatisfactionStats",
+    ):
+        assert "basis" in schemas[name]["required"], name
+    for name in ("AgeGenderStats", "SatisfactionStats"):
+        assert "source" in schemas[name]["required"], name  # 승인 자료가 없으면 null로 구분한다
+    assert "unknownAmount" in schemas["SettlementStats"]["properties"]  # 확인 중 금액은 순수납과 따로 둔다
+    assert set(schemas["DashboardTaskKind"]["enum"]) == {
+        "PAYMENT_UNKNOWN",
+        "REFUND_REVIEW",
+        "INSTRUCTOR_REVIEW",
+        "INQUIRY_ANSWER",
+        "SMS_FAILED",
+    }

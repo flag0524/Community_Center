@@ -12,10 +12,10 @@ describe('생성된 API 타입', () => {
     components: { schemas: Record<string, { properties?: Record<string, { type?: string; 'x-serial'?: boolean }> }> };
   };
 
-  it('경로 111개에 엔드포인트 137개를 담고 있다', () => {
+  it('경로 117개에 엔드포인트 143개를 담고 있다', () => {
     const paths = Object.values(openapi.paths) as Record<string, unknown>[];
-    expect(paths.length).toBe(111);
-    expect(paths.reduce((count, item) => count + Object.keys(item).length, 0)).toBe(137);
+    expect(paths.length).toBe(117);
+    expect(paths.reduce((count, item) => count + Object.keys(item).length, 0)).toBe(143);
     expect(types).toContain('"/api/v1/me/applications"');
     expect(types).toContain('"/api/admin/v1/me/permissions"');
   });
