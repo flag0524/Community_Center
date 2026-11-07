@@ -160,7 +160,9 @@ export const FILE_OWNER: Record<Schemas['FileOwnerKind'], string> = {
   CONTENT: '홈·센터 콘텐츠',
   APPLICATION: '수강신청',
   REFUND: '환불',
-  STATS_SOURCE: '통계 자료',
+  REDUCTION: '감면 증빙',
+  STATS_SOURCE: '연령·성별 자료',
+  SATISFACTION_SOURCE: '만족도 원자료',
 };
 export const FILE_PURPOSE: Record<Schemas['FilePurpose'], string> = { ATTACH: '첨부', PLAN: '강의계획서', PROOF: '증빙', IMAGE: '이미지' };
 

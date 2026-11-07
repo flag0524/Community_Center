@@ -52,6 +52,9 @@ function initialState(): State {
 let state = initialState();
 
 /** 시험 사이에 게시판 설정과 게시물을 처음 상태로 되돌린다. */
+/** 첨부 모의 서버가 소유 게시물을 확인할 때 쓰는 제목. 없으면 빈 문자열이다. */
+export const mockPostTitle = (postId: string): string => state.posts.find((post) => post.postId === postId)?.title ?? '';
+
 export function resetMockBoards(): void {
   state = initialState();
 }

@@ -484,3 +484,9 @@ export const retentionQuery = (itemId: string) =>
     queryKey: ['retention', 'detail', itemId],
     queryFn: ({ signal }) => getJson<Schemas['RetentionDetail']>(`/retention/${encodeURIComponent(itemId)}`, signal),
   });
+
+export const ownerFilesQuery = (ownerPath: string) =>
+  queryOptions({
+    queryKey: ['owner-files', ownerPath],
+    queryFn: ({ signal }) => getJson<Schemas['OwnerFileList']>(`${ownerPath}/files`, signal),
+  });

@@ -38,4 +38,6 @@ class FileOwnerKind(StrEnum):
     CONTENT = "CONTENT"  # 홈·센터 콘텐츠
     APPLICATION = "APPLICATION"  # 수강신청
     REFUND = "REFUND"  # 환불 증빙
-    STATS_SOURCE = "STATS_SOURCE"  # 통계 집계자료
+    REDUCTION = "REDUCTION"  # 감면 사전심사 증빙
+    STATS_SOURCE = "STATS_SOURCE"  # 연령·성별 집계자료
+    SATISFACTION_SOURCE = "SATISFACTION_SOURCE"  # 만족도 원자료

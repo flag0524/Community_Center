@@ -4,9 +4,8 @@ import { Link, useParams } from 'react-router-dom';
 import { adminFileQuery } from '../../api/queries';
 import { TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
-import { kstDateTime } from '../../lib/format';
+import { fileSize, kstDateTime } from '../../lib/format';
 import { FILE_OWNER, FILE_PURPOSE, FILE_STATUS } from '../../lib/labels';
-import { fileSize } from './FileListPage';
 
 export function FileDetailPage() {
   const { fileId = '' } = useParams();

@@ -70,6 +70,17 @@ async function sendJson<T>(method: 'POST' | 'PUT' | 'DELETE', path: string, body
 export const postJson = <T = null>(path: string, body?: unknown, options: SendOptions = {}) =>
   sendJson<T>('POST', path, body, options);
 
+export async function postForm<T>(path: string, form: FormData, options: SendOptions = {}): Promise<T> {
+  if (csrfToken === null) await getJson('/auth/session', options.signal);
+  // Content-Type은 브라우저가 경계 문자열과 함께 정한다. 직접 적지 않는다.
+  return request<T>(path, {
+    method: 'POST',
+    headers: { Accept: 'application/json', ...options.headers, ...(csrfToken === null ? {} : { 'X-CSRF-Token': csrfToken }) },
+    body: form,
+    signal: options.signal,
+  });
+}
+
 export const putJson = <T = null>(path: string, body?: unknown, options: SendOptions = {}) =>
   sendJson<T>('PUT', path, body, options);
 

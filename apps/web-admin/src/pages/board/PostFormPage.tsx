@@ -6,6 +6,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { createPost, deletePost, updatePost, type AdminPost, type AdminPostWrite } from '../../api/boards';
 import { adminPostQuery, boardListQuery, type BoardSettingList } from '../../api/queries';
 import { ConfirmButton } from '../../components/ConfirmButton';
+import { OwnerFiles } from '../../components/OwnerFiles';
 import { Field, describe } from '../../components/Field';
 import { errorMessage, fieldErrors } from '../../lib/errors';
 import { fromDateTimeInput, toDateTimeInput } from '../../lib/format';
@@ -169,6 +170,7 @@ function PostForm({ boards, post }: { boards: BoardSettingList; post?: AdminPost
           </Link>
         </div>
       </form>
+      {post ? <OwnerFiles ownerPath={`/posts/${post.postId}`} label="첨부파일" /> : <p className="adm-notice">파일은 게시물을 저장한 뒤에 추가할 수 있습니다.</p>}
     </>
   );
 }

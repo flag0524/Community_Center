@@ -18,3 +18,5 @@ export const kstDateTime = (value: string): string => DATE_TIME.format(new Date(
 /** 입력칸(datetime-local) 값 'YYYY-MM-DDTHH:mm' ↔ 서버로 보내는 한국시간 ISO 시각 */
 export const toDateTimeInput = (value: string): string => kstDateTime(value).replace(' ', 'T');
 export const fromDateTimeInput = (value: string): string => `${value}:00+09:00`;
+
+export const fileSize = (bytes: number): string => (bytes >= 1_048_576 ? `${(bytes / 1_048_576).toFixed(1)}MB` : `${Math.max(1, Math.round(bytes / 1024))}KB`);

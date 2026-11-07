@@ -185,6 +185,12 @@ ADMIN_OPERATIONS = {
     ("get", "/api/admin/v1/retention"),
     ("get", "/api/admin/v1/retention/{item_id}"),
     ("post", "/api/admin/v1/retention/{item_id}/execute"),
+    ("get", "/api/admin/v1/posts/{post_id}/files"),
+    ("post", "/api/admin/v1/posts/{post_id}/files"),
+    ("get", "/api/admin/v1/courses/{course_id}/files"),
+    ("post", "/api/admin/v1/courses/{course_id}/files"),
+    ("delete", "/api/admin/v1/files/{file_id}"),
+    ("get", "/api/admin/v1/files/{file_id}/download"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -208,6 +214,8 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/admin/v1/reductions/{review_id}/re-review"),
     ("post", "/api/admin/v1/course-classes"),
     ("post", "/api/admin/v1/retention/{item_id}/execute"),
+    ("post", "/api/admin/v1/posts/{post_id}/files"),
+    ("post", "/api/admin/v1/courses/{course_id}/files"),
 }
 
 
@@ -829,9 +837,14 @@ def test_약관_새_버전은_복제_원본을_받고_본문은_선택이다(spe
     assert "version" not in create["properties"]
 
 
-def test_첨부파일은_조회_전용이고_차단_사유와_내려받기_감사기록을_담는다(spec: Schema) -> None:
-    file_ops = {method for (method, path) in operations(spec) if path.startswith("/api/admin/v1/files")}
-    assert file_ops == {"get"}
+def test_첨부파일_조회는_조회_전용이고_차단_사유와_내려받기_감사기록을_담는다(spec: Schema) -> None:
+    for path in (
+        "/api/admin/v1/files",
+        "/api/admin/v1/files/{file_id}",
+        "/api/admin/v1/files/{file_id}/download",
+    ):
+        assert "get" in spec["paths"][path], path
+    assert "post" not in spec["paths"]["/api/admin/v1/files"]  # 올리기는 소유 업무 경로로만 한다
     schemas = spec["components"]["schemas"]
     assert {"blockReason", "downloads", "hashPrefix"} <= set(schemas["AdminFile"]["properties"])
     assert set(schemas["FileStatus"]["enum"]) == {"PENDING", "SAFE", "BLOCK", "DELETE"}
@@ -980,3 +993,22 @@ def test_보존_파기는_실행에_확인한_건수와_멱등키를_요구하�
 def test_보존기간이_정해지지_않은_자료는_예정일을_null로_구분한다(spec: Schema) -> None:
     due = spec["components"]["schemas"]["RetentionItem"]["properties"]["dueOn"]
     assert any(option.get("type") == "null" for option in due["anyOf"])
+
+
+def test_파일_올리기는_multipart로_한_개씩_받고_한도는_응답이_알려_준다(spec: Schema) -> None:
+    for path in ("/api/admin/v1/posts/{post_id}/files", "/api/admin/v1/courses/{course_id}/files"):
+        body = spec["paths"][path]["post"]["requestBody"]["content"]
+        assert set(body) == {"multipart/form-data"}, path
+    schemas = spec["components"]["schemas"]
+    assert {"canEdit", "maxFiles", "maxBytes", "allowedExtensions"} <= set(
+        schemas["OwnerFileList"]["required"]
+    )
+    assert {"REDUCTION", "SATISFACTION_SOURCE"} <= set(schemas["FileOwnerKind"]["enum"])
+
+
+def test_내려받기는_바이너리로_답하고_제거는_논리삭제_삭제_응답만_둔다(spec: Schema) -> None:
+    download = spec["paths"]["/api/admin/v1/files/{file_id}/download"]["get"]["responses"]["200"]["content"]
+    assert set(download) == {"application/octet-stream"}
+    assert "204" in spec["paths"]["/api/admin/v1/files/{file_id}"]["delete"]["responses"]
+    forbidden = {"storageKey", "strgKey", "path", "url", "hash"}
+    assert not forbidden & set(spec["components"]["schemas"]["OwnerFile"]["properties"])

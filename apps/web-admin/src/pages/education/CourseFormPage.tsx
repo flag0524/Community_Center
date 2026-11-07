@@ -13,6 +13,7 @@ import {
 } from '../../api/education';
 import { adminCourseQuery, cancelPreviewQuery, courseOptionsQuery, type CourseOptions } from '../../api/queries';
 import { Field, describe } from '../../components/Field';
+import { OwnerFiles } from '../../components/OwnerFiles';
 import { errorMessage, fieldErrors } from '../../lib/errors';
 import { fromDateTimeInput, toDateTimeInput } from '../../lib/format';
 import { COURSE_STATUS, EDUCATION_STATE, RECEPTION_STATE } from '../../lib/labels';
@@ -267,6 +268,7 @@ function CourseForm({ options, course }: { options: CourseOptions; course?: Admi
           </Link>
         </div>
       </form>
+      {course ? <OwnerFiles ownerPath={`/courses/${course.courseId}`} label="강의계획서" /> : <p className="adm-notice">강의계획서 파일은 강좌를 저장한 뒤에 추가할 수 있습니다.</p>}
       {course && (
         <CancelDialog
           open={cancelOpen}

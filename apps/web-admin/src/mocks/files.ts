@@ -1,12 +1,30 @@
-// 관리자 첨부파일 조회를 흉내 내는 모의 서버. 조회 전용이고 저장소 키·경로는 내보내지 않는다
+// 관리자 첨부파일을 흉내 내는 모의 서버. 소유 업무 경로로 올리고 제거하며 저장소 키·경로는 내보내지 않는다
 import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
-import { apiError, denyUnless } from './auth';
+import { apiError, currentAdminName, denyCsrf, denyUnless } from './auth';
+import { mockPostTitle } from './boards';
+import { mockCourseName } from './education';
 
 type File = Schemas['AdminFile'];
 
 const fid = (n: number) => `31${String(n).padStart(20, '0')}`;
 const PAGE_SIZE = 20;
+const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
+
+export const UPLOAD_LIMITS = { maxFiles: 10, maxBytes: 20 * 1024 * 1024, allowedExtensions: ['pdf', 'hwp', 'hwpx', 'docx', 'xlsx', 'jpg', 'png'] };
+const MIME: Record<string, string> = {
+  pdf: 'application/pdf',
+  hwp: 'application/x-hwp',
+  hwpx: 'application/hwp+zip',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  jpg: 'image/jpeg',
+  png: 'image/png',
+};
+const OWNERS = {
+  posts: { kind: 'POST' as const, purpose: 'ATTACH' as const, authority: 'AU.POST_W' as const, label: (id: string) => mockPostTitle(id) },
+  courses: { kind: 'COURSE' as const, purpose: 'PLAN' as const, authority: 'AU.CORS_W' as const, label: (id: string) => mockCourseName(id) },
+};
 
 function initialState(): File[] {
   const row = (n: number, fileName: string, ownerKind: Schemas['FileOwnerKind'], ownerLabel: string, status: Schemas['FileStatus'], extra: Partial<File> = {}): File => ({
@@ -24,13 +42,59 @@ function initialState(): File[] {
 }
 
 let rows = initialState();
+// 소유 업무 경로로 올린 파일. 검사는 워커가 하므로 목록을 두 번 읽어야 검사 대기에서 벗어난다.
+let owned: Array<{ fileId: string; ownerPath: string; reads: number }> = [];
+let uploadSeq = 100;
+let idempotent = new Map<string, Schemas['OwnerFile']>();
 
 /** 시험 사이에 파일을 처음 상태로 되돌린다. */
 export function resetMockFiles(): void {
   rows = initialState();
+  owned = [];
+  uploadSeq = 100;
+  idempotent = new Map();
 }
 
 const summary = (f: File): Schemas['AdminFileSummary'] => ({ fileId: f.fileId, fileName: f.fileName, ownerKind: f.ownerKind, ownerLabel: f.ownerLabel, sizeBytes: f.sizeBytes, status: f.status, registeredOn: f.registeredOn });
+const ownerFile = (row: File): Schemas['OwnerFile'] => ({ fileId: row.fileId, fileName: row.fileName, sizeBytes: row.sizeBytes, status: row.status, registeredOn: row.registeredOn, blockReason: row.blockReason });
+
+// 워커가 검사를 끝낸 것처럼 검사 대기 파일을 정한다. 이름에 virus가 들어 있으면 차단한다.
+function scan(ownerPath: string): void {
+  for (const item of owned.filter((entry) => entry.ownerPath === ownerPath)) {
+    item.reads += 1;
+    const row = rows.find((entry) => entry.fileId === item.fileId);
+    if (row?.status === 'PENDING' && item.reads >= 2) {
+      if (row.fileName.toLowerCase().includes('virus')) Object.assign(row, { status: 'BLOCK', blockReason: '악성코드가 의심됩니다.' });
+      else row.status = 'SAFE';
+    }
+  }
+}
+
+export type UploadResult = { file: Schemas['OwnerFile'] } | { status: number; code: 'NOT_FOUND' | 'RULE_REJECTED'; fields?: Record<string, string> };
+
+/** 올린 파일을 받아 검사 대기로 저장한다. 확장자·크기·개수는 서버가 최종 판정한다. */
+export function receiveUpload(ownerPath: string, input: { name: string; size: number }): UploadResult {
+  const [, group, ownerId] = ownerPath.split('/');
+  const owner = OWNERS[group as keyof typeof OWNERS];
+  const label = owner?.label(ownerId ?? '');
+  if (!owner || !label) return { status: 404, code: 'NOT_FOUND' };
+  const extension = input.name.includes('.') ? input.name.split('.').pop()!.toLowerCase() : '';
+  const fail = (file: string): UploadResult => ({ status: 422, code: 'RULE_REJECTED', fields: { file } });
+  if ([...input.name.normalize('NFC')].length > 128) return fail('파일 이름은 128자를 넘을 수 없습니다.');
+  if (!UPLOAD_LIMITS.allowedExtensions.includes(extension)) return fail(`허용되지 않는 형식입니다. (${UPLOAD_LIMITS.allowedExtensions.join(', ')})`);
+  if (input.size === 0) return fail('빈 파일은 올릴 수 없습니다.');
+  if (input.size > UPLOAD_LIMITS.maxBytes) return fail('파일은 20MB 이하만 올릴 수 있습니다.');
+  const count = owned.filter((item) => item.ownerPath === ownerPath && rows.find((row) => row.fileId === item.fileId)?.status !== 'DELETE').length;
+  if (count >= UPLOAD_LIMITS.maxFiles) return fail(`파일은 ${UPLOAD_LIMITS.maxFiles}개까지 올릴 수 있습니다.`);
+  uploadSeq += 1;
+  const row: File = {
+    fileId: fid(uploadSeq), fileName: input.name, ownerKind: owner.kind, ownerLabel: label, sizeBytes: input.size, status: 'PENDING', registeredOn: today(), purpose: owner.purpose,
+    mimeType: MIME[extension] ?? 'application/octet-stream', hashPrefix: 'f00dcafe', blockReason: null, downloads: [],
+  };
+  rows.push(row);
+  owned.push({ fileId: row.fileId, ownerPath, reads: 0 });
+  return { file: ownerFile(row) };
+}
 
 export const fileHandlers = [
   http.get('/api/admin/v1/files', ({ request }) => {
@@ -54,4 +118,63 @@ export const fileHandlers = [
     const row = rows.find((item) => item.fileId === params.fileId);
     return row ? HttpResponse.json(row) : apiError('NOT_FOUND');
   }),
+
+  http.get('/api/admin/v1/files/:fileId/download', ({ params }) => {
+    const denied = denyUnless('AU.POST_W', 'AU.SITE_W', 'AU.CORS_R', 'AU.CORS_W');
+    if (denied) return denied;
+    const row = rows.find((item) => item.fileId === params.fileId);
+    if (!row || row.status !== 'SAFE') return apiError('NOT_FOUND');
+    row.downloads.push({ at: new Date().toISOString(), by: currentAdminName(), byAdmin: true });
+    return new HttpResponse('시험용 첨부 내용입니다.', {
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(row.fileName)}`,
+        'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': 'private, no-store',
+      },
+    });
+  }),
+
+  http.delete('/api/admin/v1/files/:fileId', ({ request, params }) => {
+    const entry = owned.find((item) => item.fileId === params.fileId);
+    const group = entry?.ownerPath.split('/')[1] as keyof typeof OWNERS | undefined;
+    const denied = denyCsrf(request) ?? denyUnless(group ? OWNERS[group].authority : 'AU.POST_W');
+    if (denied) return denied;
+    const row = rows.find((item) => item.fileId === params.fileId);
+    if (!entry || !row || row.status === 'DELETE') return apiError('NOT_FOUND');
+    row.status = 'DELETE';
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  ...Object.entries(OWNERS).flatMap(([group, owner]) => [
+    http.get(`/api/admin/v1/${group}/:ownerId/files`, ({ params }) => {
+      const denied = denyUnless(owner.authority, ...(group === 'courses' ? (['AU.CORS_R'] as const) : []));
+      if (denied) return denied;
+      const ownerPath = `/${group}/${String(params.ownerId)}`;
+      if (!owner.label(String(params.ownerId))) return apiError('NOT_FOUND');
+      scan(ownerPath);
+      const items = owned
+        .filter((item) => item.ownerPath === ownerPath)
+        .map((item) => rows.find((row) => row.fileId === item.fileId)!)
+        .filter((row) => row.status !== 'DELETE')
+        .map(ownerFile);
+      return HttpResponse.json({ items, canEdit: true, ...UPLOAD_LIMITS } satisfies Schemas['OwnerFileList']);
+    }),
+
+    http.post(`/api/admin/v1/${group}/:ownerId/files`, async ({ request, params }) => {
+      const denied = denyCsrf(request) ?? denyUnless(owner.authority);
+      if (denied) return denied;
+      const key = request.headers.get('Idempotency-Key');
+      const found = key ? idempotent.get(key) : undefined;
+      if (found) return HttpResponse.json(found, { status: 201 });
+      const file = (await request.formData()).get('file');
+      if (!(file instanceof Blob)) return apiError('RULE_REJECTED', { file: '파일을 선택해 주세요.' });
+      const result = receiveUpload(`/${group}/${String(params.ownerId)}`, { name: (file as { name?: string }).name ?? '', size: file.size });
+      if ('file' in result) {
+        if (key) idempotent.set(key, result.file);
+        return HttpResponse.json(result.file, { status: 201 });
+      }
+      return apiError(result.code, result.fields);
+    }),
+  ]),
 ];

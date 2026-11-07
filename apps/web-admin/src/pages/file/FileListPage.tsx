@@ -5,13 +5,12 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { adminFileListQuery, type AdminFileParams } from '../../api/queries';
 import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
+import { fileSize } from '../../lib/format';
 import { FILE_OWNER, FILE_STATUS } from '../../lib/labels';
 import { toQueryString } from '../../lib/queryString';
 
 const PAGE_SIZE = 20;
 const FILTERS = ['ownerKind', 'status', 'q'] as const;
-
-export const fileSize = (bytes: number): string => (bytes >= 1_048_576 ? `${(bytes / 1_048_576).toFixed(1)}MB` : `${Math.max(1, Math.round(bytes / 1024))}KB`);
 
 export function FileListPage() {
   const [params] = useSearchParams();
