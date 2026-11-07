@@ -178,6 +178,53 @@ describe('제거와 잠금, 내려받기', () => {
   });
 });
 
+describe('환불·강사 지원 증빙', () => {
+  const REFUND = (n: number) => `14${String(n).padStart(20, '0')}`;
+  const APPLICATION = (n: number) => `10${String(n).padStart(20, '0')}`;
+  const evidenceCount = () => Number(/증빙 (\d+)건/.exec(document.body.textContent ?? '')?.[1]);
+
+  it('접수 상태의 환불은 증빙을 올릴 수 있고 올리면 상단의 증빙 건수가 늘어난다', async () => {
+    await signInAs('group');
+    renderApp(`/pay/refunds/${REFUND(11)}`);
+    await screen.findByRole('heading', { name: '환불 검토 상세' });
+    const before = evidenceCount();
+    await userEvent.upload(await chooser(), pdf('통장사본.pdf'));
+    expect(await screen.findByText('통장사본.pdf')).toBeInTheDocument();
+    await vi.waitFor(() => expect(evidenceCount()).toBe(before + 1));
+  });
+
+  it('환불이 완료되어 잠기면 증빙을 추가·제거할 수 없고 서버도 거절한다', async () => {
+    await signInAs('group');
+    renderApp(`/pay/refunds/${REFUND(6)}`);
+    await screen.findByRole('heading', { name: '환불 검토 상세' });
+    expect(await screen.findByText('지금은 파일을 추가하거나 제거할 수 없습니다.')).toBeInTheDocument();
+    const { receiveUpload } = await import('../mocks/files');
+    expect(receiveUpload(`/refunds/${REFUND(6)}`, { name: 'a.pdf', size: 10 })).toMatchObject({ status: 409, code: 'CONFLICT_STATE' });
+  });
+
+  it('심사 대기 중인 강사 지원은 증빙을 올릴 수 있고 심사가 끝난 지원은 잠긴다', async () => {
+    await signInAs('group');
+    renderApp(`/edu/instructors/${APPLICATION(1)}`);
+    await screen.findByRole('heading', { name: '강사 심사' });
+    await userEvent.upload(await chooser(), pdf('자격증.pdf'));
+    expect(await screen.findByText('자격증.pdf')).toBeInTheDocument();
+    expect(screen.queryByText('지금은 파일을 추가하거나 제거할 수 없습니다.')).not.toBeInTheDocument();
+  });
+
+  it('심사가 끝난 강사 지원은 증빙 영역이 잠겨 있다', async () => {
+    await signInAs('group');
+    renderApp(`/edu/instructors/${APPLICATION(2)}`);
+    await screen.findByRole('heading', { name: '강사 심사' });
+    expect(await screen.findByText('지금은 파일을 추가하거나 제거할 수 없습니다.')).toBeInTheDocument();
+  });
+
+  it('환불 증빙 권한이 없는 담당자는 증빙 목록을 읽을 수 없다', async () => {
+    await signInAs('course');
+    expect((await fetch(`/api/admin/v1/refunds/${REFUND(11)}/files`)).status).toBe(403);
+    expect((await fetch(`/api/admin/v1/instructor-applications/${APPLICATION(1)}/files`)).status).toBe(403);
+  });
+});
+
 describe('올리기 요청의 모양', () => {
   it('파일을 multipart의 file 칸으로 한 개 보내고 멱등키와 보호 토큰을 싣되 내용 형식은 직접 적지 않는다', async () => {
     const { uploadOwnerFile } = await vi.importActual<typeof import('../api/ownerFiles')>('../api/ownerFiles');

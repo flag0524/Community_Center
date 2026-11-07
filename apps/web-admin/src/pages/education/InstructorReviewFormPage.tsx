@@ -5,6 +5,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { createInstructorReview, reviewInstructor, type InstructorReviewCreate } from '../../api/review';
 import { instructorReviewQuery, type InstructorReview } from '../../api/queries';
+import { OwnerFiles } from '../../components/OwnerFiles';
 import { Field, describe } from '../../components/Field';
 import { errorMessage, fieldErrors } from '../../lib/errors';
 import { APPLICATION_SOURCE, REVIEW_STATUS } from '../../lib/labels';
@@ -137,6 +138,7 @@ function ReviewForm({ review }: { review: InstructorReview }) {
           </Link>
         </div>
       </form>
+      <OwnerFiles ownerPath={`/instructor-applications/${review.applicationId}`} label="증빙" />
     </>
   );
 }

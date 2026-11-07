@@ -2,6 +2,7 @@
 import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
 import { apiError, currentAdminId, currentAdminName, currentAuthorities, denyCsrf, denyUnless } from './auth';
+import { countOwnerFiles, registerOwnerInfo } from './files';
 
 type Refund = Schemas['AdminRefund'];
 type Status = Schemas['RefundStatus'];
@@ -141,6 +142,7 @@ function view(row: Row): Refund {
   const sameAsApprover = row.approverId !== null && row.approverId === currentAdminId();
   return {
     ...row.refund,
+    evidenceCount: row.refund.evidenceCount + countOwnerFiles(`/refunds/${row.refund.refundId}`),
     reservedAmount: reserved,
     remainingAmount: row.refund.paidAmount - reserved,
     canReview: authorities.includes('AU.RFND_A') && (row.refund.status === 'REQUESTED' || row.refund.status === 'ON_HOLD'),
@@ -157,6 +159,11 @@ const toSummary = (row: Row): Schemas['AdminRefundSummary'] => {
 
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
 const find = (id: unknown) => state.rows.find((row) => row.refund.refundId === id);
+// 증빙은 접수·보류 상태에서만 더하거나 지울 수 있다.
+registerOwnerInfo('refunds', (id) => {
+  const row = find(id);
+  return row ? { label: row.refund.refundNo, locked: row.refund.status !== 'REQUESTED' && row.refund.status !== 'ON_HOLD' } : null;
+});
 const limitExceeded = (field: string) => apiError('RFND_LIMIT_EXCEEDED', { [field]: '환불 가능 금액을 초과합니다.' });
 
 function transition(row: Row, status: Status, note: string | null, actor = currentAdminName()) {

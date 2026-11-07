@@ -2,6 +2,7 @@
 import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
 import { apiError, currentAdminName, currentAuthorities, denyCsrf, denyUnless } from './auth';
+import { registerFileResolver } from './files';
 
 type Review = Schemas['ReductionReview'];
 
@@ -34,6 +35,15 @@ function initialState(): State {
 }
 
 let state = initialState();
+
+// 증빙은 파일 내려받기로 열람한다. 내려받으면 열람자와 시각이 열람 기록에 남는다(비공개 파일).
+registerFileResolver((fileId) => {
+  for (const review of state.rows) {
+    const file = review.evidence.find((item) => item.fileId === fileId);
+    if (file) return { authority: 'AU.APLY_W', status: file.status, fileName: file.fileName, onDownload: (by) => review.evidenceViews.push({ at: new Date().toISOString(), by, fileName: file.fileName }) };
+  }
+  return undefined;
+});
 
 /** 시험 사이에 감면 심사를 처음 상태로 되돌린다. */
 export function resetMockReductions(): void {
@@ -72,19 +82,6 @@ export const reductionHandlers = [
     if (denied) return denied;
     const row = state.rows.find((item) => item.reviewId === params.reviewId);
     return row ? HttpResponse.json(flags(row)) : apiError('NOT_FOUND');
-  }),
-
-  http.post('/api/admin/v1/reductions/:reviewId/evidence-views', async ({ request, params }) => {
-    const denied = denyCsrf(request) ?? denyUnless('AU.APLY_W');
-    if (denied) return denied;
-    const row = state.rows.find((item) => item.reviewId === params.reviewId);
-    if (!row) return apiError('NOT_FOUND');
-    const { fileId } = (await request.json()) as Schemas['EvidenceViewRequest'];
-    const file = row.evidence.find((item) => item.fileId === fileId);
-    if (!file) return apiError('NOT_FOUND');
-    if (file.status !== 'SAFE') return apiError('RULE_REJECTED', { fileId: '검사를 통과한 파일만 열람할 수 있습니다.' });
-    row.evidenceViews.push({ at: new Date().toISOString(), by: currentAdminName(), fileName: file.fileName });
-    return HttpResponse.json(flags(row), { status: 201 });
   }),
 
   http.post('/api/admin/v1/reductions/:reviewId/decision', async ({ request, params }) => {

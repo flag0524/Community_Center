@@ -1,5 +1,5 @@
-// 감면 사전심사(접수 우선 목록, 증빙 열람 감사기록, 승인·반려 규칙, 재심사 새 건, 심사 권한 차이)와 처리 이력을 확인하는 시험
-import { screen, waitFor, within } from '@testing-library/react';
+// 감면 사전심사(접수 우선 목록, 증빙 내려받기 감사기록, 승인·반려 규칙, 재심사 새 건, 심사 권한 차이)와 처리 이력을 확인하는 시험
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http } from 'msw';
 import { describe, expect, it } from 'vitest';
@@ -13,6 +13,7 @@ const cells = (row: HTMLElement) => within(row).getAllByRole('cell').map((cell) 
 const rows = async (label: string) => (await within(await screen.findByRole('region', { name: label })).findAllByRole('row')).slice(1);
 const field = (name: string) => screen.getByLabelText(new RegExp(`^${name}`));
 const REVIEW = (n: number) => `80${String(n).padStart(20, '0')}`;
+const FILE = (n: number) => `81${String(n).padStart(20, '0')}`;
 const fact = (name: string) => screen.getByText(name, { selector: 'dt' }).nextElementSibling?.textContent;
 const decide = () => userEvent.click(screen.getByRole('button', { name: '결정' }));
 
@@ -55,30 +56,46 @@ describe('감면 검토 목록', () => {
 });
 
 describe('감면 심사 상세', () => {
-  it('증빙과 거주 확인을 보이고 열람하면 감사기록이 남는다', async () => {
+  it('증빙과 거주 확인을 보이고 검사를 통과한 파일만 내려받기 링크가 있다', async () => {
     await signInAs('group');
     renderApp(`/pay/reductions/${REVIEW(1)}`);
     await heading('감면 심사 상세');
     expect(fact('조리읍 거주 확인')).toBe('확인됨');
     expect((await rows('증빙 목록')).map((row) => cells(row))).toEqual([
-      ['수급자 증명서.pdf', '정상', '열람'],
-      ['가족관계증명서.pdf', '검사 대기', '열람'],
+      ['수급자 증명서.pdf', '정상', '내려받기'],
+      ['가족관계증명서.pdf', '검사 대기', '-'],
     ]);
+    expect(screen.getByRole('link', { name: '내려받기 (수급자 증명서.pdf)' })).toHaveAttribute('href', `/api/admin/v1/files/${FILE(1)}/download`);
     expect(screen.getByText('열람 기록이 없습니다.')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: '열람 (수급자 증명서.pdf)' }));
-    const log = await rows('열람 기록');
-    expect(cells(log[0]!).slice(1)).toEqual(['김관리', '수급자 증명서.pdf']);
   });
 
-  it('검사를 통과하지 않은 증빙은 열람할 수 없다', async () => {
+  it('증빙을 내려받으면 내려받은 사람과 시각이 열람 기록에 남는다', async () => {
     await signInAs('group');
     renderApp(`/pay/reductions/${REVIEW(1)}`);
     await heading('감면 심사 상세');
-    await userEvent.click(screen.getByRole('button', { name: '열람 (가족관계증명서.pdf)' }));
-    expect(await screen.findByText('검사를 통과한 파일만 열람할 수 있습니다.')).toBeInTheDocument();
-    expect(screen.getByText('열람 기록이 없습니다.')).toBeInTheDocument();
+    const link = await screen.findByRole('link', { name: '내려받기 (수급자 증명서.pdf)' });
+    fireEvent.click(link); // 화면은 잠시 뒤 열람 기록을 다시 읽는다
+    expect((await fetch(link.getAttribute('href')!)).status).toBe(200);
+    await waitFor(async () => expect((await rows('열람 기록')).map((row) => cells(row).slice(1))).toEqual([['김관리', '수급자 증명서.pdf']]));
   });
 
+  it('검사를 통과하지 않은 증빙은 내려받을 수 없다', async () => {
+    await signInAs('group');
+    expect((await fetch(`/api/admin/v1/files/${FILE(2)}/download`)).status).toBe(404);
+    renderApp(`/pay/reductions/${REVIEW(1)}`);
+    await heading('감면 심사 상세');
+    expect(screen.queryByRole('link', { name: '내려받기 (가족관계증명서.pdf)' })).not.toBeInTheDocument();
+  });
+
+  it('심사 권한(신청 처리 쓰기)이 있는 다른 담당자도 증빙을 내려받을 수 있다', async () => {
+    await signInAs('course');
+    expect((await fetch(`/api/admin/v1/files/${FILE(1)}/download`)).status).toBe(200);
+  });
+
+  it('심사 권한이 없는 담당자는 증빙을 내려받을 수 없다', async () => {
+    await signInAs('finance');
+    expect((await fetch(`/api/admin/v1/files/${FILE(1)}/download`)).status).toBe(403);
+  });
   it('승인은 유효 종료일이 필수이고 두 번 확인한 뒤 결정되며 더는 고칠 수 없다', async () => {
     await signInAs('group');
     renderApp(`/pay/reductions/${REVIEW(1)}`);
@@ -160,14 +177,15 @@ describe('감면 심사 상세', () => {
   });
 
   it.each([
-    ['접수 건은 증빙 열람과 심사 양식이', 1],
+    ['접수 건은 증빙 내려받기와 심사 양식이', 1],
     ['결정된 건은 재심사 버튼이', 3],
   ])('심사 권한이 없는 담당자는 %s 없다', async (_name, n) => {
     await signInAs('finance');
     renderApp(`/pay/reductions/${REVIEW(n)}`);
     await heading('감면 심사 상세');
     expect(screen.queryByRole('form', { name: '감면 심사' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^(열람|재심사)/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^재심사/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^내려받기/ })).not.toBeInTheDocument();
   });
 
   it('결정 요청은 고른 결정에 해당하는 값만 싣고 읽은 버전을 함께 보낸다', async () => {

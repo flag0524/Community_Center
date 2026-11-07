@@ -24,14 +24,17 @@ function precheck(file: File, limits: OwnerFileList): string | null {
   return null;
 }
 
-export function OwnerFiles({ ownerPath, label, pollMs = 3000 }: { ownerPath: string; label: string; pollMs?: number }) {
+export function OwnerFiles({ ownerPath, label, pollMs = 3000, onChanged }: { ownerPath: string; label: string; pollMs?: number; onChanged?: () => void }) {
   const queryClient = useQueryClient();
   const inputId = useId();
   const input = useRef<HTMLInputElement>(null);
   const list = useQuery({ ...ownerFilesQuery(ownerPath), refetchInterval: (query) => (query.state.data?.items.some((item) => item.status === 'PENDING') ? pollMs : false) });
   const [problems, setProblems] = useState<Problem[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ['owner-files', ownerPath] });
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['owner-files', ownerPath] });
+    onChanged?.(); // 소유 업무 화면이 건수 같은 요약을 다시 읽게 한다
+  };
   const remove = useMutation({ mutationFn: (fileId: string) => deleteOwnerFile(fileId), onSuccess: refresh });
 
   const upload = async (event: ChangeEvent<HTMLInputElement>) => {

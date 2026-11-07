@@ -21,11 +21,39 @@ const MIME: Record<string, string> = {
   jpg: 'image/jpeg',
   png: 'image/png',
 };
-const OWNERS = {
-  posts: { kind: 'POST' as const, purpose: 'ATTACH' as const, authority: 'AU.POST_W' as const, label: (id: string) => mockPostTitle(id) },
-  courses: { kind: 'COURSE' as const, purpose: 'PLAN' as const, authority: 'AU.CORS_W' as const, label: (id: string) => mockCourseName(id) },
+// 소유 업무마다 올릴 때 필요한 권한, 소유 업무의 이름, 잠겼는지를 정한다. 환불·강사 지원은 해당 모의 서버가 정보를 등록한다.
+export interface OwnerInfo {
+  label: string;
+  locked: boolean;
+}
+type Authority = Schemas['AdminAuthority'];
+const registered: Record<string, (ownerId: string) => OwnerInfo | null> = {};
+/** 다른 모의 서버가 자기 업무의 이름과 잠금 상태를 첨부 모의 서버에 알린다. */
+export const registerOwnerInfo = (group: string, provider: (ownerId: string) => OwnerInfo | null): void => {
+  registered[group] = provider;
+};
+const OWNERS: Record<string, { kind: Schemas['FileOwnerKind']; purpose: Schemas['FilePurpose']; authority: Authority; info: (ownerId: string) => OwnerInfo | null }> = {
+  posts: { kind: 'POST', purpose: 'ATTACH', authority: 'AU.POST_W', info: (id) => (mockPostTitle(id) ? { label: mockPostTitle(id), locked: false } : null) },
+  courses: { kind: 'COURSE', purpose: 'PLAN', authority: 'AU.CORS_W', info: (id) => (mockCourseName(id) ? { label: mockCourseName(id), locked: false } : null) },
+  refunds: { kind: 'REFUND', purpose: 'PROOF', authority: 'AU.RFND_A', info: (id) => registered.refunds?.(id) ?? null },
+  'instructor-applications': { kind: 'INSTRUCTOR_APPLICATION', purpose: 'PROOF', authority: 'AU.INSTR_W', info: (id) => registered['instructor-applications']?.(id) ?? null },
 };
 
+// 파일을 직접 소유한 다른 모의 서버(감면 증빙)가 내려받기를 맡길 수 있게 한다.
+export interface ExternalFile {
+  authority: Authority;
+  status: Schemas['FileStatus'];
+  fileName: string;
+  onDownload: (by: string) => void;
+}
+const resolvers: Array<(fileId: string) => ExternalFile | undefined> = [];
+export const registerFileResolver = (resolver: (fileId: string) => ExternalFile | undefined): void => {
+  resolvers.push(resolver);
+};
+
+/** 소유 업무 경로에 지워지지 않고 남아 있는 파일 수. */
+export const countOwnerFiles = (ownerPath: string): number =>
+  owned.filter((item) => item.ownerPath === ownerPath && rows.find((row) => row.fileId === item.fileId)?.status !== 'DELETE').length;
 function initialState(): File[] {
   const row = (n: number, fileName: string, ownerKind: Schemas['FileOwnerKind'], ownerLabel: string, status: Schemas['FileStatus'], extra: Partial<File> = {}): File => ({
     fileId: fid(n), fileName, ownerKind, ownerLabel, sizeBytes: 245_760, status, registeredOn: '2026-10-20', purpose: 'ATTACH', mimeType: 'application/pdf', hashPrefix: 'a3f9c2d1', blockReason: null,
@@ -70,25 +98,25 @@ function scan(ownerPath: string): void {
   }
 }
 
-export type UploadResult = { file: Schemas['OwnerFile'] } | { status: number; code: 'NOT_FOUND' | 'RULE_REJECTED'; fields?: Record<string, string> };
+export type UploadResult = { file: Schemas['OwnerFile'] } | { status: number; code: 'NOT_FOUND' | 'RULE_REJECTED' | 'CONFLICT_STATE'; fields?: Record<string, string> };
 
 /** 올린 파일을 받아 검사 대기로 저장한다. 확장자·크기·개수는 서버가 최종 판정한다. */
 export function receiveUpload(ownerPath: string, input: { name: string; size: number }): UploadResult {
   const [, group, ownerId] = ownerPath.split('/');
-  const owner = OWNERS[group as keyof typeof OWNERS];
-  const label = owner?.label(ownerId ?? '');
-  if (!owner || !label) return { status: 404, code: 'NOT_FOUND' };
+  const owner = OWNERS[group ?? ''];
+  const info = owner?.info(ownerId ?? '');
+  if (!owner || !info) return { status: 404, code: 'NOT_FOUND' };
+  if (info.locked) return { status: 409, code: 'CONFLICT_STATE' };
   const extension = input.name.includes('.') ? input.name.split('.').pop()!.toLowerCase() : '';
   const fail = (file: string): UploadResult => ({ status: 422, code: 'RULE_REJECTED', fields: { file } });
   if ([...input.name.normalize('NFC')].length > 128) return fail('파일 이름은 128자를 넘을 수 없습니다.');
   if (!UPLOAD_LIMITS.allowedExtensions.includes(extension)) return fail(`허용되지 않는 형식입니다. (${UPLOAD_LIMITS.allowedExtensions.join(', ')})`);
   if (input.size === 0) return fail('빈 파일은 올릴 수 없습니다.');
   if (input.size > UPLOAD_LIMITS.maxBytes) return fail('파일은 20MB 이하만 올릴 수 있습니다.');
-  const count = owned.filter((item) => item.ownerPath === ownerPath && rows.find((row) => row.fileId === item.fileId)?.status !== 'DELETE').length;
-  if (count >= UPLOAD_LIMITS.maxFiles) return fail(`파일은 ${UPLOAD_LIMITS.maxFiles}개까지 올릴 수 있습니다.`);
+  if (countOwnerFiles(ownerPath) >= UPLOAD_LIMITS.maxFiles) return fail(`파일은 ${UPLOAD_LIMITS.maxFiles}개까지 올릴 수 있습니다.`);
   uploadSeq += 1;
   const row: File = {
-    fileId: fid(uploadSeq), fileName: input.name, ownerKind: owner.kind, ownerLabel: label, sizeBytes: input.size, status: 'PENDING', registeredOn: today(), purpose: owner.purpose,
+    fileId: fid(uploadSeq), fileName: input.name, ownerKind: owner.kind, ownerLabel: info.label, sizeBytes: input.size, status: 'PENDING', registeredOn: today(), purpose: owner.purpose,
     mimeType: MIME[extension] ?? 'application/octet-stream', hashPrefix: 'f00dcafe', blockReason: null, downloads: [],
   };
   rows.push(row);
@@ -120,28 +148,36 @@ export const fileHandlers = [
   }),
 
   http.get('/api/admin/v1/files/:fileId/download', ({ params }) => {
-    const denied = denyUnless('AU.POST_W', 'AU.SITE_W', 'AU.CORS_R', 'AU.CORS_W');
+    const fileId = String(params.fileId);
+    const external = resolvers.map((resolve) => resolve(fileId)).find((item) => item !== undefined);
+    const entry = owned.find((item) => item.fileId === fileId);
+    const row = rows.find((item) => item.fileId === fileId);
+    const group = entry?.ownerPath.split('/')[1] ?? '';
+    const authority: Authority[] = external ? [external.authority] : entry ? [OWNERS[group]!.authority] : ['AU.POST_W', 'AU.SITE_W'];
+    const denied = denyUnless(...authority, ...(group === 'courses' ? (['AU.CORS_R'] as const) : []));
     if (denied) return denied;
-    const row = rows.find((item) => item.fileId === params.fileId);
-    if (!row || row.status !== 'SAFE') return apiError('NOT_FOUND');
-    row.downloads.push({ at: new Date().toISOString(), by: currentAdminName(), byAdmin: true });
+    const status = external?.status ?? row?.status;
+    const fileName = external?.fileName ?? row?.fileName;
+    if (!fileName || status !== 'SAFE') return apiError('NOT_FOUND');
+    if (external) external.onDownload(currentAdminName());
+    else row!.downloads.push({ at: new Date().toISOString(), by: currentAdminName(), byAdmin: true });
     return new HttpResponse('시험용 첨부 내용입니다.', {
       headers: {
         'Content-Type': 'application/octet-stream',
-        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(row.fileName)}`,
+        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
         'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'private, no-store',
       },
     });
   }),
-
   http.delete('/api/admin/v1/files/:fileId', ({ request, params }) => {
     const entry = owned.find((item) => item.fileId === params.fileId);
-    const group = entry?.ownerPath.split('/')[1] as keyof typeof OWNERS | undefined;
-    const denied = denyCsrf(request) ?? denyUnless(group ? OWNERS[group].authority : 'AU.POST_W');
+    const [, group, ownerId] = entry?.ownerPath.split('/') ?? [];
+    const denied = denyCsrf(request) ?? denyUnless(group ? OWNERS[group]!.authority : 'AU.POST_W');
     if (denied) return denied;
     const row = rows.find((item) => item.fileId === params.fileId);
     if (!entry || !row || row.status === 'DELETE') return apiError('NOT_FOUND');
+    if (OWNERS[group ?? '']?.info(ownerId ?? '')?.locked) return apiError('CONFLICT_STATE');
     row.status = 'DELETE';
     return new HttpResponse(null, { status: 204 });
   }),
@@ -151,14 +187,15 @@ export const fileHandlers = [
       const denied = denyUnless(owner.authority, ...(group === 'courses' ? (['AU.CORS_R'] as const) : []));
       if (denied) return denied;
       const ownerPath = `/${group}/${String(params.ownerId)}`;
-      if (!owner.label(String(params.ownerId))) return apiError('NOT_FOUND');
+      const info = owner.info(String(params.ownerId));
+      if (!info) return apiError('NOT_FOUND');
       scan(ownerPath);
       const items = owned
         .filter((item) => item.ownerPath === ownerPath)
         .map((item) => rows.find((row) => row.fileId === item.fileId)!)
         .filter((row) => row.status !== 'DELETE')
         .map(ownerFile);
-      return HttpResponse.json({ items, canEdit: true, ...UPLOAD_LIMITS } satisfies Schemas['OwnerFileList']);
+      return HttpResponse.json({ items, canEdit: !info.locked, ...UPLOAD_LIMITS } satisfies Schemas['OwnerFileList']);
     }),
 
     http.post(`/api/admin/v1/${group}/:ownerId/files`, async ({ request, params }) => {

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { approveRefund, confirmRefundDone, executeRefund, holdRefund, rejectRefund, releaseRefundHold, type AdminRefund } from '../../api/refunds';
 import { adminRefundQuery } from '../../api/queries';
+import { OwnerFiles } from '../../components/OwnerFiles';
 import { ConfirmButton } from '../../components/ConfirmButton';
 import { Field, describe } from '../../components/Field';
 import { TableWrap } from '../../components/ListParts';
@@ -139,6 +140,8 @@ function RefundDetail({ refund }: { refund: AdminRefund }) {
           {isVersionConflict(actionError) ? '다른 곳에서 먼저 처리되었습니다. 화면을 새로 열어 주세요.' : allFieldMessages(actionError) || errorMessage(actionError)}
         </p>
       )}
+
+      <OwnerFiles ownerPath={`/refunds/${refund.refundId}`} label="증빙" onChanged={() => void queryClient.invalidateQueries({ queryKey: adminRefundQuery(refund.refundId).queryKey })} />
 
       <h2 className="adm-section">이력</h2>
       <TableWrap label="환불 이력">

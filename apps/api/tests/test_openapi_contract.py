@@ -166,7 +166,6 @@ ADMIN_OPERATIONS = {
     ("post", "/api/admin/v1/role-assignments/{assignment_id}/revoke"),
     ("get", "/api/admin/v1/reductions"),
     ("get", "/api/admin/v1/reductions/{review_id}"),
-    ("post", "/api/admin/v1/reductions/{review_id}/evidence-views"),
     ("post", "/api/admin/v1/reductions/{review_id}/decision"),
     ("post", "/api/admin/v1/reductions/{review_id}/re-review"),
     ("get", "/api/admin/v1/reduction-history"),
@@ -189,6 +188,10 @@ ADMIN_OPERATIONS = {
     ("post", "/api/admin/v1/posts/{post_id}/files"),
     ("get", "/api/admin/v1/courses/{course_id}/files"),
     ("post", "/api/admin/v1/courses/{course_id}/files"),
+    ("get", "/api/admin/v1/refunds/{refund_id}/files"),
+    ("post", "/api/admin/v1/refunds/{refund_id}/files"),
+    ("get", "/api/admin/v1/instructor-applications/{application_id}/files"),
+    ("post", "/api/admin/v1/instructor-applications/{application_id}/files"),
     ("delete", "/api/admin/v1/files/{file_id}"),
     ("get", "/api/admin/v1/files/{file_id}/download"),
 }
@@ -216,6 +219,8 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/admin/v1/retention/{item_id}/execute"),
     ("post", "/api/admin/v1/posts/{post_id}/files"),
     ("post", "/api/admin/v1/courses/{course_id}/files"),
+    ("post", "/api/admin/v1/refunds/{refund_id}/files"),
+    ("post", "/api/admin/v1/instructor-applications/{application_id}/files"),
 }
 
 
@@ -996,7 +1001,12 @@ def test_보존기간이_정해지지_않은_자료는_예정일을_null로_구�
 
 
 def test_파일_올리기는_multipart로_한_개씩_받고_한도는_응답이_알려_준다(spec: Schema) -> None:
-    for path in ("/api/admin/v1/posts/{post_id}/files", "/api/admin/v1/courses/{course_id}/files"):
+    for path in (
+        "/api/admin/v1/posts/{post_id}/files",
+        "/api/admin/v1/courses/{course_id}/files",
+        "/api/admin/v1/refunds/{refund_id}/files",
+        "/api/admin/v1/instructor-applications/{application_id}/files",
+    ):
         body = spec["paths"][path]["post"]["requestBody"]["content"]
         assert set(body) == {"multipart/form-data"}, path
     schemas = spec["components"]["schemas"]
@@ -1012,3 +1022,10 @@ def test_내려받기는_바이너리로_답하고_제거는_논리삭제_삭제
     assert "204" in spec["paths"]["/api/admin/v1/files/{file_id}"]["delete"]["responses"]
     forbidden = {"storageKey", "strgKey", "path", "url", "hash"}
     assert not forbidden & set(spec["components"]["schemas"]["OwnerFile"]["properties"])
+
+
+def test_감면_증빙은_열람_전용_API_없이_내려받기가_감사기록을_남긴다(spec: Schema) -> None:
+    reduction_paths = [path for path in spec["paths"] if "/reductions/" in path]
+    assert not [path for path in reduction_paths if path.endswith("/evidence-views")]
+    assert "evidenceViews" in spec["components"]["schemas"]["ReductionReview"]["properties"]
+    assert "EvidenceViewRequest" not in spec["components"]["schemas"]

@@ -38,7 +38,9 @@ class EvidenceView(ApiModel):
 class ReductionReview(ReductionReviewSummary):
     residence_confirmed: bool = Field(description="조리읍 거주 확인 결과. 확인된 회원만 승인할 수 있다.")
     evidence: list[ReductionEvidence]
-    evidence_views: list[EvidenceView] = Field(description="증빙 열람 감사기록")
+    evidence_views: list[EvidenceView] = Field(
+        description="증빙 내려받기 감사기록. 파일을 내려받을 때 서버가 남긴다"
+    )
     reviewed_by: str | None
     reviewed_at: AwareDatetime | None
     review_note: str | None
@@ -48,10 +50,6 @@ class ReductionReview(ReductionReviewSummary):
     can_decide: bool = Field(description="접수 상태이고 심사 권한이 있을 때만 true")
     can_re_review: bool = Field(description="승인·반려된 건만 새 심사건을 만들 수 있다.")
     can_view_evidence: bool = Field(description="심사 권한이 있을 때만 증빙을 열람할 수 있다.")
-
-
-class EvidenceViewRequest(ApiModel):
-    file_id: SerialId
 
 
 class ReductionDecisionRequest(ApiModel):

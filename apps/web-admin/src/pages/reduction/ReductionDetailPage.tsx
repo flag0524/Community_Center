@@ -1,9 +1,10 @@
-// 감면 심사 상세 화면. 증빙 열람은 감사기록을 남기고 승인·반려는 한 번 정하면 고치지 않으며 다시 심사하려면 새 건을 만든다 (ADM-PAY-005P)
+// 감면 심사 상세 화면. 증빙은 내려받을 때 감사기록이 남고 승인·반려는 한 번 정하면 고치지 않으며 다시 심사하려면 새 건을 만든다 (ADM-PAY-005P)
 import type { Schemas } from '@jori/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { decideReduction, reReviewReduction, viewEvidence, type ReductionReview } from '../../api/reductions';
+import { downloadUrl } from '../../api/ownerFiles';
+import { decideReduction, reReviewReduction, type ReductionReview } from '../../api/reductions';
 import { reductionQuery } from '../../api/queries';
 import { ConfirmButton } from '../../components/ConfirmButton';
 import { Field, describe } from '../../components/Field';
@@ -11,7 +12,7 @@ import { TableWrap } from '../../components/ListParts';
 import { errorMessage, fieldErrors } from '../../lib/errors';
 import { kstDateTime } from '../../lib/format';
 import { FILE_STATUS, REDUCTION_STATUS, REDUCTION_TYPE } from '../../lib/labels';
-import { allFieldMessages, isVersionConflict } from '../../lib/messages';
+import { isVersionConflict } from '../../lib/messages';
 import { useIdempotencyKey } from '../../lib/useIdempotencyKey';
 
 export function ReductionDetailPage() {
@@ -37,7 +38,6 @@ function ReductionDetail({ review }: { review: ReductionReview }) {
     queryClient.setQueryData(reductionQuery(result.reviewId).queryKey, result);
     void queryClient.invalidateQueries({ queryKey: ['reductions', 'list'] });
   };
-  const view = useMutation({ mutationFn: (fileId: string) => viewEvidence(review.reviewId, fileId), onSuccess: refresh });
   const decide = useMutation({
     mutationFn: () => decideReduction(review.reviewId, { decision, reviewNote: note.trim() || null, rejectReason: decision === 'REJECT' ? reason.trim() : null, validUntil: decision === 'APPROVE' ? validUntil : null, version: review.version }),
     onSuccess: refresh,
@@ -61,8 +61,9 @@ function ReductionDetail({ review }: { review: ReductionReview }) {
   };
   const server = fieldErrors(decide.error);
   const err = (name: string) => missing[name] ?? server[name];
-  const failure = [view, decide, reReview].find((mutation) => mutation.isError && Object.keys(fieldErrors(mutation.error)).length === 0)?.error;
-  const viewFailure = view.isError ? allFieldMessages(view.error) : '';
+  const failure = [decide, reReview].find((mutation) => mutation.isError && Object.keys(fieldErrors(mutation.error)).length === 0)?.error;
+  // 내려받기는 브라우저가 직접 요청하므로 서버가 기록을 남긴 뒤에 열람 기록을 다시 읽는다.
+  const afterDownload = () => window.setTimeout(() => void queryClient.invalidateQueries({ queryKey: reductionQuery(review.reviewId).queryKey }), 800);
 
   return (
     <>
@@ -127,10 +128,10 @@ function ReductionDetail({ review }: { review: ReductionReview }) {
                   <td>{file.fileName}</td>
                   <td>{FILE_STATUS[file.status]}</td>
                   <td>
-                    {review.canViewEvidence ? (
-                      <button type="button" className="adm-button secondary" aria-label={`열람 (${file.fileName})`} disabled={view.isPending} onClick={() => view.mutate(file.fileId)}>
-                        열람
-                      </button>
+                    {review.canViewEvidence && file.status === 'SAFE' ? (
+                      <a href={downloadUrl(file.fileId)} download aria-label={`내려받기 (${file.fileName})`} onClick={afterDownload}>
+                        내려받기
+                      </a>
                     ) : (
                       '-'
                     )}
@@ -143,12 +144,8 @@ function ReductionDetail({ review }: { review: ReductionReview }) {
       ) : (
         <p>제출된 증빙이 없습니다.</p>
       )}
-      {viewFailure && (
-        <p className="adm-message error" role="alert">
-          {viewFailure}
-        </p>
-      )}
-      <p className="adm-notice">증빙은 비공개이고 열람할 때마다 열람자와 시각이 기록됩니다. 파일 보기는 첨부 기능이 생기면 더합니다.</p>
+
+      <p className="adm-notice">증빙은 비공개이고 내려받을 때마다 내려받은 사람과 시각이 기록됩니다. 검사를 통과한 파일만 내려받을 수 있습니다.</p>
 
       <h2 className="adm-section">열람 기록</h2>
       {review.evidenceViews.length > 0 ? (

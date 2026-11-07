@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, Path, Query, Security
 
 from app.core.errors import ErrorCode, not_implemented
 from app.domain.admin.reduction_schemas import (
-    EvidenceViewRequest,
     ReductionDecisionRequest,
     ReductionHistoryPage,
     ReductionReview,
@@ -36,17 +35,6 @@ def list_reductions(
 
 @router.get("/reductions/{review_id}", responses=error_responses(ErrorCode.NOT_FOUND))
 def get_reduction(review_id: Serial) -> ReductionReview:
-    not_implemented()
-
-
-@router.post(
-    "/reductions/{review_id}/evidence-views",
-    status_code=201,
-    responses=error_responses(ErrorCode.NOT_FOUND, ErrorCode.RULE_REJECTED),
-    dependencies=[Depends(csrf_header)],
-)
-def view_evidence(review_id: Serial, body: EvidenceViewRequest) -> ReductionReview:
-    """증빙 열람 감사기록을 남긴다. 파일 전달은 첨부 설계 뒤에 더한다. 검사를 통과한 파일만 연다."""
     not_implemented()
 
 

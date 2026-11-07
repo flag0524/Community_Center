@@ -2,6 +2,7 @@
 import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
 import { apiError, currentAuthorities, denyCsrf, denyUnless } from './auth';
+import { registerOwnerInfo } from './files';
 
 type Review = Omit<Schemas['InstructorReview'], 'canReview'>;
 
@@ -32,6 +33,12 @@ function initialState(): State {
 }
 
 let state = initialState();
+
+// 증빙은 심사 대기 상태에서만 더하거나 지울 수 있다.
+registerOwnerInfo('instructor-applications', (id) => {
+  const review = state.reviews.find((item) => item.applicationId === id);
+  return review ? { label: ` 강사 지원`, locked: review.status !== 'PENDING' } : null;
+});
 
 /** 시험 사이에 심사 목록을 처음 상태로 되돌린다. */
 export function resetMockReview(): void {

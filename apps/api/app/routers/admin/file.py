@@ -77,6 +77,46 @@ def upload_course_file(
     not_implemented()
 
 
+@router.get("/refunds/{refund_id}/files", responses=error_responses(ErrorCode.NOT_FOUND))
+def list_refund_files(refund_id: Serial) -> OwnerFileList:
+    """환불 증빙. 접수·보류 상태에서만 담당자(AU.RFND_A)가 추가·제거한다."""
+    not_implemented()
+
+
+@router.post(
+    "/refunds/{refund_id}/files",
+    status_code=201,
+    responses=UPLOAD_ERRORS,
+    dependencies=[Depends(csrf_header)],
+)
+def upload_refund_file(
+    refund_id: Serial,
+    file: Annotated[UploadFile, File(description="파일 한 개")],
+    idempotency_key: IdempotencyKey,
+) -> OwnerFile:
+    not_implemented()
+
+
+@router.get("/instructor-applications/{application_id}/files", responses=error_responses(ErrorCode.NOT_FOUND))
+def list_instructor_application_files(application_id: Serial) -> OwnerFileList:
+    """강사 지원 증빙. 심사 대기 상태에서만 담당자(AU.INSTR_W)가 추가·제거한다."""
+    not_implemented()
+
+
+@router.post(
+    "/instructor-applications/{application_id}/files",
+    status_code=201,
+    responses=UPLOAD_ERRORS,
+    dependencies=[Depends(csrf_header)],
+)
+def upload_instructor_application_file(
+    application_id: Serial,
+    file: Annotated[UploadFile, File(description="파일 한 개")],
+    idempotency_key: IdempotencyKey,
+) -> OwnerFile:
+    not_implemented()
+
+
 @router.delete(
     "/files/{file_id}",
     status_code=204,
