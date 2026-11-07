@@ -8,6 +8,7 @@ from app.routers.admin import (
     board,
     code,
     content,
+    course_class,
     education,
     facility,
     file,
@@ -50,5 +51,6 @@ for module in (
     reduction,
     setting,
     code,
+    course_class,
 ):
     admin_router.include_router(module.router)

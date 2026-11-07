@@ -464,3 +464,13 @@ export const codeListQuery = (params: CodeParams) =>
     queryKey: ['codes', params],
     queryFn: ({ signal }) => getJson<Schemas['CodeList']>(`/codes${toQueryString({ ...params })}`, signal),
   });
+
+export const classListQuery = queryOptions({
+  queryKey: ['classes', 'list'],
+  queryFn: ({ signal }) => getJson<Schemas['CourseClassList']>('/course-classes', signal),
+});
+export const classHistoryQuery = (classId: string) =>
+  queryOptions({
+    queryKey: ['classes', 'history', classId],
+    queryFn: ({ signal }) => getJson<Schemas['ClassHistoryList']>(`/course-classes/${encodeURIComponent(classId)}/history`, signal),
+  });

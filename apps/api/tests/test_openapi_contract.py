@@ -175,6 +175,13 @@ ADMIN_OPERATIONS = {
     ("get", "/api/admin/v1/code-groups"),
     ("get", "/api/admin/v1/codes"),
     ("put", "/api/admin/v1/codes"),
+    ("get", "/api/admin/v1/course-classes"),
+    ("post", "/api/admin/v1/course-classes"),
+    ("put", "/api/admin/v1/course-classes/{class_id}"),
+    ("post", "/api/admin/v1/course-classes/{class_id}/deactivate"),
+    ("post", "/api/admin/v1/course-classes/{class_id}/activate"),
+    ("delete", "/api/admin/v1/course-classes/{class_id}"),
+    ("get", "/api/admin/v1/course-classes/{class_id}/history"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -196,6 +203,7 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/admin/v1/sms"),
     ("post", "/api/admin/v1/role-assignments"),
     ("post", "/api/admin/v1/reductions/{review_id}/re-review"),
+    ("post", "/api/admin/v1/course-classes"),
 }
 
 
@@ -926,3 +934,30 @@ def test_공통_코드는_표시명_순서_사용만_고치고_추가_삭제_없
     assert "refCount" in schemas["CodeRow"]["required"]  # 확인 실패는 null로 구분한다
     code_ops = {method for (method, path) in operations(spec) if path == "/api/admin/v1/codes"}
     assert code_ops == {"get", "put"}  # 코드 추가·삭제 API가 없다
+
+
+def test_강좌분류는_연결_강좌_수_확인_실패를_null로_구분하고_중지_삭제_가능_여부를_서버가_알린다(
+    spec: Schema,
+) -> None:
+    schemas = spec["components"]["schemas"]
+    assert {"courseCount", "canDeactivate", "canDelete", "version"} <= set(schemas["CourseClass"]["required"])
+    count = schemas["CourseClass"]["properties"]["courseCount"]
+    assert any(option.get("type") == "null" for option in count["anyOf"])  # 0이 아니라 null이 확인 실패다
+    assert set(schemas["ClassHistoryAction"]["enum"]) == {
+        "CREATE",
+        "RENAME",
+        "REORDER",
+        "DEACTIVATE",
+        "ACTIVATE",
+        "DELETE",
+    }
+
+
+def test_강좌분류_삭제는_읽은_버전을_받고_이력은_조회_전용이다(spec: Schema) -> None:
+    delete_params = {
+        param["name"]
+        for param in spec["paths"]["/api/admin/v1/course-classes/{class_id}"]["delete"]["parameters"]
+    }
+    assert "version" in delete_params
+    history_ops = {method for method in spec["paths"]["/api/admin/v1/course-classes/{class_id}/history"]}
+    assert history_ops == {"get"}

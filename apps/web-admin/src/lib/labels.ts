@@ -193,3 +193,5 @@ export const REDUCTION_STATUS: Record<Schemas['ReductionStatus'], string> = { RE
 export const REDUCTION_DECISION: Record<Schemas['ReductionDecision'], string> = { APPROVE: '승인', REJECT: '반려' };
 
 export const OPER_RULE_STATUS: Record<Schemas['OperRuleStatus'], string> = { REVIEW: '검토 중', DECIDED: '확정', HOLD: '보류' };
+
+export const CLASS_ACTION: Record<Schemas['ClassHistoryAction'], string> = { CREATE: '등록', RENAME: '명칭 변경', REORDER: '순서 변경', DEACTIVATE: '비활성', ACTIVATE: '재활성', DELETE: '삭제' };

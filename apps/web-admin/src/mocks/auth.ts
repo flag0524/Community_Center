@@ -115,6 +115,7 @@ const MENU: Array<{ key: string; title: string; items: MenuDef[] }> = [
       { key: 'roles', label: '권한 배정', path: '/sys/roles', anyOf: ['AU.GRANT_W'] },
       { key: 'settings', label: '운영 설정', path: '/sys/settings', anyOf: ['AU.SITE_W'] },
       { key: 'codes', label: '공통 코드', path: '/sys/codes', anyOf: ['AU.GRANT_W'] },
+      { key: 'classes', label: '강좌분류', path: '/sys/classes', anyOf: ['AU.CORS_R'] },
     ],
   },
 ];

@@ -10,6 +10,7 @@ import { routes } from '../app/routes';
 import { DEMO_ADMINS, resetMockAuth } from '../mocks/auth';
 import { resetMockBoards } from '../mocks/boards';
 import { resetMockCampus } from '../mocks/campus';
+import { resetMockClasses } from '../mocks/classes';
 import { resetMockContents } from '../mocks/contents';
 import { resetMockFiles } from '../mocks/files';
 import { resetMockTerms } from '../mocks/terms';
@@ -51,6 +52,7 @@ export function useMockServer(): void {
     resetMockRoles();
     resetMockReductions();
     resetMockSettings();
+    resetMockClasses();
     resetMockFiles();
     resetMockTransactions();
     rememberCsrfToken(null);
