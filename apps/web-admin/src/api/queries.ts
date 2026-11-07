@@ -474,3 +474,13 @@ export const classHistoryQuery = (classId: string) =>
     queryKey: ['classes', 'history', classId],
     queryFn: ({ signal }) => getJson<Schemas['ClassHistoryList']>(`/course-classes/${encodeURIComponent(classId)}/history`, signal),
   });
+
+export const retentionListQuery = queryOptions({
+  queryKey: ['retention', 'list'],
+  queryFn: ({ signal }) => getJson<Schemas['RetentionList']>('/retention', signal),
+});
+export const retentionQuery = (itemId: string) =>
+  queryOptions({
+    queryKey: ['retention', 'detail', itemId],
+    queryFn: ({ signal }) => getJson<Schemas['RetentionDetail']>(`/retention/${encodeURIComponent(itemId)}`, signal),
+  });

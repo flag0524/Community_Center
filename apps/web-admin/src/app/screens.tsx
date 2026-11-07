@@ -14,6 +14,8 @@ import { MemberListPage } from '../pages/member/MemberListPage';
 import { ReductionDetailPage } from '../pages/reduction/ReductionDetailPage';
 import { ReductionHistoryPage } from '../pages/reduction/ReductionHistoryPage';
 import { ReductionListPage } from '../pages/reduction/ReductionListPage';
+import { RetentionDetailPage } from '../pages/retention/RetentionDetailPage';
+import { RetentionListPage } from '../pages/retention/RetentionListPage';
 import { RoleDetailPage } from '../pages/role/RoleDetailPage';
 import { RoleFormPage } from '../pages/role/RoleFormPage';
 import { RoleListPage } from '../pages/role/RoleListPage';
@@ -102,6 +104,8 @@ export const SCREENS: Array<{ path: string; element: ReactElement }> = [
   { path: '/sys/settings', element: <SettingListPage /> },
   { path: '/sys/settings/:settingId', element: <SettingDetailPage /> },
   { path: '/sys/codes', element: <CodePage /> },
+  { path: '/sys/retention', element: <RetentionListPage /> },
+  { path: '/sys/retention/:itemId', element: <RetentionDetailPage /> },
   { path: '/sys/classes', element: <ClassListPage /> },
   { path: '/sys/classes/:classId', element: <ClassDetailPage /> },
   { path: '/pay/refunds', element: <RefundListPage /> },

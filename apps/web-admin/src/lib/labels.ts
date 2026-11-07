@@ -195,3 +195,12 @@ export const REDUCTION_DECISION: Record<Schemas['ReductionDecision'], string> = 
 export const OPER_RULE_STATUS: Record<Schemas['OperRuleStatus'], string> = { REVIEW: '검토 중', DECIDED: '확정', HOLD: '보류' };
 
 export const CLASS_ACTION: Record<Schemas['ClassHistoryAction'], string> = { CREATE: '등록', RENAME: '명칭 변경', REORDER: '순서 변경', DEACTIVATE: '비활성', ACTIVATE: '재활성', DELETE: '삭제' };
+
+export const RETENTION_TARGET: Record<Schemas['RetentionTarget'], string> = {
+  WITHDRAWN_MEMBER: '탈퇴 회원 개인정보',
+  AUTH_RECORDS: '인증 기록(OTP·세션·로그인 실패)',
+  AUDIT_HISTORY: '업무 감사이력',
+  REFUND_ACCOUNT: '수동환불 계좌정보',
+  SMS_RECORDS: '문자 문안·수신명단',
+};
+export const RETENTION_STATE: Record<Schemas['RetentionState'], string> = { DUE: '예정일 지남', WAITING: '예정일 전', REVIEW_ONLY: '검토 전용', PERIOD_TBD: '기간 미정' };

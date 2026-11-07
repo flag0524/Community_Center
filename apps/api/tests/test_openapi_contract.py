@@ -182,6 +182,9 @@ ADMIN_OPERATIONS = {
     ("post", "/api/admin/v1/course-classes/{class_id}/activate"),
     ("delete", "/api/admin/v1/course-classes/{class_id}"),
     ("get", "/api/admin/v1/course-classes/{class_id}/history"),
+    ("get", "/api/admin/v1/retention"),
+    ("get", "/api/admin/v1/retention/{item_id}"),
+    ("post", "/api/admin/v1/retention/{item_id}/execute"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -204,6 +207,7 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/admin/v1/role-assignments"),
     ("post", "/api/admin/v1/reductions/{review_id}/re-review"),
     ("post", "/api/admin/v1/course-classes"),
+    ("post", "/api/admin/v1/retention/{item_id}/execute"),
 }
 
 
@@ -961,3 +965,18 @@ def test_강좌분류_삭제는_읽은_버전을_받고_이력은_조회_전용�
     assert "version" in delete_params
     history_ops = {method for method in spec["paths"]["/api/admin/v1/course-classes/{class_id}/history"]}
     assert history_ops == {"get"}
+
+
+def test_보존_파기는_실행에_확인한_건수와_멱등키를_요구하고_삭제_API는_없다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert "expectedCount" in schemas["RetentionExecute"]["required"]
+    assert {"canExecute", "executions", "fields", "rule"} <= set(schemas["RetentionDetail"]["required"])
+    assert {"exclusions", "items"} <= set(schemas["RetentionList"]["required"])
+    retention_ops = {key for key in operations(spec) if "/retention" in key[1]}
+    assert not {key for key in retention_ops if key[0] in {"put", "patch", "delete"}}
+    assert set(schemas["RetentionState"]["enum"]) == {"DUE", "WAITING", "REVIEW_ONLY", "PERIOD_TBD"}
+
+
+def test_보존기간이_정해지지_않은_자료는_예정일을_null로_구분한다(spec: Schema) -> None:
+    due = spec["components"]["schemas"]["RetentionItem"]["properties"]["dueOn"]
+    assert any(option.get("type") == "null" for option in due["anyOf"])

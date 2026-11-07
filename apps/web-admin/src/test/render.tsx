@@ -18,6 +18,7 @@ import { resetMockInquiries } from '../mocks/inquiries';
 import { resetMockMembers } from '../mocks/members';
 import { resetMockRefunds } from '../mocks/refunds';
 import { resetMockReductions } from '../mocks/reductions';
+import { resetMockRetention } from '../mocks/retention';
 import { resetMockReview } from '../mocks/review';
 import { resetMockRoles } from '../mocks/roles';
 import { resetMockSettings } from '../mocks/settings';
@@ -53,6 +54,7 @@ export function useMockServer(): void {
     resetMockReductions();
     resetMockSettings();
     resetMockClasses();
+    resetMockRetention();
     resetMockFiles();
     resetMockTransactions();
     rememberCsrfToken(null);

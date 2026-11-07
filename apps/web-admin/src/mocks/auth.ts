@@ -116,6 +116,7 @@ const MENU: Array<{ key: string; title: string; items: MenuDef[] }> = [
       { key: 'settings', label: '운영 설정', path: '/sys/settings', anyOf: ['AU.SITE_W'] },
       { key: 'codes', label: '공통 코드', path: '/sys/codes', anyOf: ['AU.GRANT_W'] },
       { key: 'classes', label: '강좌분류', path: '/sys/classes', anyOf: ['AU.CORS_R'] },
+      { key: 'retention', label: '보존·파기 검토', path: '/sys/retention', anyOf: ['AU.LOG_R'] },
     ],
   },
 ];

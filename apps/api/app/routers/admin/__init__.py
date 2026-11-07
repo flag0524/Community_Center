@@ -18,6 +18,7 @@ from app.routers.admin import (
     member,
     reduction,
     refund,
+    retention,
     role,
     schedule,
     setting,
@@ -52,5 +53,6 @@ for module in (
     setting,
     code,
     course_class,
+    retention,
 ):
     admin_router.include_router(module.router)
