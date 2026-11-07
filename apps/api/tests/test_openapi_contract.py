@@ -170,6 +170,11 @@ ADMIN_OPERATIONS = {
     ("post", "/api/admin/v1/reductions/{review_id}/decision"),
     ("post", "/api/admin/v1/reductions/{review_id}/re-review"),
     ("get", "/api/admin/v1/reduction-history"),
+    ("get", "/api/admin/v1/settings"),
+    ("get", "/api/admin/v1/settings/{setting_id}"),
+    ("get", "/api/admin/v1/code-groups"),
+    ("get", "/api/admin/v1/codes"),
+    ("put", "/api/admin/v1/codes"),
 }
 ADMIN_PREFIX = "/api/admin/v1/"
 # 상태를 바꾸지만 CSRF 헤더 대상이 아닌 경로는 없다. GET 외 모든 요청이 대상이다.
@@ -905,3 +910,19 @@ def test_감면_이력은_조회_전용이고_증빙_파일의_저장_위치를_
     forbidden = {"storageKey", "strgKey", "path", "url"}
     for name in ("ReductionEvidence", "ReductionHistoryRow", "ReductionReview"):
         assert not forbidden & set(spec["components"]["schemas"][name]["properties"]), name
+
+
+def test_운영_설정은_조회_전용이고_검토_상태를_게시와_구분해_싣는다(spec: Schema) -> None:
+    setting_ops = {method for (method, path) in operations(spec) if path.startswith("/api/admin/v1/settings")}
+    assert setting_ops == {"get"}
+    schemas = spec["components"]["schemas"]
+    assert set(schemas["OperRuleStatus"]["enum"]) == {"REVIEW", "DECIDED", "HOLD"}
+    assert {"body", "version"} <= set(schemas["SettingDetail"]["properties"])
+
+
+def test_공통_코드는_표시명_순서_사용만_고치고_추가_삭제_없이_참조_건수를_알린다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert set(schemas["CodeRowUpdate"]["properties"]) == {"code", "name", "sortSeq", "use"}
+    assert "refCount" in schemas["CodeRow"]["required"]  # 확인 실패는 null로 구분한다
+    code_ops = {method for (method, path) in operations(spec) if path == "/api/admin/v1/codes"}
+    assert code_ops == {"get", "put"}  # 코드 추가·삭제 API가 없다

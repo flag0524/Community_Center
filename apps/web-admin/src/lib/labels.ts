@@ -191,3 +191,5 @@ export const ASSIGNMENT_STATUS: Record<Schemas['AssignmentStatus'], string> = { 
 export const REDUCTION_TYPE: Record<Schemas['ReductionType'], string> = { LIVELIHOOD: '기초생활보장 수급자 본인', VETERAN: '국가유공자 본인', DISABLED: '등록 장애인 본인' };
 export const REDUCTION_STATUS: Record<Schemas['ReductionStatus'], string> = { RECEIVED: '접수', APPROVED: '승인', REJECTED: '반려', REVOKED: '철회' };
 export const REDUCTION_DECISION: Record<Schemas['ReductionDecision'], string> = { APPROVE: '승인', REJECT: '반려' };
+
+export const OPER_RULE_STATUS: Record<Schemas['OperRuleStatus'], string> = { REVIEW: '검토 중', DECIDED: '확정', HOLD: '보류' };

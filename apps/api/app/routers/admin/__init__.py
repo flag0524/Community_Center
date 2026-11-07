@@ -6,6 +6,7 @@ from app.routers.admin import (
     attendance,
     auth,
     board,
+    code,
     content,
     education,
     facility,
@@ -18,6 +19,7 @@ from app.routers.admin import (
     refund,
     role,
     schedule,
+    setting,
     sms,
     stats,
     term,
@@ -46,5 +48,7 @@ for module in (
     sms,
     role,
     reduction,
+    setting,
+    code,
 ):
     admin_router.include_router(module.router)

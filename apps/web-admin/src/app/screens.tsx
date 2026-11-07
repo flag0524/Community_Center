@@ -17,6 +17,9 @@ import { ReductionListPage } from '../pages/reduction/ReductionListPage';
 import { RoleDetailPage } from '../pages/role/RoleDetailPage';
 import { RoleFormPage } from '../pages/role/RoleFormPage';
 import { RoleListPage } from '../pages/role/RoleListPage';
+import { CodePage } from '../pages/setting/CodePage';
+import { SettingDetailPage } from '../pages/setting/SettingDetailPage';
+import { SettingListPage } from '../pages/setting/SettingListPage';
 import { SmsDetailPage } from '../pages/sms/SmsDetailPage';
 import { SmsListPage } from '../pages/sms/SmsListPage';
 import { SmsSendPage } from '../pages/sms/SmsSendPage';
@@ -94,6 +97,9 @@ export const SCREENS: Array<{ path: string; element: ReactElement }> = [
   { path: '/pay/reductions', element: <ReductionListPage /> },
   { path: '/pay/reductions/:reviewId', element: <ReductionDetailPage /> },
   { path: '/pay/reduction-history', element: <ReductionHistoryPage /> },
+  { path: '/sys/settings', element: <SettingListPage /> },
+  { path: '/sys/settings/:settingId', element: <SettingDetailPage /> },
+  { path: '/sys/codes', element: <CodePage /> },
   { path: '/pay/refunds', element: <RefundListPage /> },
   { path: '/pay/refunds/new', element: <RefundReceivePage /> },
   { path: '/pay/refunds/:refundId', element: <RefundDetailPage /> },

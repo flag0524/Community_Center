@@ -434,3 +434,33 @@ export const reductionHistoryQuery = (params: ReductionHistoryParams) =>
     queryKey: ['reduction-history', params],
     queryFn: ({ signal }) => getJson<Schemas['ReductionHistoryPage']>(`/reduction-history${toQueryString({ ...params, page: params.page && params.page > 1 ? params.page : undefined })}`, signal),
   });
+
+export interface SettingParams {
+  status?: Schemas['OperRuleStatus'];
+  q?: string;
+  page?: number;
+}
+export const settingListQuery = (params: SettingParams) =>
+  queryOptions({
+    queryKey: ['settings', 'list', params],
+    queryFn: ({ signal }) => getJson<Schemas['SettingPage']>(`/settings${toQueryString({ ...params, page: params.page && params.page > 1 ? params.page : undefined })}`, signal),
+  });
+export const settingQuery = (settingId: string) =>
+  queryOptions({
+    queryKey: ['settings', 'detail', settingId],
+    queryFn: ({ signal }) => getJson<Schemas['SettingDetail']>(`/settings/${encodeURIComponent(settingId)}`, signal),
+  });
+export const codeGroupsQuery = queryOptions({
+  queryKey: ['code-groups'],
+  queryFn: ({ signal }) => getJson<Schemas['CodeGroupList']>('/code-groups', signal),
+});
+export interface CodeParams {
+  group: string;
+  q?: string;
+  use?: 'true' | 'false';
+}
+export const codeListQuery = (params: CodeParams) =>
+  queryOptions({
+    queryKey: ['codes', params],
+    queryFn: ({ signal }) => getJson<Schemas['CodeList']>(`/codes${toQueryString({ ...params })}`, signal),
+  });
