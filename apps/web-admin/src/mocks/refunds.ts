@@ -1,6 +1,7 @@
 // 관리자 환불 검토를 흉내 내는 모의 서버. 한도 검사, 접수·보류·승인·반려·집행·이체 확인 상태 전이, 승인자와 집행자 분리를 서버가 정하는 대로 따른다
 import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
+import { csvResponse } from './csv';
 import { apiError, currentAdminId, currentAdminName, currentAuthorities, denyCsrf, denyUnless } from './auth';
 import { countOwnerFiles, registerOwnerInfo } from './files';
 
@@ -182,24 +183,38 @@ function guard(request: Request, id: unknown, authority: 'AU.RFND_A' | 'AU.RFND_
   return { row };
 }
 
+function filteredRefunds(params: URLSearchParams): Row[] {
+  const from = params.get('from');
+  const to = params.get('to');
+  const open = (row: Row) => row.refund.status === 'REQUESTED' || row.refund.status === 'ON_HOLD';
+  return state.rows
+    .filter(
+      (row) =>
+        (!params.get('status') || row.refund.status === params.get('status')) &&
+        (!params.get('requester') || row.refund.requester === params.get('requester')) &&
+        (!from || row.refund.receivedOn >= from) &&
+        (!to || row.refund.receivedOn <= to),
+    )
+    // 검토가 급한 건(접수·보류)을 먼저, 오래된 것부터 보이고 나머지는 최근 접수가 앞이다.
+    .sort((a, b) => Number(open(b)) - Number(open(a)) || (open(a) ? a.refund.receivedOn.localeCompare(b.refund.receivedOn) : b.refund.receivedOn.localeCompare(a.refund.receivedOn)));
+}
+
 export const refundHandlers = [
+  // 환불 계좌 같은 민감 값은 담지 않는다
+  http.get('/api/admin/v1/refunds/export.csv', ({ request }) => {
+    const denied = denyUnless('AU.RFND_A', 'AU.RFND_X');
+    if (denied) return denied;
+    const rows = filteredRefunds(new URL(request.url).searchParams).map(({ refund: r }) => [
+      r.refundNo, r.applicationNo, r.courseName, r.requestedAmount, r.status, r.requester, r.receivedOn, r.elapsedBusinessDays, r.overdue ? '기한 초과' : '',
+    ]);
+    return csvResponse('refunds.csv', ['환불번호', '신청번호', '강좌', '신청금액', '상태', '접수 주체', '접수일', '경과 영업일', '기한'], rows);
+  }),
+
   http.get('/api/admin/v1/refunds', ({ request }) => {
     const denied = denyUnless('AU.RFND_A', 'AU.RFND_X');
     if (denied) return denied;
     const params = new URL(request.url).searchParams;
-    const from = params.get('from');
-    const to = params.get('to');
-    const open = (row: Row) => row.refund.status === 'REQUESTED' || row.refund.status === 'ON_HOLD';
-    const rows = state.rows
-      .filter(
-        (row) =>
-          (!params.get('status') || row.refund.status === params.get('status')) &&
-          (!params.get('requester') || row.refund.requester === params.get('requester')) &&
-          (!from || row.refund.receivedOn >= from) &&
-          (!to || row.refund.receivedOn <= to),
-      )
-      // 검토가 급한 건(접수·보류)을 먼저, 오래된 것부터 보이고 나머지는 최근 접수가 앞이다.
-      .sort((a, b) => Number(open(b)) - Number(open(a)) || (open(a) ? a.refund.receivedOn.localeCompare(b.refund.receivedOn) : b.refund.receivedOn.localeCompare(a.refund.receivedOn)));
+    const rows = filteredRefunds(params);
     const page = Number(params.get('page') ?? 1);
     const size = Number(params.get('size') ?? PAGE_SIZE);
     return HttpResponse.json({ items: rows.slice((page - 1) * size, page * size).map(toSummary), page, size, total: rows.length, criteria: { basisAt: new Date().toISOString(), description: null } });

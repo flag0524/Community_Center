@@ -2,6 +2,7 @@
 import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
 import { currentAuthorities, denyUnless } from './auth';
+import { csvResponse } from './csv';
 
 const CYCLE_WITH_DATA = '1000000000000000000001';
 const cid = (n: number) => `4${String(n).padStart(21, '0')}`;
@@ -44,6 +45,17 @@ const TASKS: Array<{ kind: Schemas['DashboardTaskKind']; count: number; need: Sc
 const basis = (params: URLSearchParams): Schemas['StatsBasis'] => ({ basisAt: new Date().toISOString(), cycleId: params.get('cycleId'), fromDate: params.get('from'), toDate: params.get('to') });
 const hasData = (params: URLSearchParams) => !params.get('cycleId') || params.get('cycleId') === CYCLE_WITH_DATA;
 
+function demandRows(params: URLSearchParams): Schemas['DemandRow'][] {
+  const category = params.get('categoryId');
+  return hasData(params) ? DEMAND.filter((row) => !category || (category === '5000000000000000000003' ? row.categoryName === '생활체육/건강' : row.categoryName === '컴퓨터')) : [];
+}
+
+const metaOf = (title: string, params: URLSearchParams): string[] => [
+  title,
+  `조건 기수 ${params.get('cycleId') ?? '전체'} · 기간 ${params.get('from') ?? '처음'} ~ ${params.get('to') ?? '오늘'}`,
+  `집계 기준 ${new Date().toISOString()}`,
+];
+
 export const statsHandlers = [
   http.get('/api/admin/v1/dashboard', ({ request }) => {
     const denied = denyUnless('AU.STAT_R');
@@ -60,12 +72,38 @@ export const statsHandlers = [
     } satisfies Schemas['Dashboard']);
   }),
 
+  // 통계 내려받기는 첫 줄들에 집계 조건과 만든 시각을 주석 행으로 넣는다
+  http.get('/api/admin/v1/stats/demand/export.csv', ({ request }) => {
+    const denied = denyUnless('AU.STAT_R');
+    if (denied) return denied;
+    const params = new URL(request.url).searchParams;
+    const rows = demandRows(params).map((r) => [r.courseName, r.categoryName, r.capacity, r.applications, r.uniqueApplicants, r.confirmed, r.hold, r.paymentUnknown, r.waiting, r.cancelled, r.seatsHeld, r.effectiveDemand, r.demandRatio]);
+    return csvResponse('demand-stats.csv', ['강좌', '분야', '정원', '신청건', '고유 신청자', '등록완료', '결제대기', '승인확인중', '대기', '취소', '좌석점유', '유효수요', '유효수요/정원'], rows, metaOf('수요 통계', params));
+  }),
+
+  http.get('/api/admin/v1/stats/settlement/export.csv', ({ request }) => {
+    const denied = denyUnless('AU.STAT_R');
+    if (denied) return denied;
+    const params = new URL(request.url).searchParams;
+    const data = hasData(params) ? SETTLEMENT : { ...SETTLEMENT, byMethod: [], unknownAmount: 0 };
+    const rows: (string | number | null)[][] = data.byMethod.map((r) => [r.method, r.approved, r.refunded, r.net, null]);
+    // 확인 중 금액은 순수납에 넣지 않고 따로 한 줄로 둔다
+    if (data.byMethod.length > 0) rows.push(['확인 중(순수납 제외)', null, null, null, data.unknownAmount]);
+    return csvResponse('settlement-stats.csv', ['결제수단', '승인금액', '완료환불액', '순수납', '확인 중 금액'], rows, metaOf('정산 통계', params));
+  }),
+
+  http.get('/api/admin/v1/stats/age-gender/export.csv', () => {
+    const denied = denyUnless('AU.STAT_R');
+    if (denied) return denied;
+    const meta = ['연령·성별 통계', `자료 버전 ${SOURCE.version}`, `제공 기관 ${SOURCE.provider}`, `기간 ${SOURCE.period}`, `기준일 ${SOURCE.basisDate}`];
+    return csvResponse('age-gender-stats.csv', ['연령 구간', '남', '여', '미상'], AGE_GENDER.map((r) => [r.band, r.male, r.female, r.unknown]), meta);
+  }),
+
   http.get('/api/admin/v1/stats/demand', ({ request }) => {
     const denied = denyUnless('AU.STAT_R');
     if (denied) return denied;
     const params = new URL(request.url).searchParams;
-    const category = params.get('categoryId');
-    const rows = hasData(params) ? DEMAND.filter((row) => !category || (category === '5000000000000000000003' ? row.categoryName === '생활체육/건강' : row.categoryName === '컴퓨터')) : [];
+    const rows = demandRows(params);
     return HttpResponse.json({ basis: basis(params), rows } satisfies Schemas['DemandStats']);
   }),
 

@@ -2,6 +2,7 @@
 import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
 import { apiError, denyUnless } from './auth';
+import { csvResponse } from './csv';
 import { courseBriefs } from './education';
 
 type Application = Schemas['AdminApplication'];
@@ -110,25 +111,39 @@ function waitlistCourses(): Schemas['WaitlistCourse'][] {
   });
 }
 
+function filteredApplications(params: URLSearchParams): Application[] {
+  const q = params.get('q')?.trim();
+  const from = params.get('from');
+  const to = params.get('to');
+  return build()
+    .filter(
+      (row) =>
+        (!q || row.applicationNo.includes(q) || row.applicantName.includes(q)) &&
+        (!params.get('courseId') || row.courseId === params.get('courseId')) &&
+        (!params.get('status') || row.status === params.get('status')) &&
+        (!params.get('paymentStatus') || row.paymentStatus === params.get('paymentStatus')) &&
+        (!from || row.appliedAt.slice(0, 10) >= from) &&
+        (!to || row.appliedAt.slice(0, 10) <= to),
+    )
+    .sort((a, b) => b.appliedAt.localeCompare(a.appliedAt));
+}
+
 export const applicationHandlers = [
+  // 내려받기는 /:applicationId보다 먼저 등록해야 경로가 id로 잡히지 않는다
+  http.get('/api/admin/v1/applications/export.csv', ({ request }) => {
+    const denied = denyUnless('AU.APLY_R');
+    if (denied) return denied;
+    const rows = filteredApplications(new URL(request.url).searchParams).map((row) => [
+      row.applicationNo, row.courseName, row.applicantName, row.displayState, row.paymentStatus, row.refundStatus, row.appliedAt,
+    ]);
+    return csvResponse('applications.csv', ['신청번호', '강좌', '신청자', '신청상태', '결제상태', '환불상태', '접수시각'], rows);
+  }),
+
   http.get('/api/admin/v1/applications', ({ request }) => {
     const denied = denyUnless('AU.APLY_R');
     if (denied) return denied;
     const params = new URL(request.url).searchParams;
-    const q = params.get('q')?.trim();
-    const from = params.get('from');
-    const to = params.get('to');
-    const rows = build()
-      .filter(
-        (row) =>
-          (!q || row.applicationNo.includes(q) || row.applicantName.includes(q)) &&
-          (!params.get('courseId') || row.courseId === params.get('courseId')) &&
-          (!params.get('status') || row.status === params.get('status')) &&
-          (!params.get('paymentStatus') || row.paymentStatus === params.get('paymentStatus')) &&
-          (!from || row.appliedAt.slice(0, 10) >= from) &&
-          (!to || row.appliedAt.slice(0, 10) <= to),
-      )
-      .sort((a, b) => b.appliedAt.localeCompare(a.appliedAt));
+    const rows = filteredApplications(params);
     const page = Number(params.get('page') ?? 1);
     const size = Number(params.get('size') ?? PAGE_SIZE);
     return HttpResponse.json({ items: rows.slice((page - 1) * size, page * size).map(toSummary), page, size, total: rows.length, criteria: { basisAt: new Date().toISOString(), description: null } });

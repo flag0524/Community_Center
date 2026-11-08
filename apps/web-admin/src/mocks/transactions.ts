@@ -2,6 +2,7 @@
 import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
 import { apiError, currentAdminName, currentAuthorities, denyCsrf, denyUnless } from './auth';
+import { csvResponse } from './csv';
 
 type Transaction = Schemas['Transaction'];
 
@@ -106,26 +107,40 @@ const toSummary = (row: Row): Schemas['TransactionSummary'] => ({
 
 const find = (id: unknown) => state.find((row) => row.transactionId === id);
 
+function filteredTransactions(params: URLSearchParams): Row[] {
+  const q = params.get('q')?.trim();
+  const from = params.get('from');
+  const to = params.get('to');
+  return state
+    .filter(
+      (row) =>
+        (!q || row.orderNo.includes(q) || row.applicationNo.includes(q)) &&
+        (!params.get('status') || row.status === params.get('status')) &&
+        (!params.get('method') || row.method === params.get('method')) &&
+        (!from || row.requestedAt.slice(0, 10) >= from) &&
+        (!to || row.requestedAt.slice(0, 10) <= to) &&
+        (params.get('conflictOnly') !== 'true' || row.hasConflict),
+    )
+    // 결과 확인 중인 거래를 먼저 보이고 그 안에서는 최근 요청이 앞이다.
+    .sort((a, b) => Number(b.status === 'PENDING') - Number(a.status === 'PENDING') || b.requestedAt.localeCompare(a.requestedAt));
+}
+
 export const transactionHandlers = [
+  // 내려받기는 /:transactionId보다 먼저 등록한다. 결과 확인 중인 금액은 상태 열로 구분해 순수납에 넣지 않는다
+  http.get('/api/admin/v1/transactions/export.csv', ({ request }) => {
+    const denied = denyUnless('AU.STLM_R', 'AU.STLM_W');
+    if (denied) return denied;
+    const rows = filteredTransactions(new URL(request.url).searchParams).map((row) => [
+      row.orderNo, row.applicationNo, row.method, row.status, row.amount, row.requestedAt, row.approvedAt, row.recheckCount, row.hasConflict ? '충돌' : '',
+    ]);
+    return csvResponse('transactions.csv', ['주문번호', '신청번호', '결제수단', '결제상태', '금액', '요청시각', '승인시각', '재조회 횟수', '충돌 통보'], rows);
+  }),
+
   http.get('/api/admin/v1/transactions', ({ request }) => {
     const denied = denyUnless('AU.STLM_R', 'AU.STLM_W');
     if (denied) return denied;
     const params = new URL(request.url).searchParams;
-    const q = params.get('q')?.trim();
-    const from = params.get('from');
-    const to = params.get('to');
-    const rows = state
-      .filter(
-        (row) =>
-          (!q || row.orderNo.includes(q) || row.applicationNo.includes(q)) &&
-          (!params.get('status') || row.status === params.get('status')) &&
-          (!params.get('method') || row.method === params.get('method')) &&
-          (!from || row.requestedAt.slice(0, 10) >= from) &&
-          (!to || row.requestedAt.slice(0, 10) <= to) &&
-          (params.get('conflictOnly') !== 'true' || row.hasConflict),
-      )
-      // 결과 확인 중인 거래를 먼저 보이고 그 안에서는 최근 요청이 앞이다.
-      .sort((a, b) => Number(b.status === 'PENDING') - Number(a.status === 'PENDING') || b.requestedAt.localeCompare(a.requestedAt));
+    const rows = filteredTransactions(params);
     const page = Number(params.get('page') ?? 1);
     const size = Number(params.get('size') ?? PAGE_SIZE);
     return HttpResponse.json({ items: rows.slice((page - 1) * size, page * size).map(toSummary), page, size, total: rows.length, criteria: { basisAt: new Date().toISOString(), description: null } });

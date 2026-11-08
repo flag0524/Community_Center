@@ -23,6 +23,7 @@ import { resetMockReview } from '../mocks/review';
 import { resetMockRoles } from '../mocks/roles';
 import { resetMockSettings } from '../mocks/settings';
 import { resetMockSms } from '../mocks/sms';
+import { resetExportLog } from '../mocks/csv';
 import { resetMockTransactions } from '../mocks/transactions';
 import { resetMockEducation } from '../mocks/education';
 import { handlers } from '../mocks/handlers';
@@ -57,6 +58,7 @@ export function useMockServer(): void {
     resetMockRetention();
     resetMockFiles();
     resetMockTransactions();
+    resetExportLog();
     rememberCsrfToken(null);
   });
   afterAll(() => server.close());

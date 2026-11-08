@@ -3,6 +3,7 @@ import type { Schemas } from '@jori/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ageGenderStatsQuery, attendanceStatsQuery, courseOptionsQuery, demandStatsQuery, satisfactionStatsQuery, settlementStatsQuery, type StatsParams } from '../../api/queries';
+import { CsvButton } from '../../components/CsvButton';
 import { TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
 import { kstDateTime, won } from '../../lib/format';
@@ -96,6 +97,9 @@ export function StatsPage() {
           <Link className="adm-button secondary" to={`/stats?tab=${tab}`}>
             조건 지우기
           </Link>
+          {(tab === 'demand' || tab === 'settlement') && (
+            <CsvButton path={`/stats/${tab}/export.csv`} query={toQueryString({ cycleId: filters.cycleId, from: filters.from, to: filters.to, categoryId: filters.categoryId })} />
+          )}
         </form>
       )}
       {tab === 'demand' && <DemandTab filters={filters} />}
@@ -125,7 +129,7 @@ function DemandTab({ filters }: { filters: StatsParams }) {
       {query.data && (
         <>
           <Basis basis={query.data.basis} />
-          <p className="adm-notice">좌석점유는 등록완료·결제대기·승인확인중을 더한 값이고, 유효수요는 좌석점유에 대기를 더한 값입니다. 표 내려받기는 첨부 설계 뒤에 더합니다.</p>
+          <p className="adm-notice">좌석점유는 등록완료·결제대기·승인확인중을 더한 값이고, 유효수요는 좌석점유에 대기를 더한 값입니다.</p>
           {query.data.rows.length > 0 ? (
             <TableWrap label="수요 통계">
               <table>
@@ -344,6 +348,7 @@ function AgeTab() {
           <>
             <Basis basis={data.basis} />
             <SourceFacts source={data.source} />
+            <CsvButton path="/stats/age-gender/export.csv" query="" />
             <p className="adm-notice">회원 개인 항목이 아니라 기관이 제공해 승인한 집계자료를 그대로 보입니다. 다른 버전은 합산하지 않습니다.</p>
             <TableWrap label="연령·성별 통계">
               <table>
