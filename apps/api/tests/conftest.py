@@ -42,3 +42,33 @@ def db_engine() -> Iterator[Engine]:
         pytest.skip(f"MariaDB에 연결할 수 없습니다(scripts/db/mariadb-dev.ps1 start): {type(error).__name__}")
     yield engine
     engine.dispose()
+
+
+API_DIR = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(scope="session")
+def migrated_engine(db_engine: Engine) -> Iterator[Engine]:
+    """시험 DB를 비운 뒤 Alembic으로 최신 버전까지 올린다. 구조 시험은 모두 이 DB를 읽는다."""
+    from alembic import command
+    from alembic.config import Config
+
+    with db_engine.connect() as connection:
+        connection.execute(text("SET FOREIGN_KEY_CHECKS=0"))
+        # MariaDB는 시퀀스를 information_schema.TABLES에 TABLE_TYPE=SEQUENCE로 보여 준다
+        for name, kind in connection.execute(
+            text(
+                "SELECT TABLE_NAME, TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()"
+            )
+        ).all():
+            drop = "SEQUENCE" if kind == "SEQUENCE" else "TABLE"
+            connection.execute(text(f"DROP {drop} IF EXISTS `{name}`"))
+        connection.execute(text("SET FOREIGN_KEY_CHECKS=1"))
+        connection.commit()
+    config = Config(str(API_DIR / "alembic.ini"))
+    config.set_main_option("script_location", str(API_DIR / "migrations"))
+    with db_engine.connect() as connection:
+        config.attributes["connection"] = connection
+        command.upgrade(config, "head")
+        connection.commit()
+    yield db_engine

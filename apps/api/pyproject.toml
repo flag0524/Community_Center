@@ -19,6 +19,11 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
 
+[tool.ruff.lint.per-file-ignores]
+# 실제 DB에 보내는 긴 SQL 문자열을 한 줄로 두는 시험 도우미
+"tests/test_schema_*.py" = ["E501"]
+"tests/factory.py" = ["E501"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true

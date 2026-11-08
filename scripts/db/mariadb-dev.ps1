@@ -24,6 +24,8 @@ default-time-zone='+00:00'
 max_connections=60
 sql_mode=STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
 innodb_lock_wait_timeout=10
+# Windows 기본(1)은 테이블 이름을 소문자로 바꿔 저장한다. 운영(Ubuntu)처럼 이름을 그대로 보존한다.
+lower_case_table_names=2
 "@
 
 function New-Secret {
