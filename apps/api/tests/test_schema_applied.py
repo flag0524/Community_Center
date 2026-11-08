@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from app.tools.schema_checks import narrative_checks
 from app.tools.schema_ddl import filter_column, sequence_name, sql_type
 from app.tools.schema_doc import SchemaDoc, parse_schema_doc
 
@@ -120,7 +121,7 @@ def test_외래키_184개가_문서의_자식_부모_컬럼과_RESTRICT로_있�
     assert actual == expected
 
 
-def test_검사_제약_54개가_있다(migrated_engine: Engine) -> None:
+def test_검사_제약이_문서의_규칙_수만큼_있다(migrated_engine: Engine, schema: SchemaDoc) -> None:
     names = [
         str(row[0])
         for row in rows(
@@ -128,9 +129,14 @@ def test_검사_제약_54개가_있다(migrated_engine: Engine) -> None:
             "SELECT CONSTRAINT_NAME FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME LIKE 'CK\\_%'",
         )
     ]
-    assert len(names) == 54
+    narrative = narrative_checks(schema)
     assert sum(name.startswith("CK_YN_") for name in names) == 18
     assert sum(name.startswith("CK_CD_") for name in names) == 36
+    assert sorted(names) == sorted(
+        [f"CK_{rule.rule_id.replace('-', '_')}" for rule in schema.checks]
+        + [check.constraint for check in narrative]
+    )
+    assert len(names) == 54 + len(narrative)
 
 
 def test_시퀀스는_단일_숫자_기본키_테이블마다_하나다(migrated_engine: Engine, schema: SchemaDoc) -> None:

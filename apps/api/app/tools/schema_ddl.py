@@ -1,6 +1,7 @@
 # 스키마 설계안에서 MariaDB 10.11 물리 DDL(시퀀스·테이블·키·외래키·검사·코드 시드)을 만드는 생성기
 import re
 
+from app.tools.schema_checks import NarrativeCheck, narrative_checks
 from app.tools.schema_doc import CheckRule, CodeValue, Column, ForeignKey, Index, SchemaDoc, Table
 
 CHARSET = "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
@@ -104,6 +105,10 @@ def add_check(rule: CheckRule) -> str:
     return f"ALTER TABLE {rule.table} ADD CONSTRAINT {name} CHECK ({expression})"
 
 
+def add_narrative_check(check: NarrativeCheck) -> str:
+    return f"ALTER TABLE {check.table} ADD CONSTRAINT {check.constraint} CHECK ({check.expression})"
+
+
 def seed_codes(codes: tuple[CodeValue, ...]) -> str:
     """공통코드 초기값. 정렬순서는 문서의 나열 순서(그룹 안 1부터)다."""
     seen: dict[str, int] = {}
@@ -123,6 +128,7 @@ def up_statements(schema: SchemaDoc) -> list[str]:
     statements += [create_table(table) for table in schema.tables]
     statements += [add_foreign_key(table, fk) for table in schema.tables for fk in table.foreign_keys]
     statements += [add_check(rule) for rule in schema.checks]
+    statements += [add_narrative_check(check) for check in narrative_checks(schema)]
     statements.append(seed_codes(schema.codes))
     return statements
 
@@ -164,6 +170,7 @@ def identifier_problems(schema: SchemaDoc) -> list[str]:
         if len(index_names) != len(set(index_names)):
             problems.append(f"{table.name}: 인덱스 이름 중복")
     names += ["CK_" + rule.rule_id.replace("-", "_") for rule in schema.checks]
+    names += [check.constraint for check in narrative_checks(schema)]
     problems += [
         f"식별자가 {MAX_IDENTIFIER}자를 넘음: {name}" for name in names if len(name) > MAX_IDENTIFIER
     ]

@@ -4,6 +4,7 @@ import re
 
 import pytest
 
+from app.tools.schema_checks import narrative_checks
 from app.tools.schema_ddl import (
     condition_expression,
     down_statements,
@@ -31,7 +32,7 @@ def test_문서의_모든_테이블과_외래키와_검사가_DDL에_나온다(s
     checks = [s for s in statements if " CHECK (" in s]
     assert len(creates) == 45
     assert len(foreign_keys) == 184
-    assert len(checks) == 54  # Y/N 18 + 코드 접두부 36
+    assert len(checks) == 54 + len(narrative_checks(schema))  # Y/N 18 + 코드 접두부 36 + 서술형·R27
     assert len([s for s in statements if s.startswith("INSERT INTO TB_COM_CD")]) == 1
 
 

@@ -11,6 +11,8 @@ from tests.factory import RowFactory
 
 pytestmark = pytest.mark.db
 
+LATER = "2026-01-01 00:10:00"
+
 
 @pytest.fixture(scope="module")
 def schema() -> SchemaDoc:
@@ -73,15 +75,24 @@ def test_같은_강좌의_유효_중복_신청은_막고_취소_건은_몇_개�
     course = factory.make("TB_CORS")
     bundle = member["OPER_BNDL_SN"]
     base = {"OPER_BNDL_SN": bundle, "MBR_SN": member["MBR_SN"], "CORS_SN": course["CORS_SN"]}
-    factory.make("TB_ATNLC_APLY", **base, APLY_STTS_CD="ES.HOLD", IDEM_KEY="k1")
-    sql = "INSERT INTO TB_ATNLC_APLY (OPER_BNDL_SN, MBR_SN, CORS_SN, APLY_STTS_CD, TTCHG_AMT, RDCT_AMT, STLM_PRNMNT_AMT, IDEM_KEY) VALUES (:b, :m, :c, :s, 1, 0, 1, :k)"
+    factory.make("TB_ATNLC_APLY", **base, APLY_STTS_CD="ES.HOLD", STLM_DDLN_DT=LATER, IDEM_KEY="k1")
+    # 상태마다 필요한 시각(R10)을 함께 넣는다. HOLD는 결제기한, CANCEL은 취소일시가 필수다.
+    sql = (
+        "INSERT INTO TB_ATNLC_APLY (OPER_BNDL_SN, MBR_SN, CORS_SN, APLY_STTS_CD, TTCHG_AMT, RDCT_AMT, "
+        "STLM_PRNMNT_AMT, IDEM_KEY, STLM_DDLN_DT, RTRCN_DT) VALUES (:b, :m, :c, :s, 1, 0, 1, :k, :d, :r)"
+    )
     args = {"b": bundle, "m": member["MBR_SN"], "c": course["CORS_SN"]}
     for number, status in enumerate(("ES.WAIT", "ES.HOLD", "ES.CONFIRM")):
-        rejected(conn, sql, {**args, "s": status, "k": f"dup{number}"}, 1062)
+        deadline = LATER if status == "ES.HOLD" else None  # WAIT는 결제기한이 비어야 한다(SEAT-01)
+        rejected(conn, sql, {**args, "s": status, "k": f"dup{number}", "d": deadline, "r": None}, 1062)
     for number in range(3):  # 취소·만료 건은 몇 개든 쌓인다
-        conn.execute(text(sql), {**args, "s": "ES.CANCEL", "k": f"c{number}"})
-    conn.execute(text("UPDATE TB_ATNLC_APLY SET APLY_STTS_CD = 'ES.CANCEL' WHERE IDEM_KEY = 'k1'"))
-    conn.execute(text(sql), {**args, "s": "ES.HOLD", "k": "again"})  # 취소 뒤 재신청은 새 행으로 허용
+        conn.execute(text(sql), {**args, "s": "ES.CANCEL", "k": f"c{number}", "d": None, "r": LATER})
+    conn.execute(
+        text("UPDATE TB_ATNLC_APLY SET APLY_STTS_CD = 'ES.CANCEL', RTRCN_DT = :r WHERE IDEM_KEY = 'k1'"),
+        {"r": LATER},
+    )
+    # 취소 뒤 재신청은 새 행으로 허용
+    conn.execute(text(sql), {**args, "s": "ES.HOLD", "k": "again", "d": LATER, "r": None})
 
 
 def test_성공_결제는_신청마다_하나만_허용한다(conn: Connection, factory: RowFactory) -> None:
@@ -89,9 +100,9 @@ def test_성공_결제는_신청마다_하나만_허용한다(conn: Connection, 
     base = {"OPER_BNDL_SN": apply["OPER_BNDL_SN"], "ATNLC_APLY_SN": apply["ATNLC_APLY_SN"]}
     factory.make("TB_STLM", **base, STLM_STTS_CD="PS.FAIL", IDEM_KEY="p1")
     factory.make("TB_STLM", **base, STLM_STTS_CD="PS.FAIL", IDEM_KEY="p2")
-    factory.make("TB_STLM", **base, STLM_STTS_CD="PS.PAID", IDEM_KEY="p3")
+    factory.make("TB_STLM", **base, STLM_STTS_CD="PS.PAID", STLM_APRV_DT=LATER, IDEM_KEY="p3")
     with pytest.raises(IntegrityError) as caught:
-        factory.make("TB_STLM", **base, STLM_STTS_CD="PS.PAID", IDEM_KEY="p4")
+        factory.make("TB_STLM", **base, STLM_STTS_CD="PS.PAID", STLM_APRV_DT=LATER, IDEM_KEY="p4")
     assert caught.value.orig is not None and caught.value.orig.args[0] == 1062
 
 
@@ -99,7 +110,10 @@ def test_복합_외래키가_다른_묶음의_회원과_강좌_연결을_막는�
     other = factory.make("TB_OPER_BNDL")["OPER_BNDL_SN"]
     member = factory.make("TB_MBR")  # 기본 묶음
     course = factory.make("TB_CORS")
-    sql = "INSERT INTO TB_ATNLC_APLY (OPER_BNDL_SN, MBR_SN, CORS_SN, APLY_STTS_CD, TTCHG_AMT, RDCT_AMT, STLM_PRNMNT_AMT, IDEM_KEY) VALUES (:b, :m, :c, 'ES.HOLD', 1, 0, 1, :k)"
+    sql = (
+        "INSERT INTO TB_ATNLC_APLY (OPER_BNDL_SN, MBR_SN, CORS_SN, APLY_STTS_CD, TTCHG_AMT, RDCT_AMT, "
+        "STLM_PRNMNT_AMT, IDEM_KEY, STLM_DDLN_DT) VALUES (:b, :m, :c, 'ES.HOLD', 1, 0, 1, :k, '2026-01-01 00:10:00')"
+    )
     rejected(
         conn, sql, {"b": other, "m": member["MBR_SN"], "c": course["CORS_SN"], "k": "x1"}, 1452
     )  # 다른 묶음 + 이 묶음 회원

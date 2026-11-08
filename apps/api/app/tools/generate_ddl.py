@@ -2,6 +2,7 @@
 import sys
 from pathlib import Path
 
+from app.tools.schema_checks import problems as check_problems
 from app.tools.schema_ddl import down_statements, identifier_problems, render, up_statements
 from app.tools.schema_doc import parse_schema_doc, validate
 
@@ -15,7 +16,7 @@ HEADER = (
 def generate() -> dict[str, str]:
     """파일 이름과 내용을 돌려준다. 문서가 일관적이지 않으면 만들지 않고 예외를 던진다."""
     schema = parse_schema_doc()
-    problems = validate(schema) + identifier_problems(schema)
+    problems = validate(schema) + identifier_problems(schema) + check_problems(schema)
     if problems:
         raise ValueError("스키마 설계안에 문제가 있어 만들지 않는다:\n" + "\n".join(problems))
     return {

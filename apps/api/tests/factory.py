@@ -11,6 +11,21 @@ from app.tools.schema_doc import Column, SchemaDoc, Table
 
 BUNDLE = "OPER_BNDL_SN"
 
+# 서술형 DB 검사(R05·R08·R09·R21 등)를 만족하는 표 별 기본값. 시험이 같은 컬럼을 넘기면 그 값이 우선한다.
+PRESETS: dict[str, dict[str, Any]] = {
+    "TB_EDU_CYCL": {"RCPT_END_DT": "2026-02-01 00:00:00"},
+    "TB_CORS_SCHDL": {"END_TM": "100000"},
+    "TB_ATNLC_APLY": {"RDCT_AMT": 0},
+    "TB_JOB_HSTRY": {"ACTR_TYPE_CD": "AK.SYSTEM"},
+}
+# 문서가 "정확히 하나는 필수"라고 한 구조는 선택 외래키여도 하나를 채워야 한다.
+ALSO_REQUIRE: dict[str, tuple[str, ...]] = {
+    "TB_PST": ("WRT_MNGR_SN",),
+    "TB_FILE": ("PST_SN",),
+    "TB_SMS_TRGT": ("MBR_SN",),
+    "TB_SMS_DMND": ("DMND_MNGR_SN",),
+}
+
 
 class RowFactory:
     """한 연결(시험 트랜잭션) 안에서 행을 만든다. 같은 factory가 만드는 행은 기본으로 한 운영묶음에 속한다."""
@@ -25,6 +40,7 @@ class RowFactory:
             self.first_code.setdefault(code.group, code.code)
         self.yn_columns = {(check.table, check.column) for check in schema.checks if check.kind == "YN"}
         self._bundle: int | None = None
+        self._ymd_end = "20260131"
 
     def bundle(self) -> int:
         if self._bundle is None:
@@ -39,13 +55,27 @@ class RowFactory:
             raise RuntimeError(f"필수 외래키가 순환한다: {' > '.join((*stack, table_name))}")
         table = self.schema.table(table_name)
         names = {column.name for column in table.columns}
-        if BUNDLE in names and BUNDLE not in provided and table_name != "TB_OPER_BNDL":
+        for name, value in PRESETS.get(table_name, {}).items():
+            provided.setdefault(name, value)
+        if table_name == "TB_COM_CD":  # R01: 코드의 앞부분이 그룹과 같아야 한다
+            number = next(self.counter)
+            provided.setdefault("CD_GROUP_ID", "ZZ")
+            provided.setdefault("COM_CD", f"ZZ.T{number}")
+        if (
+            BUNDLE in names
+            and BUNDLE not in provided
+            and table_name != "TB_OPER_BNDL"
+            and table.column(BUNDLE).required
+        ):
             provided[BUNDLE] = self.bundle()
         for fk in table.foreign_keys:
             if fk.parent_table == "TB_COM_CD" or fk.parent_table == table_name:
                 continue
             given = [column in provided for column in fk.columns]
-            if all(given) or (fk.nullable and not any(given)):
+            forced = any(column in ALSO_REQUIRE.get(table_name, ()) for column in fk.columns)
+            # 선택 외래키는 운영묶음 컬럼을 뺀 나머지가 하나도 안 채워졌을 때만 건너뛴다(묶음은 늘 채워져 있다)
+            own_given = any(column in provided for column in fk.columns if column != BUNDLE)
+            if all(given) or (fk.nullable and not forced and not own_given):
                 continue
             parent_values = {
                 parent: provided[child]
