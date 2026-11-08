@@ -15,6 +15,8 @@ dependencies = [
 [tool.ruff]
 line-length = 110
 target-version = "py312"
+# 생성 파일은 생성기가 서식을 정하므로 서식 도구가 건드리지 않는다
+extend-exclude = ["app/db/tables.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
@@ -23,6 +25,10 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 # 실제 DB에 보내는 긴 SQL 문자열을 한 줄로 두는 시험 도우미
 "tests/test_schema_*.py" = ["E501"]
 "tests/factory.py" = ["E501"]
+# SQLAlchemy 식의 ==는 SQL 식을 만드는 연산자라 좌우를 바꾸면 읽기 어렵다
+"app/db/*.py" = ["SIM300"]
+# 생성 파일이라 설계안의 문구를 그대로 둔다
+"app/db/tables.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

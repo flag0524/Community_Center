@@ -1,4 +1,5 @@
 # API 오류 코드 enum, 오류 응답 형식, 요청 ID 부여와 예외 처리기
+import logging
 import re
 import uuid
 from enum import StrEnum
@@ -13,6 +14,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.schema import ApiModel
 
+logger = logging.getLogger("app.errors")
 REQUEST_ID_HEADER = "X-Request-ID"
 _REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 
@@ -226,4 +228,6 @@ def install_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
+        # 예외 메시지에는 SQL이나 개인정보가 들어 있을 수 있어 종류와 요청 ID만 남긴다(C10)
+        logger.error("처리하지 못한 오류 type=%s request_id=%s", type(exc).__name__, _request_id(request))
         return _error_response(request, ErrorCode.INTERNAL_ERROR)
