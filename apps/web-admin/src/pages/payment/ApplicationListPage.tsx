@@ -5,6 +5,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { adminApplicationListQuery, courseOptionsQuery, type AdminApplicationParams } from '../../api/queries';
 import { CsvButton } from '../../components/CsvButton';
 import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
+import { PiiExportButton } from '../../components/PiiExportButton';
 import { errorMessage } from '../../lib/errors';
 import { kstDateTime } from '../../lib/format';
 import { APPLICATION_STATUS, DISPLAY_STATE, PAYMENT_STATUS, REFUND_STATUS } from '../../lib/labels';
@@ -116,6 +117,7 @@ export function ApplicationListPage() {
           <Link className="adm-button secondary" to="/pay/applications">
             조건 지우기
           </Link>
+          <PiiExportButton label="암호화 파일 요청" body={{ target: 'APPLICATIONS', q: filters.q, status: filters.status, cycleId: filters.cycleId, courseId: filters.courseId, paymentStatus: filters.paymentStatus, from: filters.from, to: filters.to }} />
           <CsvButton path="/applications/export.csv" query={toQueryString(Object.fromEntries(FILTERS.map((name) => [name, params.get(name)])))} />
         </form>
         {list.isPending && <p role="status">불러오는 중입니다.</p>}

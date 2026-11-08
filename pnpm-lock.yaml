@@ -77,6 +77,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: 6.1.2
         version: 6.1.2(vite@8.3.5(@types/node@22.20.5))
+      '@zip.js/zip.js':
+        specifier: 2.8.61
+        version: 2.8.61
       jsdom:
         specifier: 30.1.3
         version: 30.1.3
@@ -675,6 +678,10 @@ packages:
 
   '@vitest/spy@5.0.5':
     resolution: {integrity: sha512-lwJRExuH417257Q5wv9QYugN9IMJkoxcrKrYxGPQkBzl7wlNpTUxD/5yNX4ESKVUIShKPgkGchYPFMWOOk0wzw==}
+
+  '@zip.js/zip.js@2.8.61':
+    resolution: {integrity: sha512-F9RnQJXgvCSdAJfMtSrH5Uh/LcLg8fZlg5ARC4u5N4w9v/DG27cN3C/ngUrY1JdJGX2LRv5DDViXeZJgbcppWA==}
+    engines: {bun: '>=0.7.0', deno: '>=1.0.0', node: '>=18.0.0'}
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -2038,6 +2045,8 @@ snapshots:
       vite: 8.3.5(@types/node@22.20.5)
 
   '@vitest/spy@5.0.5': {}
+
+  '@zip.js/zip.js@2.8.61': {}
 
   acorn-jsx@5.3.2(acorn@8.19.0):
     dependencies:

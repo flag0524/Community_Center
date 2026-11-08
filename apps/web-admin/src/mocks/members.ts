@@ -86,13 +86,22 @@ const toSummary = (row: Row): Schemas['AdminMemberSummary'] => {
   return { memberId: m.memberId, loginId: m.loginId, nameMasked: m.nameMasked, residenceDeclared: m.residenceDeclared, residenceStatus: m.residenceStatus, joinedOn: m.joinedOn, status: m.status };
 };
 
+function filteredMembers(params: URLSearchParams): Row[] {
+  const q = params.get('q')?.trim();
+  return state.rows.filter((row) => (!q || row.member.loginId.includes(q) || row.realName.includes(q)) && (!params.get('status') || row.member.status === params.get('status')));
+}
+
+/** 개인식별 명단 내보내기용. 목록과 같은 조건으로 걸러 가리지 않은 이름·연락처를 돌려준다. */
+export function memberPiiRows(params: URLSearchParams): string[][] {
+  return filteredMembers(params).map((row) => [row.member.loginId, row.realName, row.phone, row.email, row.member.joinedOn, row.member.status]);
+}
+
 export const memberHandlers = [
   http.get('/api/admin/v1/members', ({ request }) => {
     const denied = denyUnless('AU.MBR_R');
     if (denied) return denied;
     const params = new URL(request.url).searchParams;
-    const q = params.get('q')?.trim();
-    const rows = state.rows.filter((row) => (!q || row.member.loginId.includes(q) || row.realName.includes(q)) && (!params.get('status') || row.member.status === params.get('status')));
+    const rows = filteredMembers(params);
     const page = Number(params.get('page') ?? 1);
     const size = Number(params.get('size') ?? PAGE_SIZE);
     return HttpResponse.json({ items: rows.slice((page - 1) * size, page * size).map(toSummary), page, size, total: rows.length, criteria: { basisAt: new Date().toISOString(), description: null } });

@@ -24,6 +24,7 @@ import { resetMockRoles } from '../mocks/roles';
 import { resetMockSettings } from '../mocks/settings';
 import { resetMockSms } from '../mocks/sms';
 import { resetExportLog } from '../mocks/csv';
+import { resetMockPii } from '../mocks/pii';
 import { resetMockTransactions } from '../mocks/transactions';
 import { resetMockEducation } from '../mocks/education';
 import { handlers } from '../mocks/handlers';
@@ -59,6 +60,7 @@ export function useMockServer(): void {
     resetMockFiles();
     resetMockTransactions();
     resetExportLog();
+    resetMockPii();
     rememberCsrfToken(null);
   });
   afterAll(() => server.close());

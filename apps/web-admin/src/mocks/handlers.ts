@@ -10,6 +10,7 @@ import { educationHandlers } from './education';
 import { fileHandlers } from './files';
 import { inquiryHandlers } from './inquiries';
 import { memberHandlers } from './members';
+import { piiHandlers } from './pii';
 import { refundHandlers } from './refunds';
 import { reductionHandlers } from './reductions';
 import { retentionHandlers } from './retention';
@@ -21,4 +22,4 @@ import { statsHandlers } from './stats';
 import { termHandlers } from './terms';
 import { transactionHandlers } from './transactions';
 
-export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers, ...refundHandlers, ...memberHandlers, ...boardHandlers, ...inquiryHandlers, ...contentHandlers, ...termHandlers, ...fileHandlers, ...statsHandlers, ...smsHandlers, ...roleHandlers, ...reductionHandlers, ...settingHandlers, ...classHandlers, ...retentionHandlers];
+export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers, ...refundHandlers, ...memberHandlers, ...boardHandlers, ...inquiryHandlers, ...contentHandlers, ...termHandlers, ...fileHandlers, ...statsHandlers, ...smsHandlers, ...roleHandlers, ...reductionHandlers, ...settingHandlers, ...classHandlers, ...retentionHandlers, ...piiHandlers];

@@ -27,7 +27,7 @@ export const DEMO_ADMINS = {
     authorities: [
       'AU.GRP_R', 'AU.CONF_W', 'AU.MBR_R', 'AU.INSTR_W', 'AU.CORS_R', 'AU.CORS_W', 'AU.APLY_R', 'AU.APLY_W',
       'AU.STLM_R', 'AU.STLM_W', 'AU.RFND_A', 'AU.RFND_X', 'AU.BBS_W', 'AU.POST_W', 'AU.SITE_W', 'AU.FCLT_W',
-      'AU.GRANT_W', 'AU.LOG_R', 'AU.SMS_SEND', 'AU.STAT_R', 'AU.ATND_R',
+      'AU.GRANT_W', 'AU.LOG_R', 'AU.SMS_SEND', 'AU.STAT_R', 'AU.ATND_R', 'AU.EXPORT',
     ],
   },
   course: {

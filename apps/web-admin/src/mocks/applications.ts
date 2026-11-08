@@ -128,6 +128,16 @@ function filteredApplications(params: URLSearchParams): Application[] {
     .sort((a, b) => b.appliedAt.localeCompare(a.appliedAt));
 }
 
+// 목록 응답은 가린 이름만 갖고 있어, 명단 내보내기용 실제 이름·연락처는 가린 이름에서 지어낸다. 모두 가짜 값이다.
+const GIVEN_NAMES: Record<string, string> = { '김': '지원', '이': '영희', '박': '민수', '최': '보라', '정': '수아', '강': '하늘', '조': '은서', '오': '세훈', '한': '유진' };
+
+export function applicationPiiRows(params: URLSearchParams): string[][] {
+  return filteredApplications(params).map((row) => {
+    const surname = row.applicantName.slice(0, 1);
+    return [row.applicationNo, `${surname}${GIVEN_NAMES[surname] ?? '지우'}`, `010-1111-${row.applicationNo.slice(-4)}`, row.courseName, row.displayState, row.appliedAt];
+  });
+}
+
 export const applicationHandlers = [
   // 내려받기는 /:applicationId보다 먼저 등록해야 경로가 id로 잡히지 않는다
   http.get('/api/admin/v1/applications/export.csv', ({ request }) => {

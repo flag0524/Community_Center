@@ -81,6 +81,28 @@ export async function postForm<T>(path: string, form: FormData, options: SendOpt
   });
 }
 
+/** 본문이 파일인 응답을 받는 POST. 응답 헤더(예: 일회용 암호)도 함께 돌려준다. */
+export async function postBlob(path: string, body: unknown, options: SendOptions = {}): Promise<{ blob: Blob; headers: Headers }> {
+  if (csrfToken === null) await getJson('/auth/session', options.signal);
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      Accept: 'application/zip, application/json',
+      'Content-Type': 'application/json',
+      ...options.headers,
+      ...(csrfToken === null ? {} : { 'X-CSRF-Token': csrfToken }),
+    },
+    body: JSON.stringify(body),
+    signal: options.signal,
+  });
+  if (!response.ok) {
+    const payload = parseJson(await response.text());
+    throw new ApiRequestError(response.status, isErrorResponse(payload) ? payload : null);
+  }
+  return { blob: await response.blob(), headers: response.headers };
+}
+
 export const putJson = <T = null>(path: string, body?: unknown, options: SendOptions = {}) =>
   sendJson<T>('PUT', path, body, options);
 

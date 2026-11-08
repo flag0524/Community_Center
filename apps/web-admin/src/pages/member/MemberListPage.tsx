@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { memberListQuery, type MemberParams } from '../../api/queries';
 import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
+import { PiiExportButton } from '../../components/PiiExportButton';
 import { errorMessage } from '../../lib/errors';
 import { MEMBER_STATUS, RESIDENCE_DECLARED, RESIDENCE_STATUS } from '../../lib/labels';
 import { toQueryString } from '../../lib/queryString';
@@ -67,6 +68,7 @@ export function MemberListPage() {
           <Link className="adm-button secondary" to="/mbr/members">
             조건 지우기
           </Link>
+          <PiiExportButton label="암호화 파일 요청" body={{ target: 'MEMBERS', q: filters.q, status: filters.status }} />
         </form>
         {list.isPending && <p role="status">불러오는 중입니다.</p>}
         {list.isError && <p role="alert">{errorMessage(list.error)}</p>}
