@@ -57,6 +57,7 @@ export const NAV_GROUPS: NavGroup[] = [
     to: '/me/applications',
     items: [
       { label: '수강신청내역', to: '/me/applications' },
+      { label: '감면 심사', to: '/me/reductions' },
       { label: '회원정보수정', to: '/me/profile' },
     ],
   },

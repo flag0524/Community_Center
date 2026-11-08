@@ -1,4 +1,4 @@
-// 강사 지원서 작성·수정. 텍스트 항목만 받고 증빙 파일은 첨부 설계 뒤에 더한다. 지원 가능 여부는 서버가 최종 판정한다
+// 강사 지원서 작성·수정. 지원서를 신청한 뒤 수정 화면에서 증빙 파일을 올린다. 지원 가능 여부는 서버가 최종 판정한다
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';

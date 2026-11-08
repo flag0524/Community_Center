@@ -13,6 +13,7 @@ import { resetMockCommunity } from '../mocks/community';
 import { resetMockFiles } from '../mocks/files';
 import { handlers } from '../mocks/handlers';
 import { resetMockInstructors } from '../mocks/instructors';
+import { resetMockReductions } from '../mocks/reductions';
 
 // Node의 fetch는 상대 경로를 받지 못한다. 브라우저처럼 현재 주소를 기준으로 풀어 준다.
 const nativeFetch = globalThis.fetch.bind(globalThis);
@@ -31,6 +32,7 @@ export function useMockServer(): void {
     resetMockCommunity();
     resetMockInstructors();
     resetMockFiles();
+    resetMockReductions();
     rememberCsrfToken(null);
   });
   afterAll(() => server.close());

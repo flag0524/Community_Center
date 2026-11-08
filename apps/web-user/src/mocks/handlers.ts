@@ -8,6 +8,7 @@ import { communityHandlers } from './community';
 import { fileHandlers } from './files';
 import { CONTENTS } from './contents';
 import { instructorHandlers } from './instructors';
+import { reductionHandlers } from './reductions';
 import {
   buildCategories,
   buildCourseDetail,
@@ -37,6 +38,7 @@ export const handlers = [
   ...communityHandlers,
   ...instructorHandlers,
   ...fileHandlers,
+  ...reductionHandlers,
   http.get('/api/v1/home', () => HttpResponse.json(buildHome(mockNow()))),
   http.get('/api/v1/site/contact', () => HttpResponse.json(contact)),
   http.get('/api/v1/contents/:slug', ({ params }) => {

@@ -249,3 +249,17 @@ export const myFilesQuery = (ownerPath: string) =>
     queryKey: ['my-files', ownerPath],
     queryFn: ({ signal }) => getJson<Schemas['MyFileList']>(`${ownerPath}/files`, signal),
   });
+
+export const reductionOptionsQuery = queryOptions({
+  queryKey: ['me', 'reduction-options'],
+  queryFn: ({ signal }) => getJson<Schemas['MyReductionOptions']>('/me/reduction-options', signal),
+});
+export const myReductionsQuery = queryOptions({
+  queryKey: ['me', 'reductions'],
+  queryFn: ({ signal }) => getJson<Schemas['MyReductionList']>('/me/reduction-reviews', signal),
+});
+export const myReductionQuery = (reviewId: string) =>
+  queryOptions({
+    queryKey: ['me', 'reduction', reviewId],
+    queryFn: ({ signal }) => getJson<Schemas['MyReduction']>(`/me/reduction-reviews/${encodeURIComponent(reviewId)}`, signal),
+  });

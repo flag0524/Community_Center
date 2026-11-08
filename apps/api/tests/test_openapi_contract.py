@@ -45,6 +45,13 @@ EXPECTED_OPERATIONS = {
     ("post", "/api/v1/me/inquiries/{post_id}/files"),
     ("delete", "/api/v1/me/files/{file_id}"),
     ("get", "/api/v1/me/files/{file_id}"),
+    ("get", "/api/v1/me/reduction-options"),
+    ("get", "/api/v1/me/reduction-reviews"),
+    ("post", "/api/v1/me/reduction-reviews"),
+    ("get", "/api/v1/me/reduction-reviews/{review_id}"),
+    ("post", "/api/v1/me/reduction-reviews/{review_id}/withdraw"),
+    ("get", "/api/v1/me/reduction-reviews/{review_id}/files"),
+    ("post", "/api/v1/me/reduction-reviews/{review_id}/files"),
     ("put", "/api/v1/me/profile"),
     ("put", "/api/v1/me/password"),
     ("post", "/api/v1/me/withdraw"),
@@ -209,6 +216,8 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/v1/me/refunds"),
     ("post", "/api/v1/me/instructor-applications/{application_id}/files"),
     ("post", "/api/v1/me/inquiries/{post_id}/files"),
+    ("post", "/api/v1/me/reduction-reviews"),
+    ("post", "/api/v1/me/reduction-reviews/{review_id}/files"),
     ("post", "/api/admin/v1/cycles"),
     ("post", "/api/admin/v1/courses"),
     ("post", "/api/admin/v1/facilities"),
@@ -1051,3 +1060,21 @@ def test_회원_첨부는_자기_지원서와_문의에만_올리고_내려받�
     assert {"canEdit", "maxFiles", "maxBytes", "allowedExtensions"} <= set(schemas["MyFileList"]["required"])
     forbidden = {"storageKey", "strgKey", "path", "url", "hash", "hashPrefix"}
     assert not forbidden & set(schemas["MyFile"]["properties"])
+
+
+def test_회원_감면_신청은_금액과_비율을_받지_않고_기수와_유형만_받는다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    assert set(schemas["MyReductionCreate"]["properties"]) == {"cycleId", "reductionType"}
+    assert {"canApply", "blockReason", "cycles"} <= set(schemas["MyReductionOptions"]["required"])
+    assert {"canAddEvidence", "canWithdraw", "validUntil", "rejectReason"} <= set(
+        schemas["MyReduction"]["properties"]
+    )
+    forbidden = {"reviewedBy", "reviewNote", "residenceConfirmed", "amount", "memberName"}
+    for name in ("MyReduction", "MyReductionSummary"):
+        assert not forbidden & set(schemas[name]["properties"]), (
+            name
+        )  # 심사 내용·처리자·금액은 신청자에게 주지 않는다
+    reduction_ops = {key for key in operations(spec) if key[1].startswith("/api/v1/me/reduction-reviews")}
+    assert not {
+        key for key in reduction_ops if key[0] in {"put", "patch", "delete"}
+    }  # 결정된 신청은 고치거나 지우지 않는다

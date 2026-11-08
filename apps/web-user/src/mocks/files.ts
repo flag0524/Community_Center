@@ -70,7 +70,16 @@ function scan(ownerPath: string): void {
   }
 }
 
-const OWNER_ROUTES = ['instructor-applications', 'inquiries'] as const;
+const OWNER_ROUTES = ['instructor-applications', 'inquiries', 'reduction-reviews'] as const;
+
+/** 소유 업무 경로에 남아 있는 파일 수. */
+export const countFiles = (ownerPath: string): number => live(ownerPath).length;
+
+/** 시험·시연용으로 이미 검사를 통과한 파일을 소유 업무에 붙여 둔다. */
+export function seedFile(ownerPath: string, memberId: string, fileName: string, sizeBytes = 245_760): void {
+  seq += 1;
+  entries.push({ file: { fileId: fid(seq), fileName, sizeBytes, status: 'SAFE', registeredOn: today(), blockReason: null }, ownerPath, memberId, reads: 99 });
+}
 
 export const fileHandlers = [
   http.delete('/api/v1/me/files/:fileId', ({ request, params }) => {

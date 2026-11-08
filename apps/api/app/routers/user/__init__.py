@@ -11,6 +11,7 @@ from app.routers.user import (
     me,
     member_file,
     payments,
+    reduction,
     refunds,
     site,
 )
@@ -21,3 +22,4 @@ for module in (site, courses, auth, me, applications, payments, refunds, board, 
 user_router.include_router(community.member_router)
 user_router.include_router(instructor.member_router)
 user_router.include_router(member_file.member_router)
+user_router.include_router(reduction.member_router)

@@ -62,6 +62,26 @@ def upload_my_inquiry_file(
     not_implemented()
 
 
+@member_router.get("/me/reduction-reviews/{review_id}/files", responses=NOT_FOUND)
+def list_my_reduction_files(review_id: Serial) -> MyFileList:
+    """내 사전심사의 증빙. 접수 상태일 때만 추가·제거할 수 있고 결정된 뒤에는 잠긴다(RDCT-BFHD-01)."""
+    not_implemented()
+
+
+@member_router.post(
+    "/me/reduction-reviews/{review_id}/files",
+    status_code=201,
+    responses=UPLOAD_ERRORS,
+    dependencies=[Depends(csrf_header)],
+)
+def upload_my_reduction_file(
+    review_id: Serial,
+    file: Annotated[UploadFile, File(description="파일 한 개")],
+    idempotency_key: IdempotencyKey,
+) -> MyFile:
+    not_implemented()
+
+
 @member_router.delete(
     "/me/files/{file_id}",
     status_code=204,

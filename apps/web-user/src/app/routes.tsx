@@ -23,6 +23,9 @@ import { ReviewListPage } from '../pages/community/ReviewListPage';
 import { InstructorApplyPage } from '../pages/instructors/InstructorApplyPage';
 import { InstructorDetailPage } from '../pages/instructors/InstructorDetailPage';
 import { InstructorListPage } from '../pages/instructors/InstructorListPage';
+import { MyReductionDetailPage } from '../pages/reductions/MyReductionDetailPage';
+import { MyReductionsPage } from '../pages/reductions/MyReductionsPage';
+import { ReductionApplyPage } from '../pages/reductions/ReductionApplyPage';
 import { MyInstructorApplicationsPage } from '../pages/instructors/MyInstructorApplicationsPage';
 import { RecruitmentDetailPage } from '../pages/instructors/RecruitmentDetailPage';
 import { RecruitmentListPage } from '../pages/instructors/RecruitmentListPage';
@@ -104,6 +107,9 @@ export const routes: RouteObject[] = [
       ...[
         ['instructors/recruit/:recruitmentId/apply', <InstructorApplyPage mode="create" />],
         ['me/instructor-applications', <MyInstructorApplicationsPage />],
+  ['me/reductions', <MyReductionsPage />],
+  ['me/reductions/new', <ReductionApplyPage />],
+  ['me/reductions/:reviewId', <MyReductionDetailPage />],
         ['me/instructor-applications/:applicationId/edit', <InstructorApplyPage mode="edit" />],
       ].map(([path, page]) => ({
         path: path as string,
