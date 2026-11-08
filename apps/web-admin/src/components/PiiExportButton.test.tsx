@@ -4,7 +4,6 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiRequestError } from '../api/http';
 import { requestPiiExport } from '../api/piiExport';
 import { DEMO_ADMINS } from '../mocks/auth';
 import { exportLog } from '../mocks/csv';
