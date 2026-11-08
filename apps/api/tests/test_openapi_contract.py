@@ -213,6 +213,10 @@ ADMIN_OPERATIONS = {
     ("get", "/api/admin/v1/stats/demand/export.csv"),
     ("get", "/api/admin/v1/stats/settlement/export.csv"),
     ("get", "/api/admin/v1/stats/age-gender/export.csv"),
+    ("get", "/api/admin/v1/posts/export.csv"),
+    ("get", "/api/admin/v1/inquiries/export.csv"),
+    ("get", "/api/admin/v1/courses/export.csv"),
+    ("get", "/api/admin/v1/cycles/export.csv"),
     ("delete", "/api/admin/v1/files/{file_id}"),
     ("get", "/api/admin/v1/files/{file_id}/download"),
 }
@@ -1112,13 +1116,17 @@ CSV_EXPORTS = {
     "/api/admin/v1/refunds": "/api/admin/v1/refunds/export.csv",
     "/api/admin/v1/stats/demand": "/api/admin/v1/stats/demand/export.csv",
     "/api/admin/v1/stats/settlement": "/api/admin/v1/stats/settlement/export.csv",
+    "/api/admin/v1/posts": "/api/admin/v1/posts/export.csv",
+    "/api/admin/v1/inquiries": "/api/admin/v1/inquiries/export.csv",
+    "/api/admin/v1/courses": "/api/admin/v1/courses/export.csv",
+    "/api/admin/v1/cycles": "/api/admin/v1/cycles/export.csv",
 }
 
 
 def test_CSV는_목록과_같은_조건을_받고_페이지_제한만_없으며_텍스트로_답한다(spec: Schema) -> None:
     for list_path, export_path in CSV_EXPORTS.items():
-        listed = {p["name"] for p in spec["paths"][list_path]["get"]["parameters"]}
-        exported = {p["name"] for p in spec["paths"][export_path]["get"]["parameters"]}
+        listed = {p["name"] for p in spec["paths"][list_path]["get"].get("parameters", [])}
+        exported = {p["name"] for p in spec["paths"][export_path]["get"].get("parameters", [])}
         assert exported == listed - {"page", "size"}, export_path
     for export_path in (*CSV_EXPORTS.values(), "/api/admin/v1/stats/age-gender/export.csv"):
         responses = spec["paths"][export_path]["get"]["responses"]

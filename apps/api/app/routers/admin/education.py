@@ -1,7 +1,7 @@
 # 관리자 교육기수·강좌 관리 라우터. 기수는 AU.CONF_W, 강좌는 조회 AU.CORS_R·변경 AU.CORS_W다
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Security
+from fastapi import APIRouter, Depends, Path, Query, Response, Security
 
 from app.core.errors import ErrorCode, not_implemented
 from app.domain.admin.education_schemas import (
@@ -18,7 +18,14 @@ from app.domain.admin.education_schemas import (
     CycleWrite,
 )
 from app.domain.admin.education_types import CourseAdminStatus
-from app.routers.deps import MEMBER_ERRORS, IdempotencyKey, admin_session, csrf_header, error_responses
+from app.routers.deps import (
+    CSV_RESPONSE,
+    MEMBER_ERRORS,
+    IdempotencyKey,
+    admin_session,
+    csrf_header,
+    error_responses,
+)
 
 router = APIRouter(tags=["admin-education"], responses=MEMBER_ERRORS, dependencies=[Security(admin_session)])
 
@@ -36,6 +43,16 @@ def list_cycles(page: Page_ = 1, size: Size = 20) -> CyclePage:
 
 @router.post("/cycles", status_code=201, responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)])
 def create_cycle(body: CycleWrite, idempotency_key: IdempotencyKey) -> Cycle:
+    not_implemented()
+
+
+@router.get(
+    "/cycles/export.csv",
+    response_class=Response,
+    responses={**error_responses(ErrorCode.RULE_REJECTED), **CSV_RESPONSE},
+)
+def export_cycles_csv() -> Response:
+    """교육기수 목록 전체. 기간과 접수기간은 한국 시간 날짜로 담는다."""
     not_implemented()
 
 
@@ -65,6 +82,22 @@ def list_admin_courses(
     size: Size = 20,
 ) -> AdminCoursePage:
     """범위 밖 강좌는 조건과 무관하게 목록에 나오지 않는다(RQ-SER-NF-009)."""
+    not_implemented()
+
+
+@router.get(
+    "/courses/export.csv",
+    response_class=Response,
+    responses={**error_responses(ErrorCode.RULE_REJECTED), **CSV_RESPONSE},
+)
+def export_courses_csv(
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    cycle_id: Annotated[str | None, Query(alias="cycleId", pattern=r"^[0-9]{1,22}$")] = None,
+    class_id: Annotated[str | None, Query(alias="classId", pattern=r"^[0-9]{1,22}$")] = None,
+    dong_id: Annotated[str | None, Query(alias="dongId", pattern=r"^[0-9]{1,22}$")] = None,
+    status: CourseAdminStatus | None = None,
+) -> Response:
+    """목록과 같은 조건·범위로 만든다. 범위 밖 강좌는 담지 않는다(RQ-SER-NF-009)."""
     not_implemented()
 
 

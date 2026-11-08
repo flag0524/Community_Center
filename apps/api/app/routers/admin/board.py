@@ -14,7 +14,14 @@ from app.domain.admin.board_schemas import (
     BoardSettingUpdate,
 )
 from app.domain.board.types import BoardKey
-from app.routers.deps import MEMBER_ERRORS, IdempotencyKey, admin_session, csrf_header, error_responses
+from app.routers.deps import (
+    CSV_RESPONSE,
+    MEMBER_ERRORS,
+    IdempotencyKey,
+    admin_session,
+    csrf_header,
+    error_responses,
+)
 
 router = APIRouter(tags=["admin-board"], responses=MEMBER_ERRORS, dependencies=[Security(admin_session)])
 
@@ -42,6 +49,19 @@ def list_admin_posts(
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> AdminPostPage:
     """상단공지가 먼저 나온다. 삭제한 글은 나오지 않는다."""
+    not_implemented()
+
+
+@router.get(
+    "/posts/export.csv",
+    response_class=Response,
+    responses={**error_responses(ErrorCode.RULE_REJECTED), **CSV_RESPONSE},
+)
+def export_posts_csv(
+    board: BoardKey | None = None,
+    q: Annotated[str | None, Query(max_length=100)] = None,
+) -> Response:
+    """목록과 같은 조건·권한으로 만든다. 본문과 첨부는 담지 않고 작성자는 가린 값이다."""
     not_implemented()
 
 
