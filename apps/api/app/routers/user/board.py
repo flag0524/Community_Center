@@ -40,5 +40,5 @@ def get_post(
 def download_file(
     file_id: Annotated[str, Path(pattern=r"^[0-9]{1,22}$", description="파일 일련번호(문자열)")],
 ) -> Response:
-    """소유 게시물이 공개일 때만 내려준다."""
+    """소유 게시물이 공개일 때, 또는 게시 중인 홈 콘텐츠의 이미지일 때만 내려준다."""
     not_implemented()

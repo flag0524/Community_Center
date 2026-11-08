@@ -2,6 +2,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { homeQuery, type HomeResponse } from '../api/queries';
+import { ContentLink } from '../components/ContentLink';
+import { HomeBanners } from '../components/HomeBanners';
+import { HomePopups } from '../components/HomePopups';
 import { ArrowIcon, CardIcon, ListIcon, PinIcon, SearchIcon } from '../components/icons';
 import { PhoneLink } from '../components/PhoneLink';
 import { useContact } from '../layout/useContact';
@@ -18,37 +21,51 @@ function splitLastWord(text: string): [string, string | null] {
   return index < 0 ? [text, null] : [text.slice(0, index), text.slice(index + 1)];
 }
 
-function Hero() {
+function Hero({ visual }: { visual: HomeResponse['visual'] }) {
   const photo = usePhoto(BUILDING_PHOTO);
+  // 서버가 비주얼을 내려주면 그 사진·문구를 쓰고, 없으면 사용 범위가 확인된 청사 사진과 기본 문구를 쓴다.
+  const staticPhoto = !visual && photo === 'ok';
   return (
     <section className="hero">
-      {photo === 'ok' ? <img src={BUILDING_PHOTO} alt="조리읍 행정복지센터 청사" /> : null}
+      {visual?.image ? <img src={visual.image.url} alt={visual.image.alt} /> : null}
+      {staticPhoto ? <img src={BUILDING_PHOTO} alt="조리읍 행정복지센터 청사" /> : null}
       <div className="hero-copy">
         <div className="eyebrow">주민과 함께하는 배움의 공간</div>
         <h1>
           <span className="standard-only">
-            함께 배우고,
-            <br />
-            함께 자라는 조리읍.
+            {visual ? (
+              visual.title
+            ) : (
+              <>
+                함께 배우고,
+                <br />
+                함께 자라는 조리읍.
+              </>
+            )}
           </span>
           <span className="easy-only">무엇을 도와드릴까요?</span>
         </h1>
         <p>
-          <span className="standard-only">일상에 새로운 즐거움을 더하는 조리읍주민자치센터</span>
+          <span className="standard-only">{visual ? (visual.body ?? '') : '일상에 새로운 즐거움을 더하는 조리읍주민자치센터'}</span>
           <span className="easy-only">원하시는 일을 선택해 주세요.</span>
         </p>
-        <Link className="button" to="/courses">
-          강좌 둘러보기　→
-        </Link>
+        {visual?.linkUrl ? (
+          <ContentLink className="button" url={visual.linkUrl}>
+            자세히 보기　→
+          </ContentLink>
+        ) : (
+          <Link className="button" to="/courses">
+            강좌 둘러보기　→
+          </Link>
+        )}
       </div>
       <a className="scroll-hint" href="#services">
         아래로 내려보기　↓
       </a>
-      {photo === 'ok' ? <div className="photo-credit">조리읍 행정복지센터 · 파주시 제공(2022.10.05)</div> : null}
+      {staticPhoto ? <div className="photo-credit">조리읍 행정복지센터 · 파주시 제공(2022.10.05)</div> : null}
     </section>
   );
 }
-
 function EasyStart() {
   const contact = useContact();
   const photo = usePhoto(BUILDING_PHOTO);
@@ -314,12 +331,14 @@ export function Home() {
 
   return (
     <>
-      <Hero />
+      <Hero visual={home.data?.visual ?? null} />
+      {home.data ? <HomePopups popups={home.data.popups} serverNow={home.data.serverNow} /> : null}
       <EasyStart />
       {home.data?.cycle ? (
         <EasyNotice cycle={home.data.cycle} firstNoticeId={home.data.notices[0]?.postId} />
       ) : null}
       <Intro />
+      {home.data ? <HomeBanners banners={home.data.banners} /> : null}
       {home.isPending ? (
         <p className="wrap" role="status">
           센터 소식과 강좌 안내를 불러오는 중입니다.

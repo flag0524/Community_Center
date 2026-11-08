@@ -26,10 +26,44 @@ class CategoryOverview(ApiModel):
     course_names: list[str]
 
 
+class HomeImage(ApiModel):
+    url: str = Field(description="공개 이미지 주소. 게시 중인 콘텐츠의 이미지만 받을 수 있다")
+    alt: str = Field(description="이미지를 설명하는 대체 문구")
+
+
+class HomeVisual(ApiModel):
+    """홈 첫 화면의 대표 문구와 사진. 사용 범위가 확인된 사진만 담고 없으면 이미지는 null이다."""
+
+    title: str
+    body: str | None
+    link_url: str | None = Field(description="사이트 안 경로(/로 시작)나 https 주소")
+    image: HomeImage | None
+
+
+class HomeBanner(ApiModel):
+    content_id: SerialId
+    title: str
+    link_url: str | None
+    image: HomeImage | None
+
+
+class HomePopup(ApiModel):
+    """게시기간 안의 팝업. `오늘 하루 보지 않기`는 화면이 콘텐츠 번호로 기억한다."""
+
+    content_id: SerialId
+    title: str
+    body: str | None
+    link_url: str | None
+    image: HomeImage | None
+
+
 class HomeResponse(ServerTimed):
     cycle: CycleInfo | None = None
     categories: list[CategoryOverview]
     notices: list[PostBrief]
+    visual: HomeVisual | None = None
+    banners: list[HomeBanner]
+    popups: list[HomePopup]
 
 
 class ContactResponse(ApiModel):

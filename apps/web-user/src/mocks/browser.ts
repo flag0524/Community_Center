@@ -2,10 +2,12 @@
 import { setupWorker } from 'msw/browser';
 import { initMockClockFromLocation } from './clock';
 import { handlers } from './handlers';
+import { initMockHomeFromLocation } from './homeContent';
 import { initMockPayFromLocation } from './payOutcome';
 
 export async function startMockServer(): Promise<void> {
   initMockClockFromLocation();
   initMockPayFromLocation();
+  initMockHomeFromLocation();
   await setupWorker(...handlers).start({ onUnhandledFrame: 'bypass', quiet: true });
 }

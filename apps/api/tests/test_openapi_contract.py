@@ -1082,3 +1082,19 @@ def test_회원_감면_신청은_금액과_비율을_받지_않고_기수와_유
     assert not {
         key for key in reduction_ops if key[0] in {"put", "patch", "delete"}
     }  # 결정된 신청은 고치거나 지우지 않는다
+
+
+def test_홈_응답은_비주얼_배너_팝업을_담고_이미지는_공개_주소와_대체_문구만_가진다(spec: Schema) -> None:
+    schemas = spec["components"]["schemas"]
+    home = schemas["HomeResponse"]
+    assert {"visual", "banners", "popups"} <= set(home["properties"])
+    assert {"banners", "popups"} <= set(home["required"])  # 없으면 빈 목록이다
+    assert "visual" not in home.get("required", []) or "null" in type_names(home["properties"]["visual"])
+    assert set(schemas["HomeImage"]["properties"]) == {"url", "alt"}
+    for name in ("HomeBanner", "HomePopup"):
+        assert {"contentId", "title", "linkUrl", "image"} <= set(schemas[name]["properties"]), name
+    forbidden = {"storageKey", "hash", "fileId", "periodStart", "periodEnd", "posted"}
+    for name in ("HomeVisual", "HomeBanner", "HomePopup", "HomeImage"):
+        assert not forbidden & set(schemas[name]["properties"]), (
+            name
+        )  # 게시 판정은 서버가 하고 값은 내려주지 않는다

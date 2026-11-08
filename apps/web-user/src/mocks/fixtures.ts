@@ -1,6 +1,7 @@
 // 모의 서버가 돌려주는 데이터. 강좌·기간·연락처는 조리읍 2026년 4분기 공고 값이고 접수·교육 상태는 호출 시각으로 판정한다
 import type { Schemas } from '@jori/api-client';
 import { CATEGORY_SEEDS, COURSE_SEEDS, type CourseSeed } from './courseData';
+import { homeContent } from './homeContent';
 
 type HomeResponse = Schemas['HomeResponse'];
 type ContactResponse = Schemas['ContactResponse'];
@@ -145,6 +146,7 @@ export function buildCategories(): Schemas['CategoryList'] {
 export function buildHome(now: Date = new Date()): HomeResponse {
   const cycle = buildCycle(now);
   return {
+    ...homeContent(now),
     serverNow: now.toISOString(),
     cycle,
     categories: CATEGORY_SEEDS.map((item) => ({

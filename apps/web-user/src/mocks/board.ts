@@ -1,4 +1,5 @@
-// 모의 서버의 게시판 데이터와 첨부. 홈의 공지(101, 102)와 같은 게시물을 쓴다. 문안은 시안의 공식 자료다
+
+import { CONTENT_IMAGE_IDS } from './homeContent';// 모의 서버의 게시판 데이터와 첨부. 홈의 공지(101, 102)와 같은 게시물을 쓴다. 문안은 시안의 공식 자료다
 import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
 
@@ -177,7 +178,7 @@ export const boardHandlers = [
 
   http.get('/api/v1/files/:fileId', ({ params }) => {
     const id = String(params.fileId);
-    const all = POSTS.flatMap((post) => [...post.attachments.map((item) => item.fileId), ...post.images.map((item) => item.fileId)]);
+    const all = [...POSTS.flatMap((post) => [...post.attachments.map((item) => item.fileId), ...post.images.map((item) => item.fileId)]), ...CONTENT_IMAGE_IDS];
     if (!all.includes(id)) return notFound();
     return id.startsWith('91')
       ? new HttpResponse(PLACEHOLDER_SVG, { headers: { 'Content-Type': 'image/svg+xml' } })
