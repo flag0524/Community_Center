@@ -74,6 +74,7 @@ describe('감면 심사 상세', () => {
     renderApp(`/pay/reductions/${REVIEW(1)}`);
     await heading('감면 심사 상세');
     const link = await screen.findByRole('link', { name: '내려받기 (수급자 증명서.pdf)' });
+    link.addEventListener('click', (event) => event.preventDefault()); // jsdom은 페이지 이동을 구현하지 않아 경고를 낸다
     fireEvent.click(link); // 화면은 잠시 뒤 열람 기록을 다시 읽는다
     expect((await fetch(link.getAttribute('href')!)).status).toBe(200);
     await waitFor(async () => expect((await rows('열람 기록')).map((row) => cells(row).slice(1))).toEqual([['김관리', '수급자 증명서.pdf']]));
