@@ -217,6 +217,7 @@ ADMIN_OPERATIONS = {
     ("get", "/api/admin/v1/inquiries/export.csv"),
     ("get", "/api/admin/v1/courses/export.csv"),
     ("get", "/api/admin/v1/cycles/export.csv"),
+    ("post", "/api/admin/v1/exports/pii"),
     ("delete", "/api/admin/v1/files/{file_id}"),
     ("get", "/api/admin/v1/files/{file_id}/download"),
 }
@@ -251,6 +252,7 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/admin/v1/refunds/{refund_id}/files"),
     ("post", "/api/admin/v1/instructor-applications/{application_id}/files"),
     ("post", "/api/admin/v1/contents/{content_id}/files"),
+    ("post", "/api/admin/v1/exports/pii"),
 }
 
 
@@ -1142,3 +1144,17 @@ def test_출석과_만족도와_회원_명단은_CSV로_내보내지_않는다(s
         "members",
     )  # 출석·만족도는 금지, 개인식별 명단은 별도 권한의 암호 ZIP(첨부-5)
     assert not [path for path in exports if any(word in path for word in forbidden)]
+
+
+def test_개인식별_명단은_암호_ZIP을_한_번만_주고_멱등키를_요구하며_대상은_회원과_신청뿐이다(
+    spec: Schema,
+) -> None:
+    post = spec["paths"]["/api/admin/v1/exports/pii"]["post"]
+    ok = post["responses"]["200"]
+    assert set(ok["content"]) == {"application/zip"}
+    assert "X-Export-Password" in ok["headers"]
+    assert {"422", "409"} <= set(post["responses"])
+    body = post["requestBody"]["content"]["application/json"]["schema"]["$ref"].split("/")[-1]
+    assert spec["components"]["schemas"][body]["required"] == ["target"]
+    assert spec["components"]["schemas"]["PiiExportTarget"]["enum"] == ["MEMBERS", "APPLICATIONS"]
+    assert "Idempotency-Key" in {p["name"] for p in post["parameters"]}
