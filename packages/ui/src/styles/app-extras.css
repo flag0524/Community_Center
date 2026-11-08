@@ -15,6 +15,27 @@ button.login-link {
   white-space: nowrap;
 }
 
+/* 폭이 좁은 기본 화면은 로고·메뉴·로그아웃만 한 줄에 들어가 이름 자리가 없다. 화면에서만 감추고 읽어 주는 소리에는 남긴다. 쉬운 화면은 두 줄이라 그대로 보인다. */
+@media (max-width: 480px) {
+  html:not([data-view='easy']) .login-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
+/* 320px급 폰은 이름을 감춰도 로고·메뉴·로그아웃이 14px 넘친다. 간격과 버튼 좌우 여백만 줄인다. */
+@media (max-width: 340px) {
+  html:not([data-view='easy']) .header {
+    gap: 8px;
+  }
+
+  html:not([data-view='easy']) .login-link {
+    padding: 0 4px;
+  }
+}
 /* 흰 바탕에서 대비 6.5:1 이다. */
 .proto .field-error {
   margin: 4px 0 0;

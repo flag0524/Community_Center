@@ -32,9 +32,10 @@ async function goTo(page: Page, path: string) {
   }, path);
 }
 
-// 쪽 전체의 가로 넘침은 머리글(로그인 버튼)이 좁은 화면에서 5px 넘치는 기존 문제와 겹쳐 첨부 영역의 넘침만 확인한다.
+// 쪽 전체와 첨부 영역이 모두 가로로 넘치지 않아야 한다.
 async function expectClean(page: Page) {
   expect(await violations(page)).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   const outside = await page.evaluate(() => {
     const limit = document.documentElement.clientWidth;
     return Array.from(document.querySelectorAll('.proto-files, .proto-files *')).filter((element) => element.getBoundingClientRect().right > limit + 0.5).length;
