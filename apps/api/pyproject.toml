@@ -27,6 +27,10 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 "tests/factory.py" = ["E501"]
 # SQLAlchemy 식의 ==는 SQL 식을 만드는 연산자라 좌우를 바꾸면 읽기 어렵다
 "app/db/*.py" = ["SIM300"]
+"app/auth/*.py" = ["SIM300"]
+"tests/test_auth_flow.py" = ["SIM300", "E501"]
+"tests/test_db_foundation.py" = ["SIM300"]
+"app/routers/**/auth.py" = ["SIM300"]
 # 생성 파일이라 설계안의 문구를 그대로 둔다
 "app/db/tables.py" = ["E501"]
 

@@ -1,21 +1,53 @@
-# 배포마다 다른 설정(접속 정보, 사이트 식별자)을 환경변수에서 읽는다. 비밀값은 저장소에 두지 않는다
+# 배포마다 다른 설정(접속 정보, 사이트 식별자, 비밀키)을 환경변수에서 읽는다. 비밀값은 저장소에 두지 않는다
 import os
 from dataclasses import dataclass
 
+MIN_SECRET_LENGTH = 32
+
 
 class ConfigError(RuntimeError):
-    """필수 설정이 없을 때 서버를 시작하지 못하게 하는 오류. 메시지에 값은 담지 않는다."""
+    """필수 설정이 없거나 잘못됐을 때 서버를 시작하지 못하게 하는 오류. 메시지에 값은 담지 않는다."""
 
 
 @dataclass(frozen=True)
 class Settings:
     database_url: str
     site_id: str  # 이 배포가 맡는 운영묶음의 TB_OPER_BNDL.SITE_ID. 요청이 아니라 배포 설정이 정한다(R26)
+    secret_key: str = "x" * MIN_SECRET_LENGTH  # CSRF·OTP 검증값용 비밀키(용도별로 파생)
+    pbkdf2_iterations: int = 600_000  # 비밀번호 해시 반복 횟수. 해시마다 값이 같이 저장돼 나중에 올려도 된다
+    cookie_secure: bool = True  # 로컬 http 개발에서만 끈다
+    # 관리자 로그인 실패 제한은 기관 정책(Q28) 전까지 값을 지어내지 않는다. 설정이 없으면 잠그지 않는다.
+    admin_lock_failures: int | None = None
+    admin_lock_minutes: int | None = None
+
+
+def _int(env: dict[str, str], name: str) -> int | None:
+    raw = env.get(name)
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        raise ConfigError(f"{name}은 정수여야 합니다.") from None
 
 
 def load_settings(environ: dict[str, str] | None = None) -> Settings:
-    env = os.environ if environ is None else environ
-    missing = [name for name in ("JORI_DATABASE_URL", "JORI_SITE_ID") if not env.get(name)]
+    env = dict(os.environ if environ is None else environ)
+    missing = [name for name in ("JORI_DATABASE_URL", "JORI_SITE_ID", "JORI_SECRET_KEY") if not env.get(name)]
     if missing:
         raise ConfigError(f"필수 환경변수가 없습니다: {', '.join(missing)}")
-    return Settings(database_url=env["JORI_DATABASE_URL"], site_id=env["JORI_SITE_ID"])
+    if len(env["JORI_SECRET_KEY"]) < MIN_SECRET_LENGTH:
+        raise ConfigError(f"JORI_SECRET_KEY는 {MIN_SECRET_LENGTH}자 이상이어야 합니다.")
+    lock_failures = _int(env, "JORI_ADMIN_LOCK_FAILURES")
+    lock_minutes = _int(env, "JORI_ADMIN_LOCK_MINUTES")
+    if (lock_failures is None) != (lock_minutes is None):
+        raise ConfigError("JORI_ADMIN_LOCK_FAILURES와 JORI_ADMIN_LOCK_MINUTES는 함께 설정해야 합니다.")
+    return Settings(
+        database_url=env["JORI_DATABASE_URL"],
+        site_id=env["JORI_SITE_ID"],
+        secret_key=env["JORI_SECRET_KEY"],
+        pbkdf2_iterations=_int(env, "JORI_PBKDF2_ITERATIONS") or 600_000,
+        cookie_secure=env.get("JORI_COOKIE_SECURE", "1") != "0",
+        admin_lock_failures=lock_failures,
+        admin_lock_minutes=lock_minutes,
+    )
