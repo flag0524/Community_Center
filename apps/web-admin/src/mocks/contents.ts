@@ -39,6 +39,12 @@ function initialState(): State {
 let state = initialState();
 
 /** 시험 사이에 콘텐츠를 처음 상태로 되돌린다. */
+/** 첨부 모의 서버가 소유 콘텐츠를 확인할 때 쓰는 제목과 유형. 없으면 null이다. */
+export const mockContentInfo = (contentId: string): { title: string; contentType: ContentType } | null => {
+  const found = state.rows.find((row) => row.contentId === contentId);
+  return found ? { title: found.title, contentType: found.contentType } : null;
+};
+
 export function resetMockContents(): void {
   state = initialState();
 }

@@ -263,20 +263,31 @@ describe('콘텐츠 등록·수정', () => {
     expect(field('유형')).toBeDisabled();
   });
 
-  it('이미지 유형에는 이미지 첨부가 아직 없다는 안내가 있고 다른 유형에는 없다', async () => {
+  it('이미지 유형은 이미지 영역이 있고 새 콘텐츠는 저장한 뒤에 추가하라고 안내한다', async () => {
     await signInAs('group');
     renderApp(`/mbr/contents/${CONTENT(1)}`);
     await heading('콘텐츠 수정');
-    expect(screen.getByText('이미지는 첨부 기능이 생기면 더합니다. 지금은 제목·본문·링크만 입력합니다.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '이미지' })).toBeInTheDocument();
+    expect(await screen.findByLabelText('파일 추가')).toBeInTheDocument();
   });
 
-  it('연혁에는 이미지 안내가 없다', async () => {
+  it('새 이미지 콘텐츠는 저장한 뒤에 이미지를 추가하라고 안내한다', async () => {
     await signInAs('group');
-    renderApp(`/mbr/contents/${CONTENT(6)}`);
-    await heading('콘텐츠 수정');
-    expect(screen.queryByText(/이미지는 첨부 기능이 생기면/)).not.toBeInTheDocument();
+    renderApp('/mbr/contents/new?type=BANNER');
+    await heading('콘텐츠 등록');
+    expect(screen.getByText('이미지는 콘텐츠를 저장한 뒤에 추가할 수 있습니다.')).toBeInTheDocument();
   });
 
+  it.each([
+    ['연혁', 6],
+    ['연락처', 8],
+  ])('%s에는 이미지 영역이 없다', async (_name, n) => {
+    await signInAs('group');
+    renderApp(`/mbr/contents/${CONTENT(n)}`);
+    await heading('콘텐츠 수정');
+    expect(screen.queryByRole('heading', { name: '이미지' })).not.toBeInTheDocument();
+    expect(screen.queryByText('이미지는 콘텐츠를 저장한 뒤에 추가할 수 있습니다.')).not.toBeInTheDocument();
+  });
   it('수정하면 저장했다고 알리고 화면에 남는다', async () => {
     await signInAs('group');
     renderApp(`/mbr/contents/${CONTENT(7)}`);

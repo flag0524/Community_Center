@@ -225,6 +225,54 @@ describe('환불·강사 지원 증빙', () => {
   });
 });
 
+describe('홈·센터 콘텐츠 이미지', () => {
+  const CONTENT = (n: number) => `20${String(n).padStart(20, '0')}`;
+
+  it('서버가 알려 준 대로 jpg·png만, 한 장만 받고 한도를 안내한다', async () => {
+    await signInAs('group');
+    renderApp(`/mbr/contents/${CONTENT(1)}`);
+    expect(await screen.findByText(/1개까지, 한 개당 20.0MB 이하, jpg · png 파일을 올릴 수 있습니다/)).toBeInTheDocument();
+  });
+
+  it('pdf는 올리기 전에 거르고 이미지는 한 장까지만 올라간다', async () => {
+    sentKeys.length = 0;
+    await signInAs('group');
+    renderApp(`/mbr/contents/${CONTENT(1)}`);
+    await userEvent.upload(await chooser(), new File(['x'], '안내.pdf', { type: 'application/pdf' }), { applyAccept: false });
+    expect(await screen.findByText('안내.pdf: 허용되지 않는 형식입니다. (jpg, png)')).toBeInTheDocument();
+    expect(sentKeys).toHaveLength(0);
+
+    await userEvent.upload(await chooser(), new File(['x'], '비주얼.png', { type: 'image/png' }));
+    expect(await screen.findByText('비주얼.png')).toBeInTheDocument();
+    await userEvent.upload(await chooser(), new File(['x'], '다른.jpg', { type: 'image/jpeg' }));
+    expect(await screen.findByText('다른.jpg: 파일은 1개까지 올릴 수 있습니다.')).toBeInTheDocument();
+  });
+
+  it('이미지를 쓰지 않는 유형에는 서버가 올리기를 거절한다', async () => {
+    const { receiveUpload } = await import('../mocks/files');
+    expect(receiveUpload(`/contents/${CONTENT(6)}`, { name: 'a.png', size: 10 })).toMatchObject({ status: 422, fields: { file: '이 유형은 이미지를 쓰지 않습니다.' } });
+    expect(receiveUpload(`/contents/${CONTENT(1)}`, { name: 'a.png', size: 10 })).toHaveProperty('file');
+    expect(receiveUpload(`/contents/${CONTENT(5)}`, { name: 'a.png', size: 10 })).toHaveProperty('file'); // 팝업도 이미지를 쓴다
+  });
+
+  it('이미지를 쓰지 않는 유형의 첨부 목록은 고칠 수 없다고 알린다', async () => {
+    await signInAs('group');
+    const body = (await (await fetch(`/api/admin/v1/contents/${CONTENT(6)}/files`)).json()) as { canEdit: boolean };
+    expect(body.canEdit).toBe(false);
+    const image = (await (await fetch(`/api/admin/v1/contents/${CONTENT(1)}/files`)).json()) as { canEdit: boolean };
+    expect(image.canEdit).toBe(true);
+  });
+
+  it('올린 이미지는 파일 조회 화면에서 홈·센터 콘텐츠 소유로 보인다', async () => {
+    await signInAs('group');
+    renderApp(`/mbr/contents/${CONTENT(3)}`);
+    await userEvent.upload(await chooser(), new File(['x'], '배너.png', { type: 'image/png' }));
+    await screen.findByText('배너.png');
+    const list = (await (await fetch('/api/admin/v1/files?ownerKind=CONTENT')).json()) as { items: Array<{ fileName: string; ownerLabel: string }> };
+    expect(list.items.find((item) => item.fileName === '배너.png')?.ownerLabel).toBe('수강신청 접수 안내 배너');
+  });
+});
+
 describe('올리기 요청의 모양', () => {
   it('파일을 multipart의 file 칸으로 한 개 보내고 멱등키와 보호 토큰을 싣되 내용 형식은 직접 적지 않는다', async () => {
     const { uploadOwnerFile } = await vi.importActual<typeof import('../api/ownerFiles')>('../api/ownerFiles');

@@ -1,4 +1,4 @@
-// 홈·센터 콘텐츠 등록·수정 화면. 연락처 유형은 본문 대신 구조 입력을 받고 이미지 업로드는 첨부 설계 뒤에 더한다 (ADM-MBR-004P)
+// 홈·센터 콘텐츠 등록·수정 화면. 연락처 유형은 본문 대신 구조 입력을 받고 비주얼·배너·팝업은 저장한 뒤 이미지를 올린다 (ADM-MBR-004P)
 import type { Schemas } from '@jori/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
@@ -6,6 +6,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { createContent, updateContent, type AdminContent, type AdminContentWrite, type ContactFields } from '../../api/contents';
 import { adminContentQuery } from '../../api/queries';
 import { Field, describe } from '../../components/Field';
+import { OwnerFiles } from '../../components/OwnerFiles';
 import { errorMessage, fieldErrors } from '../../lib/errors';
 import { fromDateTimeInput, toDateTimeInput } from '../../lib/format';
 import { CONTENT_TYPE } from '../../lib/labels';
@@ -172,7 +173,6 @@ function ContentForm({ content, initialType }: { content?: AdminContent; initial
             <input {...describe('content-posted')} type="checkbox" checked={values.posted} onChange={(event) => set('posted', event.target.checked)} />
           </Field>
         </div>
-        {IMAGE_TYPES.includes(values.contentType) && <p className="adm-notice">이미지는 첨부 기능이 생기면 더합니다. 지금은 제목·본문·링크만 입력합니다.</p>}
         {saved && (
           <p className="adm-message" role="status">
             저장했습니다.
@@ -192,6 +192,8 @@ function ContentForm({ content, initialType }: { content?: AdminContent; initial
           </Link>
         </div>
       </form>
+      {IMAGE_TYPES.includes(values.contentType) &&
+        (content ? <OwnerFiles ownerPath={`/contents/${content.contentId}`} label="이미지" /> : <p className="adm-notice">이미지는 콘텐츠를 저장한 뒤에 추가할 수 있습니다.</p>)}
     </>
   );
 }

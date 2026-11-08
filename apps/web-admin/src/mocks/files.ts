@@ -3,6 +3,7 @@ import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
 import { apiError, currentAdminName, denyCsrf, denyUnless } from './auth';
 import { mockPostTitle } from './boards';
+import { mockContentInfo } from './contents';
 import { mockCourseName } from './education';
 
 type File = Schemas['AdminFile'];
@@ -12,6 +13,7 @@ const PAGE_SIZE = 20;
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
 
 export const UPLOAD_LIMITS = { maxFiles: 10, maxBytes: 20 * 1024 * 1024, allowedExtensions: ['pdf', 'hwp', 'hwpx', 'docx', 'xlsx', 'jpg', 'png'] };
+const limitsOf = (group: string) => ({ ...UPLOAD_LIMITS, ...OWNERS[group]?.limits });
 const MIME: Record<string, string> = {
   pdf: 'application/pdf',
   hwp: 'application/x-hwp',
@@ -25,6 +27,8 @@ const MIME: Record<string, string> = {
 export interface OwnerInfo {
   label: string;
   locked: boolean;
+  /** 이 소유 업무가 파일을 받지 않을 때의 이유. 올리기를 거절한다. */
+  reject?: string;
 }
 type Authority = Schemas['AdminAuthority'];
 const registered: Record<string, (ownerId: string) => OwnerInfo | null> = {};
@@ -32,9 +36,31 @@ const registered: Record<string, (ownerId: string) => OwnerInfo | null> = {};
 export const registerOwnerInfo = (group: string, provider: (ownerId: string) => OwnerInfo | null): void => {
   registered[group] = provider;
 };
-const OWNERS: Record<string, { kind: Schemas['FileOwnerKind']; purpose: Schemas['FilePurpose']; authority: Authority; info: (ownerId: string) => OwnerInfo | null }> = {
+const IMAGE_TYPES: Array<Schemas['ContentType']> = ['VISUAL', 'BANNER', 'POPUP'];
+interface OwnerConfig {
+  kind: Schemas['FileOwnerKind'];
+  purpose: Schemas['FilePurpose'];
+  authority: Authority;
+  info: (ownerId: string) => OwnerInfo | null;
+  /** 이 소유 업무만의 한도. 없으면 공통 한도를 쓴다. */
+  limits?: Partial<typeof UPLOAD_LIMITS>;
+}
+const OWNERS: Record<string, OwnerConfig> = {
   posts: { kind: 'POST', purpose: 'ATTACH', authority: 'AU.POST_W', info: (id) => (mockPostTitle(id) ? { label: mockPostTitle(id), locked: false } : null) },
   courses: { kind: 'COURSE', purpose: 'PLAN', authority: 'AU.CORS_W', info: (id) => (mockCourseName(id) ? { label: mockCourseName(id), locked: false } : null) },
+  // 홈 이미지는 비주얼·배너·팝업만, jpg·png 한 장이다(첨부 설계 6절, 가정).
+  contents: {
+    kind: 'CONTENT',
+    purpose: 'IMAGE',
+    authority: 'AU.SITE_W',
+    limits: { maxFiles: 1, allowedExtensions: ['jpg', 'png'] },
+    info: (id) => {
+      const content = mockContentInfo(id);
+      if (!content) return null;
+      const usesImage = IMAGE_TYPES.includes(content.contentType);
+      return { label: content.title, locked: !usesImage, reject: usesImage ? undefined : '이 유형은 이미지를 쓰지 않습니다.' };
+    },
+  },
   refunds: { kind: 'REFUND', purpose: 'PROOF', authority: 'AU.RFND_A', info: (id) => registered.refunds?.(id) ?? null },
   'instructor-applications': { kind: 'INSTRUCTOR_APPLICATION', purpose: 'PROOF', authority: 'AU.INSTR_W', info: (id) => registered['instructor-applications']?.(id) ?? null },
 };
@@ -106,14 +132,17 @@ export function receiveUpload(ownerPath: string, input: { name: string; size: nu
   const owner = OWNERS[group ?? ''];
   const info = owner?.info(ownerId ?? '');
   if (!owner || !info) return { status: 404, code: 'NOT_FOUND' };
+  const limits = limitsOf(group ?? '');
+  const reject = (message: string): UploadResult => ({ status: 422, code: 'RULE_REJECTED', fields: { file: message } });
+  if (info.reject) return reject(info.reject);
   if (info.locked) return { status: 409, code: 'CONFLICT_STATE' };
   const extension = input.name.includes('.') ? input.name.split('.').pop()!.toLowerCase() : '';
   const fail = (file: string): UploadResult => ({ status: 422, code: 'RULE_REJECTED', fields: { file } });
   if ([...input.name.normalize('NFC')].length > 128) return fail('파일 이름은 128자를 넘을 수 없습니다.');
-  if (!UPLOAD_LIMITS.allowedExtensions.includes(extension)) return fail(`허용되지 않는 형식입니다. (${UPLOAD_LIMITS.allowedExtensions.join(', ')})`);
+  if (!limits.allowedExtensions.includes(extension)) return fail(`허용되지 않는 형식입니다. (${limits.allowedExtensions.join(', ')})`);
   if (input.size === 0) return fail('빈 파일은 올릴 수 없습니다.');
   if (input.size > UPLOAD_LIMITS.maxBytes) return fail('파일은 20MB 이하만 올릴 수 있습니다.');
-  if (countOwnerFiles(ownerPath) >= UPLOAD_LIMITS.maxFiles) return fail(`파일은 ${UPLOAD_LIMITS.maxFiles}개까지 올릴 수 있습니다.`);
+  if (countOwnerFiles(ownerPath) >= limits.maxFiles) return fail(`파일은 ${limits.maxFiles}개까지 올릴 수 있습니다.`);
   uploadSeq += 1;
   const row: File = {
     fileId: fid(uploadSeq), fileName: input.name, ownerKind: owner.kind, ownerLabel: info.label, sizeBytes: input.size, status: 'PENDING', registeredOn: today(), purpose: owner.purpose,
@@ -195,7 +224,7 @@ export const fileHandlers = [
         .map((item) => rows.find((row) => row.fileId === item.fileId)!)
         .filter((row) => row.status !== 'DELETE')
         .map(ownerFile);
-      return HttpResponse.json({ items, canEdit: !info.locked, ...UPLOAD_LIMITS } satisfies Schemas['OwnerFileList']);
+      return HttpResponse.json({ items, canEdit: !info.locked, ...limitsOf(group) } satisfies Schemas['OwnerFileList']);
     }),
 
     http.post(`/api/admin/v1/${group}/:ownerId/files`, async ({ request, params }) => {

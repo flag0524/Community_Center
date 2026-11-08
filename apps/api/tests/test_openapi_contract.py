@@ -205,6 +205,8 @@ ADMIN_OPERATIONS = {
     ("post", "/api/admin/v1/refunds/{refund_id}/files"),
     ("get", "/api/admin/v1/instructor-applications/{application_id}/files"),
     ("post", "/api/admin/v1/instructor-applications/{application_id}/files"),
+    ("get", "/api/admin/v1/contents/{content_id}/files"),
+    ("post", "/api/admin/v1/contents/{content_id}/files"),
     ("delete", "/api/admin/v1/files/{file_id}"),
     ("get", "/api/admin/v1/files/{file_id}/download"),
 }
@@ -238,6 +240,7 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/admin/v1/courses/{course_id}/files"),
     ("post", "/api/admin/v1/refunds/{refund_id}/files"),
     ("post", "/api/admin/v1/instructor-applications/{application_id}/files"),
+    ("post", "/api/admin/v1/contents/{content_id}/files"),
 }
 
 
@@ -1023,6 +1026,7 @@ def test_파일_올리기는_multipart로_한_개씩_받고_한도는_응답이_
         "/api/admin/v1/courses/{course_id}/files",
         "/api/admin/v1/refunds/{refund_id}/files",
         "/api/admin/v1/instructor-applications/{application_id}/files",
+        "/api/admin/v1/contents/{content_id}/files",
     ):
         body = spec["paths"][path]["post"]["requestBody"]["content"]
         assert set(body) == {"multipart/form-data"}, path

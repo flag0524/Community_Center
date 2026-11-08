@@ -117,6 +117,27 @@ def upload_instructor_application_file(
     not_implemented()
 
 
+@router.get("/contents/{content_id}/files", responses=error_responses(ErrorCode.NOT_FOUND))
+def list_content_files(content_id: Serial) -> OwnerFileList:
+    """비주얼·배너·팝업의 이미지. 담당자(AU.SITE_W)만 보고 jpg·png 한 장만 둔다."""
+    not_implemented()
+
+
+@router.post(
+    "/contents/{content_id}/files",
+    status_code=201,
+    responses=UPLOAD_ERRORS,
+    dependencies=[Depends(csrf_header)],
+)
+def upload_content_file(
+    content_id: Serial,
+    file: Annotated[UploadFile, File(description="이미지 한 장")],
+    idempotency_key: IdempotencyKey,
+) -> OwnerFile:
+    """이미지를 쓰지 않는 유형이거나 이미 한 장이 있으면 RULE_REJECTED다. 한 장을 바꾸려면 먼저 제거한다."""
+    not_implemented()
+
+
 @router.delete(
     "/files/{file_id}",
     status_code=204,

@@ -36,7 +36,10 @@ const COURSE = `4${'1'.padStart(21, '0')}`;
 const REFUND = `14${'11'.padStart(20, '0')}`;
 const APPLICATION = `10${'1'.padStart(20, '0')}`;
 const REVIEW = `80${'1'.padStart(20, '0')}`;
+const CONTENT = (n: number) => `20${String(n).padStart(20, '0')}`;
 const PAGES = [
+  { path: `/mbr/contents/${CONTENT(1)}`, heading: '콘텐츠 수정' },
+  { path: `/mbr/contents/new?type=BANNER`, heading: '콘텐츠 등록' },
   { path: `/pay/refunds/${REFUND}`, heading: '환불 검토 상세' },
   { path: `/edu/instructors/${APPLICATION}`, heading: '강사 심사' },
   { path: `/pay/reductions/${REVIEW}`, heading: '감면 심사 상세' },
@@ -120,4 +123,14 @@ test('감면 증빙은 내려받기 주소를 가지고 같은 주소로 요청�
   await link.evaluate((element) => element.addEventListener('click', (event) => event.preventDefault()));
   await link.click();
   await expect(page.getByRole('region', { name: '열람 기록' })).toContainText('김관리', { timeout: 10_000 });
+});
+test('홈 비주얼에 이미지를 올리면 한 장만 받고 jpg·png만 받는다', async ({ page }) => {
+  await signIn(page);
+  await goTo(page, `/mbr/contents/${CONTENT(1)}`);
+  await expect(page.getByRole('heading', { level: 1, name: '콘텐츠 수정' })).toBeVisible();
+  await expect(page.getByText(/1개까지, 한 개당 20\.0MB 이하, jpg · png/)).toBeVisible();
+  await page.getByLabel('파일 추가').setInputFiles({ name: '비주얼.png', mimeType: 'image/png', buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]) });
+  await expect(page.getByText('비주얼.png')).toBeVisible();
+  await page.getByLabel('파일 추가').setInputFiles({ name: '다른.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8]) });
+  await expect(page.getByText('다른.jpg: 파일은 1개까지 올릴 수 있습니다.')).toBeVisible();
 });
