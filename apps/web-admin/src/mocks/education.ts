@@ -2,6 +2,7 @@
 import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
 import { apiError, currentAuthorities, denyCsrf, denyUnless } from './auth';
+import { csvResponse } from './csv';
 
 type Cycle = Schemas['Cycle'];
 type Course = Schemas['AdminCourse'];
@@ -233,7 +234,39 @@ function paged<T>(items: T[], page: number, size = PAGE_SIZE) {
 const findCourse = (id: string) => state.courses.find((course) => course.courseId === id);
 const touchCourse = (course: Course, change: Partial<Course>) => Object.assign(course, change, { version: course.version + 1 });
 
+function filteredCourses(params: URLSearchParams) {
+  const q = params.get('q')?.trim().toLowerCase();
+  return state.courses.filter(
+    (course) =>
+      (!q || course.name.toLowerCase().includes(q)) &&
+      (!params.get('cycleId') || course.cycleId === params.get('cycleId')) &&
+      (!params.get('classId') || course.classId === params.get('classId')) &&
+      (!params.get('dongId') || course.dongId === params.get('dongId')) &&
+      (!params.get('status') || course.status === params.get('status')),
+  );
+}
+
 export const educationHandlers = [
+  // 내려받기는 /:id보다 먼저 등록한다
+  http.get('/api/admin/v1/cycles/export.csv', () => {
+    const denied = denyUnless('AU.CONF_W');
+    if (denied) return denied;
+    const rows = state.cycles.map(withCount).map((cycle) => [
+      cycle.name, cycle.order, cycle.educationStart, cycle.educationEnd, cycle.receptionStart, cycle.receptionEnd, cycle.status, cycle.courseCount,
+    ]);
+    return csvResponse('cycles.csv', ['기수', '차수', '교육 시작', '교육 종료', '접수 시작', '접수 종료', '상태', '강좌 수'], rows);
+  }),
+
+  http.get('/api/admin/v1/courses/export.csv', ({ request }) => {
+    const denied = denyUnless(...READ);
+    if (denied) return denied;
+    const rows = filteredCourses(new URL(request.url).searchParams).map((course) => [
+      course.name, cycleName(course.cycleId), className(course.classId), instructorName(course.instructorId), course.receptionStart, course.receptionEnd,
+      course.capacity, course.occupied, course.waiting, course.tuition, course.status, course.receptionState,
+    ]);
+    return csvResponse('courses.csv', ['강좌', '기수', '분류', '강사', '접수 시작', '접수 종료', '정원', '점유', '대기', '수강료', '상태', '접수 상태'], rows);
+  }),
+
   http.get('/api/admin/v1/cycles', ({ request }) => {
     const denied = denyUnless('AU.CONF_W');
     if (denied) return denied;
@@ -293,15 +326,7 @@ export const educationHandlers = [
     const denied = denyUnless(...READ);
     if (denied) return denied;
     const params = new URL(request.url).searchParams;
-    const q = params.get('q')?.trim().toLowerCase();
-    const rows = state.courses.filter(
-      (course) =>
-        (!q || course.name.toLowerCase().includes(q)) &&
-        (!params.get('cycleId') || course.cycleId === params.get('cycleId')) &&
-        (!params.get('classId') || course.classId === params.get('classId')) &&
-        (!params.get('dongId') || course.dongId === params.get('dongId')) &&
-        (!params.get('status') || course.status === params.get('status')),
-    );
+    const rows = filteredCourses(params);
     const summaries: Schemas['AdminCourseSummary'][] = rows.map((course) => ({
       courseId: course.courseId,
       name: course.name,

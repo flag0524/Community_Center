@@ -53,6 +53,10 @@ for (const size of SIZES) {
       { path: '/stats?tab=demand', ready: '수요 탭' },
       { path: '/stats?tab=settlement', ready: '정산 탭' },
       { path: '/stats?tab=age', ready: '연령·성별 탭' },
+      { path: '/mbr/posts', ready: '게시물' },
+      { path: '/mbr/inquiries', ready: '문의' },
+      { path: '/edu/courses', ready: '강좌' },
+      { path: '/edu/cycles', ready: '교육기수 목록' },
     ]) {
       test(`${target.path} 버튼이 있는 화면은 접근성 위반과 가로 넘침이 없다`, async ({ page }) => {
         await signIn(page);
@@ -65,6 +69,17 @@ for (const size of SIZES) {
       });
     }
 
+    test('문의 내려받기는 본문 없이 가려진 작성자와 상태만 담는다', async ({ page }) => {
+      await signIn(page);
+      await goTo(page, '/mbr/inquiries?status=RECEIVED');
+      await expect(page.getByRole('region', { name: '문의 목록' })).toBeVisible();
+      const file = await downloadOf(page);
+      expect(file.name).toBe('inquiries.csv');
+      const lines = file.text.split('\r\n').filter(Boolean);
+      expect(lines[0]).toBe('분류,제목,작성자,공개,상태,접수일');
+      expect(lines.length).toBe(1 + 4);
+      expect(file.text).not.toContain('카드 결제가 되었는지');
+    });
     test('통계 내려받기 첫 줄들은 집계 조건 주석이고 정산은 확인 중 금액을 따로 둔다', async ({ page }) => {
       await signIn(page);
       await goTo(page, '/stats?tab=settlement');

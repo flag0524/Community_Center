@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { cycleListQuery } from '../../api/queries';
+import { CsvButton } from '../../components/CsvButton';
 import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
 import { CYCLE_STATUS } from '../../lib/labels';
@@ -24,6 +25,7 @@ export function CycleListPage() {
           <Link className="adm-button" to="/edu/cycles/new">
             등록
           </Link>
+          <CsvButton path="/cycles/export.csv" query="" />
         </div>
         {isPending && <p role="status">불러오는 중입니다.</p>}
         {isError && <p role="alert">{errorMessage(error)}</p>}

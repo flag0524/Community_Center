@@ -149,3 +149,57 @@ describe('목록·통계별 내려받기', () => {
     }
   });
 });
+
+describe('게시물·문의·강좌·교육기수 내려받기', () => {
+  const download = async (path: string) => {
+    await signInAs('group');
+    renderApp(path);
+    // 건수 숫자가 <strong>으로 나뉘어 있어 status 영역의 전체 글자로 읽는다
+    const count = await screen.findByText((_, element) => element?.className === 'adm-count');
+    const total = Number(/총 ([\d,]+)건/.exec(count.textContent ?? '')?.[1]?.replaceAll(',', ''));
+    await userEvent.click(await csvButton());
+    await waitFor(() => expect(saved.length).toBe(1));
+    const text = await saved[0]!.blob.text();
+    return { name: saved[0]!.name, total, text, lines: text.split('\r\n').filter(Boolean) };
+  };
+
+  it('게시물은 게시판 조건을 반영하고 본문은 담지 않는다', async () => {
+    const posts = await download('/mbr/posts?board=notice');
+    expect(posts.name).toBe('posts.csv');
+    expect(posts.lines[0]).toBe('게시판,제목,작성자,상단공지,등록일');
+    expect(posts.lines.length).toBe(1 + 3);
+    expect(posts.lines[1]).toBe('공지사항,2026년 4분기 수강 안내,김관리,상단공지,2026-09-01');
+    expect(posts.text).not.toContain('자세한 내용');
+  });
+
+  it('문의는 상태 조건을 반영하고 본문과 답변은 담지 않으며 작성자는 가려져 있다', async () => {
+    const inquiries = await download('/mbr/inquiries?status=RECEIVED');
+    expect(inquiries.name).toBe('inquiries.csv');
+    expect(inquiries.lines[0]).toBe('분류,제목,작성자,공개,상태,접수일');
+    expect(inquiries.lines.length).toBe(1 + 4);
+    expect(inquiries.lines.slice(1).every((line) => line.includes('○○') && line.includes('답변대기'))).toBe(true);
+    expect(inquiries.text).not.toContain('카드 결제가 되었는지');
+  });
+
+  it('강좌와 교육기수는 화면에 보이는 건수와 같은 행을 담는다', async () => {
+    const courses = await download('/edu/courses');
+    expect(courses.name).toBe('courses.csv');
+    expect(courses.lines[0]).toBe('강좌,기수,분류,강사,접수 시작,접수 종료,정원,점유,대기,수강료,상태,접수 상태');
+    expect(courses.lines.length).toBe(1 + courses.total);
+    expect(courses.total).toBeGreaterThan(0);
+  });
+
+  it('교육기수 목록 전체를 담는다', async () => {
+    const cycles = await download('/edu/cycles');
+    expect(cycles.name).toBe('cycles.csv');
+    expect(cycles.lines[0]).toBe('기수,차수,교육 시작,교육 종료,접수 시작,접수 종료,상태,강좌 수');
+    expect(cycles.lines.length).toBe(1 + cycles.total);
+    expect(cycles.total).toBeGreaterThan(0);
+  });
+
+  it('강좌 조건을 걸면 그 조건만 담는다', async () => {
+    const filtered = await download('/edu/courses?q=없는강좌이름');
+    expect(filtered.total).toBe(0);
+    expect(filtered.lines).toEqual(['강좌,기수,분류,강사,접수 시작,접수 종료,정원,점유,대기,수강료,상태,접수 상태']);
+  });
+});

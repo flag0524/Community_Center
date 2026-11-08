@@ -3,6 +3,7 @@ import type { Schemas } from '@jori/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { adminPostListQuery, boardListQuery, type AdminPostParams } from '../../api/queries';
+import { CsvButton } from '../../components/CsvButton';
 import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
 import { toQueryString } from '../../lib/queryString';
@@ -71,6 +72,7 @@ export function PostListPage() {
           <Link className="adm-button secondary" to="/mbr/posts">
             조건 지우기
           </Link>
+          <CsvButton path="/posts/export.csv" query={toQueryString(Object.fromEntries(FILTERS.map((name) => [name, params.get(name)])))} />
         </form>
         {list.isPending && <p role="status">불러오는 중입니다.</p>}
         {list.isError && <p role="alert">{errorMessage(list.error)}</p>}

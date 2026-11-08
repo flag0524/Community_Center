@@ -2,6 +2,7 @@
 import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
 import { apiError, currentAdminName, denyCsrf, denyUnless } from './auth';
+import { csvResponse } from './csv';
 
 type Board = Schemas['BoardSetting'];
 type Post = Schemas['AdminPost'];
@@ -77,6 +78,13 @@ function validatePeriod(body: Schemas['AdminPostWrite']): Record<string, string>
   return null;
 }
 
+function filteredPosts(params: URLSearchParams): Post[] {
+  const q = params.get('q')?.trim();
+  return state.posts
+    .filter((post) => (!params.get('board') || post.boardKey === params.get('board')) && (!q || post.title.includes(q)))
+    .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.registeredOn.localeCompare(a.registeredOn) || b.postId.localeCompare(a.postId));
+}
+
 export const boardHandlers = [
   http.get('/api/admin/v1/boards', () => {
     const denied = denyUnless('AU.BBS_W', 'AU.POST_W');
@@ -95,14 +103,21 @@ export const boardHandlers = [
     return HttpResponse.json(withCount(board));
   }),
 
+  // 내려받기는 /:postId보다 먼저 등록한다. 본문과 첨부는 담지 않는다
+  http.get('/api/admin/v1/posts/export.csv', ({ request }) => {
+    const denied = denyUnless('AU.POST_W');
+    if (denied) return denied;
+    const rows = filteredPosts(new URL(request.url).searchParams).map((post) => [
+      state.boards.find((board) => board.boardKey === post.boardKey)?.name ?? post.boardKey, post.title, post.authorName, post.pinned ? '상단공지' : '', post.registeredOn,
+    ]);
+    return csvResponse('posts.csv', ['게시판', '제목', '작성자', '상단공지', '등록일'], rows);
+  }),
+
   http.get('/api/admin/v1/posts', ({ request }) => {
     const denied = denyUnless('AU.POST_W');
     if (denied) return denied;
     const params = new URL(request.url).searchParams;
-    const q = params.get('q')?.trim();
-    const rows = state.posts
-      .filter((post) => (!params.get('board') || post.boardKey === params.get('board')) && (!q || post.title.includes(q)))
-      .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.registeredOn.localeCompare(a.registeredOn) || b.postId.localeCompare(a.postId));
+    const rows = filteredPosts(params);
     const page = Number(params.get('page') ?? 1);
     const size = Number(params.get('size') ?? PAGE_SIZE);
     return HttpResponse.json({ items: rows.slice((page - 1) * size, page * size).map(summary), page, size, total: rows.length, criteria: { basisAt: new Date().toISOString(), description: null } });

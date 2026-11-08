@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { Schemas } from '@jori/api-client';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { adminCourseListQuery, courseOptionsQuery, type AdminCourseParams } from '../../api/queries';
+import { CsvButton } from '../../components/CsvButton';
 import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
 import { kstDate, won } from '../../lib/format';
@@ -115,6 +116,7 @@ export function CourseListPage() {
           <Link className="adm-button secondary" to="/edu/courses">
             조건 지우기
           </Link>
+          <CsvButton path="/courses/export.csv" query={toQueryString(Object.fromEntries(FILTERS.map((name) => [name, params.get(name)])))} />
         </form>
         {list.isPending && <p role="status">불러오는 중입니다.</p>}
         {list.isError && <p role="alert">{errorMessage(list.error)}</p>}

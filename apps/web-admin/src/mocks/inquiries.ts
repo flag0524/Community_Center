@@ -2,6 +2,7 @@
 import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
 import { apiError, currentAdminName, currentAuthorities, denyCsrf, denyUnless } from './auth';
+import { csvResponse } from './csv';
 
 type Inquiry = Schemas['AdminInquiry'];
 
@@ -59,6 +60,15 @@ const view = (inquiry: Inquiry): Inquiry => ({ ...inquiry, canAnswer: currentAut
 const summary = (i: Inquiry): Schemas['AdminInquirySummary'] => ({ inquiryId: i.inquiryId, title: i.title, categoryName: i.categoryName, authorName: i.authorName, isPrivate: i.isPrivate, status: i.status, receivedOn: i.receivedOn });
 const validLink = (link: string) => link.startsWith('/') || link.startsWith('https://');
 
+function filteredInquiries(params: URLSearchParams): Inquiry[] {
+  const q = params.get('q')?.trim();
+  const categoryName = CATEGORIES.find((category) => category.id === params.get('categoryId'))?.name;
+  return state
+    .filter((row) => (!params.get('status') || row.status === params.get('status')) && (!params.get('categoryId') || row.categoryName === categoryName) && (!q || row.title.includes(q)))
+    // 답변을 기다리는 문의를 먼저, 오래된 것부터 보이고 나머지는 최근 접수가 앞이다.
+    .sort((a, b) => Number(b.status === 'RECEIVED') - Number(a.status === 'RECEIVED') || (a.status === 'RECEIVED' ? a.receivedOn.localeCompare(b.receivedOn) : b.receivedOn.localeCompare(a.receivedOn)));
+}
+
 export const inquiryHandlers = [
   http.get('/api/admin/v1/inquiry-categories', () => {
     const denied = denyUnless('AU.POST_W');
@@ -66,16 +76,21 @@ export const inquiryHandlers = [
     return HttpResponse.json({ items: CATEGORIES } satisfies Schemas['AdminInquiryCategoryList']);
   }),
 
+  // 문의 본문·답변·첨부는 담지 않는다. 작성자는 가린 값이다
+  http.get('/api/admin/v1/inquiries/export.csv', ({ request }) => {
+    const denied = denyUnless('AU.POST_W');
+    if (denied) return denied;
+    const rows = filteredInquiries(new URL(request.url).searchParams).map((row) => [
+      row.categoryName, row.title, row.authorName, row.isPrivate ? '비공개' : '공개', row.status === 'ANSWERED' ? '답변완료' : '답변대기', row.receivedOn,
+    ]);
+    return csvResponse('inquiries.csv', ['분류', '제목', '작성자', '공개', '상태', '접수일'], rows);
+  }),
+
   http.get('/api/admin/v1/inquiries', ({ request }) => {
     const denied = denyUnless('AU.POST_W');
     if (denied) return denied;
     const params = new URL(request.url).searchParams;
-    const q = params.get('q')?.trim();
-    const categoryName = CATEGORIES.find((category) => category.id === params.get('categoryId'))?.name;
-    const rows = state
-      .filter((row) => (!params.get('status') || row.status === params.get('status')) && (!params.get('categoryId') || row.categoryName === categoryName) && (!q || row.title.includes(q)))
-      // 답변을 기다리는 문의를 먼저, 오래된 것부터 보이고 나머지는 최근 접수가 앞이다.
-      .sort((a, b) => Number(b.status === 'RECEIVED') - Number(a.status === 'RECEIVED') || (a.status === 'RECEIVED' ? a.receivedOn.localeCompare(b.receivedOn) : b.receivedOn.localeCompare(a.receivedOn)));
+    const rows = filteredInquiries(params);
     const page = Number(params.get('page') ?? 1);
     const size = Number(params.get('size') ?? PAGE_SIZE);
     return HttpResponse.json({ items: rows.slice((page - 1) * size, page * size).map(summary), page, size, total: rows.length, criteria: { basisAt: new Date().toISOString(), description: null } });
