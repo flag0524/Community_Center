@@ -2,7 +2,7 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Security
+from fastapi import APIRouter, Depends, Path, Query, Response, Security
 
 from app.core.errors import ErrorCode, not_implemented
 from app.domain.admin.application_types import RefundRequester
@@ -16,7 +16,14 @@ from app.domain.admin.refund_schemas import (
     RefundVersionRequest,
 )
 from app.domain.refund.types import RefundStatus
-from app.routers.deps import MEMBER_ERRORS, IdempotencyKey, admin_session, csrf_header, error_responses
+from app.routers.deps import (
+    CSV_RESPONSE,
+    MEMBER_ERRORS,
+    IdempotencyKey,
+    admin_session,
+    csrf_header,
+    error_responses,
+)
 
 router = APIRouter(tags=["admin-refund"], responses=MEMBER_ERRORS, dependencies=[Security(admin_session)])
 
@@ -49,6 +56,21 @@ def list_admin_refunds(
 @router.post("/refunds", status_code=201, responses=CREATE_ERRORS, dependencies=[Depends(csrf_header)])
 def create_admin_refund(body: AdminRefundCreate, idempotency_key: IdempotencyKey) -> AdminRefund:
     """방문·유선 대리 접수. 승인 시점이 아니라 접수 때도 한도를 사전 검사한다."""
+    not_implemented()
+
+
+@router.get(
+    "/refunds/export.csv",
+    response_class=Response,
+    responses={**error_responses(ErrorCode.RULE_REJECTED), **CSV_RESPONSE},
+)
+def export_refunds_csv(
+    status: RefundStatus | None = None,
+    requester: RefundRequester | None = None,
+    from_date: Annotated[date | None, Query(alias="from")] = None,
+    to_date: Annotated[date | None, Query(alias="to")] = None,
+) -> Response:
+    """목록과 같은 조건·권한으로 만든다. 환불 계좌 같은 민감 값은 담지 않는다."""
     not_implemented()
 
 

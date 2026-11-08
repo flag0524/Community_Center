@@ -207,6 +207,12 @@ ADMIN_OPERATIONS = {
     ("post", "/api/admin/v1/instructor-applications/{application_id}/files"),
     ("get", "/api/admin/v1/contents/{content_id}/files"),
     ("post", "/api/admin/v1/contents/{content_id}/files"),
+    ("get", "/api/admin/v1/applications/export.csv"),
+    ("get", "/api/admin/v1/transactions/export.csv"),
+    ("get", "/api/admin/v1/refunds/export.csv"),
+    ("get", "/api/admin/v1/stats/demand/export.csv"),
+    ("get", "/api/admin/v1/stats/settlement/export.csv"),
+    ("get", "/api/admin/v1/stats/age-gender/export.csv"),
     ("delete", "/api/admin/v1/files/{file_id}"),
     ("get", "/api/admin/v1/files/{file_id}/download"),
 }
@@ -1098,3 +1104,33 @@ def test_홈_응답은_비주얼_배너_팝업을_담고_이미지는_공개_주
         assert not forbidden & set(schemas[name]["properties"]), (
             name
         )  # 게시 판정은 서버가 하고 값은 내려주지 않는다
+
+
+CSV_EXPORTS = {
+    "/api/admin/v1/applications": "/api/admin/v1/applications/export.csv",
+    "/api/admin/v1/transactions": "/api/admin/v1/transactions/export.csv",
+    "/api/admin/v1/refunds": "/api/admin/v1/refunds/export.csv",
+    "/api/admin/v1/stats/demand": "/api/admin/v1/stats/demand/export.csv",
+    "/api/admin/v1/stats/settlement": "/api/admin/v1/stats/settlement/export.csv",
+}
+
+
+def test_CSV는_목록과_같은_조건을_받고_페이지_제한만_없으며_텍스트로_답한다(spec: Schema) -> None:
+    for list_path, export_path in CSV_EXPORTS.items():
+        listed = {p["name"] for p in spec["paths"][list_path]["get"]["parameters"]}
+        exported = {p["name"] for p in spec["paths"][export_path]["get"]["parameters"]}
+        assert exported == listed - {"page", "size"}, export_path
+    for export_path in (*CSV_EXPORTS.values(), "/api/admin/v1/stats/age-gender/export.csv"):
+        responses = spec["paths"][export_path]["get"]["responses"]
+        assert set(responses["200"]["content"]) == {"text/csv"}, export_path
+        assert "422" in responses, export_path  # 5만 행을 넘으면 거절한다
+
+
+def test_출석과_만족도와_회원_명단은_CSV로_내보내지_않는다(spec: Schema) -> None:
+    exports = [path for path in spec["paths"] if path.endswith("/export.csv")]
+    forbidden = (
+        "attendance",
+        "satisfaction",
+        "members",
+    )  # 출석·만족도는 금지, 개인식별 명단은 별도 권한의 암호 ZIP(첨부-5)
+    assert not [path for path in exports if any(word in path for word in forbidden)]

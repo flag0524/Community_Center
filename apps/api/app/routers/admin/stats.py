@@ -2,9 +2,9 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Security
+from fastapi import APIRouter, Query, Response, Security
 
-from app.core.errors import not_implemented
+from app.core.errors import ErrorCode, not_implemented
 from app.domain.admin.stats_schemas import (
     AgeGenderStats,
     AttendanceStatsReport,
@@ -13,7 +13,7 @@ from app.domain.admin.stats_schemas import (
     SatisfactionStats,
     SettlementStats,
 )
-from app.routers.deps import MEMBER_ERRORS, admin_session
+from app.routers.deps import CSV_RESPONSE, MEMBER_ERRORS, admin_session, error_responses
 
 router = APIRouter(tags=["admin-stats"], responses=MEMBER_ERRORS, dependencies=[Security(admin_session)])
 
@@ -62,4 +62,32 @@ def get_age_gender_stats() -> AgeGenderStats:
 @router.get("/stats/satisfaction")
 def get_satisfaction_stats() -> SatisfactionStats:
     """주민 응답은 받지 않고 내보내기도 없다."""
+    not_implemented()
+
+
+CSV_ERRORS = {**error_responses(ErrorCode.RULE_REJECTED), **CSV_RESPONSE}
+
+
+@router.get("/stats/demand/export.csv", response_class=Response, responses=CSV_ERRORS)
+def export_demand_stats_csv(
+    cycle_id: CycleParam = None,
+    from_date: FromParam = None,
+    to_date: ToParam = None,
+    category_id: Annotated[str | None, Query(alias="categoryId", pattern=r"^[0-9]{1,22}$")] = None,
+) -> Response:
+    """첫 줄에 집계 조건(기간·기수·분야·집계 기준·생성 시각)을 주석 행으로 넣는다."""
+    not_implemented()
+
+
+@router.get("/stats/settlement/export.csv", response_class=Response, responses=CSV_ERRORS)
+def export_settlement_stats_csv(
+    cycle_id: CycleParam = None, from_date: FromParam = None, to_date: ToParam = None
+) -> Response:
+    """결제수단별 정산. 확인 중 금액은 순수납과 따로 열을 둔다."""
+    not_implemented()
+
+
+@router.get("/stats/age-gender/export.csv", response_class=Response, responses=CSV_ERRORS)
+def export_age_gender_stats_csv() -> Response:
+    """승인된 집계자료의 자료 버전·기준일을 주석 행에 넣고 구간·성별을 그대로 담는다."""
     not_implemented()

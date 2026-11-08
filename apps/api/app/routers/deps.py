@@ -79,3 +79,11 @@ MEMBER_ERRORS = {
         ErrorCode.RULE_REJECTED,
     ),
 }
+
+# 목록·통계 CSV 내려받기 응답. 내용은 UTF-8(BOM) 텍스트이고 서버가 만들어 바로 보낸다
+CSV_RESPONSE: dict[int | str, dict[str, Any]] = {
+    200: {
+        "description": "현재 조건 그대로의 CSV. 5만 행을 넘으면 RULE_REJECTED다",
+        "content": {"text/csv": {"schema": {"type": "string"}}},
+    }
+}

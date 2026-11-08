@@ -2,12 +2,12 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Security
+from fastapi import APIRouter, Depends, Path, Query, Response, Security
 
 from app.core.errors import ErrorCode, not_implemented
 from app.domain.admin.transaction_schemas import ReconcileRequest, Transaction, TransactionPage
 from app.domain.payment.types import PaymentMethod, PaymentStatus
-from app.routers.deps import MEMBER_ERRORS, admin_session, csrf_header, error_responses
+from app.routers.deps import CSV_RESPONSE, MEMBER_ERRORS, admin_session, csrf_header, error_responses
 
 router = APIRouter(
     tags=["admin-transaction"], responses=MEMBER_ERRORS, dependencies=[Security(admin_session)]
@@ -32,6 +32,23 @@ def list_transactions(
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> TransactionPage:
     """결과 확인 중인 거래를 먼저 보이고 그 안에서는 최근 요청이 앞이다."""
+    not_implemented()
+
+
+@router.get(
+    "/transactions/export.csv",
+    response_class=Response,
+    responses={**error_responses(ErrorCode.RULE_REJECTED), **CSV_RESPONSE},
+)
+def export_transactions_csv(
+    q: Annotated[str | None, Query(max_length=100, description="주문번호 또는 신청번호")] = None,
+    status: PaymentStatus | None = None,
+    method: PaymentMethod | None = None,
+    from_date: Annotated[date | None, Query(alias="from")] = None,
+    to_date: Annotated[date | None, Query(alias="to")] = None,
+    conflict_only: Annotated[bool, Query(alias="conflictOnly")] = False,
+) -> Response:
+    """목록과 같은 조건·권한으로 만든다. 확인 중인 금액은 순수납에 넣지 않고 상태 열로 구분한다."""
     not_implemented()
 
 
