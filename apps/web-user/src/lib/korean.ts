@@ -11,3 +11,8 @@ export function withObject(word: string): string {
   if (code < HANGUL_START || code > HANGUL_END) return word;
   return `${word}${(code - HANGUL_START) % JONGSEONG_COUNT === 0 ? '를' : '을'}`;
 }
+
+/** 바이트 수를 KB·MB로 보인다. */
+export const fileSize = (bytes: number): string => (bytes >= 1_048_576 ? `${(bytes / 1_048_576).toFixed(1)}MB` : `${Math.max(1, Math.round(bytes / 1024))}KB`);
+
+export const FILE_STATUS_LABEL = { PENDING: '검사 중', SAFE: '정상', BLOCK: '차단', DELETE: '삭제' } as const;

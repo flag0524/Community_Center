@@ -243,3 +243,9 @@ export const instructorApplicationQuery = (applicationId: string) =>
     queryFn: ({ signal }) =>
       getJson<Schemas['InstructorApplication']>(`/me/instructor-applications/${encodeURIComponent(applicationId)}`, signal),
   });
+
+export const myFilesQuery = (ownerPath: string) =>
+  queryOptions({
+    queryKey: ['my-files', ownerPath],
+    queryFn: ({ signal }) => getJson<Schemas['MyFileList']>(`${ownerPath}/files`, signal),
+  });

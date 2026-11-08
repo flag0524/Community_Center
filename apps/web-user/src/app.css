@@ -18,3 +18,25 @@
   color: var(--muted);
   margin: 0 0 32px;
 }
+
+/* 회원 화면의 첨부 영역 목록. 한 줄에 이름·크기·상태·제거를 놓고 좁은 화면에서는 줄바꿈한다 */
+.proto-files ul {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.proto-files li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.proto-files li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line, #d0d7de);
+  overflow-wrap: anywhere;
+}

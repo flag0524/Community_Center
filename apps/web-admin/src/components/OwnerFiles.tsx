@@ -122,13 +122,15 @@ export function OwnerFiles({ ownerPath, label, pollMs = 3000, onChanged }: { own
             </p>
           )}
           {problems.length > 0 && (
-            <ul className="adm-message error" role="alert">
-              {problems.map((problem) => (
-                <li key={problem.name}>
-                  {problem.name}: {problem.message}
-                </li>
-              ))}
-            </ul>
+            <div className="adm-message error" role="alert">
+              <ul>
+                {problems.map((problem) => (
+                  <li key={problem.name}>
+                    {problem.name}: {problem.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </>
       )}

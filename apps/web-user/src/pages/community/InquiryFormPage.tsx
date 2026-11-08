@@ -4,6 +4,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createInquiry, updateInquiry } from '../../api/community';
 import { inquiryCategoriesQuery, inquiryQuery, type InquiryDetail } from '../../api/queries';
+import { MyFiles } from '../../components/MyFiles';
 import { FormMessage } from '../../components/FormMessage';
 import { QueryFallback } from '../../components/QueryFallback';
 import { TextField } from '../../components/TextField';
@@ -133,7 +134,14 @@ export function InquiryFormPage({ mode }: { mode: 'create' | 'edit' }) {
       ) : mode === 'edit' && !existing.data ? (
         <QueryFallback query={existing} what="문의" />
       ) : (
-        <InquiryForm categories={categories.data.items} initial={existing.data} postId={mode === 'edit' ? postId : undefined} />
+        <>
+          <InquiryForm categories={categories.data.items} initial={existing.data} postId={mode === 'edit' ? postId : undefined} />
+          {mode === 'edit' ? (
+            <MyFiles ownerPath={`/me/inquiries/${postId}`} label="첨부 파일" />
+          ) : (
+            <p className="proto-hint">첨부 파일은 문의를 등록한 뒤 수정 화면에서 추가할 수 있습니다.</p>
+          )}
+        </>
       )}
     </SubLayout>
   );

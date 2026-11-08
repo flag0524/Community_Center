@@ -96,6 +96,7 @@ test('허용하지 않는 형식을 올리면 이유가 보인다', async ({ pag
   await goTo(page, `/mbr/posts/${POST(1)}`);
   await page.getByLabel('파일 추가').setInputFiles({ name: '실행.exe', mimeType: 'application/octet-stream', buffer: Buffer.from('MZ') });
   await expect(page.getByText(/실행\.exe: 허용되지 않는 형식입니다/)).toBeVisible();
+  await expectClean(page);
 });
 test('환불 증빙을 올리면 목록에 쌓이고 증빙 건수가 늘어난다', async ({ page }) => {
   await signIn(page);

@@ -4,6 +4,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createInstructorApplication, updateInstructorApplication } from '../../api/instructors';
 import { categoriesQuery, instructorApplicationQuery, profileQuery, type InstructorApplication } from '../../api/queries';
+import { MyFiles } from '../../components/MyFiles';
 import { FormMessage } from '../../components/FormMessage';
 import { QueryFallback } from '../../components/QueryFallback';
 import { TextField } from '../../components/TextField';
@@ -147,14 +148,21 @@ export function InstructorApplyPage({ mode }: { mode: 'create' | 'edit' }) {
   else if (mode === 'edit' && !existing.data) body = <QueryFallback query={existing} what="지원서" />;
   else {
     body = (
-      <ApplyForm
-        recruitmentId={mode === 'edit' ? existing.data!.recruitmentId : (params.recruitmentId ?? '')}
-        categories={categories.data.items}
-        initial={existing.data}
-        applicationId={mode === 'edit' ? params.applicationId : undefined}
-        name={profile.data.name}
-        phone={profile.data.phoneMasked ?? '-'}
-      />
+      <>
+        <ApplyForm
+          recruitmentId={mode === 'edit' ? existing.data!.recruitmentId : (params.recruitmentId ?? '')}
+          categories={categories.data.items}
+          initial={existing.data}
+          applicationId={mode === 'edit' ? params.applicationId : undefined}
+          name={profile.data.name}
+          phone={profile.data.phoneMasked ?? '-'}
+        />
+        {mode === 'edit' ? (
+          <MyFiles ownerPath={`/me/instructor-applications/${params.applicationId}`} label="증빙 파일" />
+        ) : (
+          <p className="proto-hint">증빙 파일은 지원서를 신청한 뒤 수정 화면에서 추가할 수 있습니다.</p>
+        )}
+      </>
     );
   }
 

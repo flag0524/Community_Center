@@ -2,6 +2,7 @@
 import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
 import { apiError, csrfRejected, currentMockMember } from './auth';
+import { registerOwnerInfo } from './files';
 import { mockNow } from './clock';
 import { CATEGORY_SEEDS, COURSE_SEEDS } from './courseData';
 
@@ -65,6 +66,12 @@ interface State {
 }
 const initialState = (): State => ({ items: new Map(), keys: new Map(), seq: 0 });
 let state = initialState();
+
+// 증빙은 심사가 시작되기 전(지원서를 고칠 수 있을 때)에만 더하거나 지울 수 있다.
+registerOwnerInfo('instructor-applications', (id, memberId) => {
+  const found = state.items.get(id);
+  return found && found.memberId === memberId ? { locked: !found.application.canEdit } : null;
+});
 
 /** 시험 사이에 강사 지원 내역을 비운다. */
 export function resetMockInstructors(): void {

@@ -3,6 +3,7 @@ import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
 import { confirmedCoursesFor } from './applications';
 import { apiError, csrfRejected, currentMockMember } from './auth';
+import { registerOwnerInfo } from './files';
 
 type Inquiry = Schemas['InquiryDetail'];
 type Review = Schemas['ReviewDetail'];
@@ -94,6 +95,12 @@ const initialState = (): CommunityState => ({
 });
 
 let state = initialState();
+
+// 문의 첨부는 내 문의에 답변이 달리기 전에만 더하거나 지울 수 있다.
+registerOwnerInfo('inquiries', (id, memberId) => {
+  const item = state.inquiries.get(id);
+  return item && item.authorId === memberId ? { locked: item.answer !== null && item.answer !== undefined } : null;
+});
 
 /** 시험 사이에 문의·후기를 처음으로 되돌린다. */
 export function resetMockCommunity(): void {

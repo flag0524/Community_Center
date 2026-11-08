@@ -39,6 +39,12 @@ EXPECTED_OPERATIONS = {
     ("post", "/api/v1/me/instructor-applications"),
     ("get", "/api/v1/me/instructor-applications/{application_id}"),
     ("put", "/api/v1/me/instructor-applications/{application_id}"),
+    ("get", "/api/v1/me/instructor-applications/{application_id}/files"),
+    ("post", "/api/v1/me/instructor-applications/{application_id}/files"),
+    ("get", "/api/v1/me/inquiries/{post_id}/files"),
+    ("post", "/api/v1/me/inquiries/{post_id}/files"),
+    ("delete", "/api/v1/me/files/{file_id}"),
+    ("get", "/api/v1/me/files/{file_id}"),
     ("put", "/api/v1/me/profile"),
     ("put", "/api/v1/me/password"),
     ("post", "/api/v1/me/withdraw"),
@@ -201,6 +207,8 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/v1/me/applications"),
     ("post", "/api/v1/me/applications/{application_id}/payments"),
     ("post", "/api/v1/me/refunds"),
+    ("post", "/api/v1/me/instructor-applications/{application_id}/files"),
+    ("post", "/api/v1/me/inquiries/{post_id}/files"),
     ("post", "/api/admin/v1/cycles"),
     ("post", "/api/admin/v1/courses"),
     ("post", "/api/admin/v1/facilities"),
@@ -1029,3 +1037,17 @@ def test_감면_증빙은_열람_전용_API_없이_내려받기가_감사기록�
     assert not [path for path in reduction_paths if path.endswith("/evidence-views")]
     assert "evidenceViews" in spec["components"]["schemas"]["ReductionReview"]["properties"]
     assert "EvidenceViewRequest" not in spec["components"]["schemas"]
+
+
+def test_회원_첨부는_자기_지원서와_문의에만_올리고_내려받기는_바이너리로_답한다(spec: Schema) -> None:
+    for path in (
+        "/api/v1/me/instructor-applications/{application_id}/files",
+        "/api/v1/me/inquiries/{post_id}/files",
+    ):
+        assert set(spec["paths"][path]["post"]["requestBody"]["content"]) == {"multipart/form-data"}, path
+    download = spec["paths"]["/api/v1/me/files/{file_id}"]["get"]["responses"]["200"]["content"]
+    assert set(download) == {"application/octet-stream"}
+    schemas = spec["components"]["schemas"]
+    assert {"canEdit", "maxFiles", "maxBytes", "allowedExtensions"} <= set(schemas["MyFileList"]["required"])
+    forbidden = {"storageKey", "strgKey", "path", "url", "hash", "hashPrefix"}
+    assert not forbidden & set(schemas["MyFile"]["properties"])

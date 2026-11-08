@@ -10,6 +10,7 @@ import { routes } from '../app/routes';
 import { resetMockApplications } from '../mocks/applications';
 import { DEMO, resetMockAuth } from '../mocks/auth';
 import { resetMockCommunity } from '../mocks/community';
+import { resetMockFiles } from '../mocks/files';
 import { handlers } from '../mocks/handlers';
 import { resetMockInstructors } from '../mocks/instructors';
 
@@ -29,6 +30,7 @@ export function useMockServer(): void {
     resetMockApplications();
     resetMockCommunity();
     resetMockInstructors();
+    resetMockFiles();
     rememberCsrfToken(null);
   });
   afterAll(() => server.close());
