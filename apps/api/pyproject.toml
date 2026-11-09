@@ -32,6 +32,8 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 "tests/test_auth_flow.py" = ["SIM300", "E501"]
 "tests/test_otp.py" = ["SIM300", "E501"]
 "tests/test_join_recovery.py" = ["SIM300", "E501"]
+"tests/test_site_public.py" = ["SIM300", "E501"]
+"app/domain/site/service.py" = ["SIM300"]
 "tests/test_db_foundation.py" = ["SIM300"]
 "app/routers/**/auth.py" = ["SIM300"]
 # 생성 파일이라 설계안의 문구를 그대로 둔다
