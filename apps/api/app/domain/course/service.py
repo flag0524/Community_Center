@@ -148,8 +148,8 @@ def _waiting() -> Any:
     )
 
 
-def _course_query() -> Any:
-    """강좌 한 행에 분류명·공개 강사명·점유·대기 수를 붙인 조회. 강사는 승인되고 공개로 둔 사람만 이름이 나간다."""
+def course_query() -> Any:
+    """공개 범위 조건이 없는 기본 조회다. 호출하는 쪽이 보일 상태를 정한다. 강좌 한 행에 분류명·공개 강사명·점유·대기 수를 붙인 조회. 강사는 승인되고 공개로 둔 사람만 이름이 나간다."""
     instructor_name = (
         select(TB_MBR.c.MBR_NM)
         .join(
@@ -188,7 +188,6 @@ def _course_query() -> Any:
                 _usable_category(),
             ),
         )
-        .where(TB_CORS.c.CORS_STTS_CD.in_(VISIBLE_STATUSES))
     )
 
 
@@ -239,7 +238,7 @@ def _schedules(
     return slots, {course: ", ".join(names) for course, names in rooms.items()}
 
 
-def _summaries(db: Session, bundle_sn: int, rows: list[Any], now: datetime) -> list[CourseSummary]:
+def summaries(db: Session, bundle_sn: int, rows: list[Any], now: datetime) -> list[CourseSummary]:
     slots, rooms = _schedules(db, bundle_sn, [int(r.CORS_SN) for r in rows], now)
     today = _today(now)
     result = []
@@ -321,17 +320,12 @@ def list_courses(
         )
     if status is not None:
         conditions.append(_status_condition(status, now))
-    query = _course_query().where(*conditions)
-    total = int(
-        db.execute(
-            select(func.count())
-            .select_from(TB_CORS)
-            .where(*conditions, TB_CORS.c.CORS_STTS_CD.in_(VISIBLE_STATUSES))
-        ).scalar_one()
-    )
+    conditions.append(TB_CORS.c.CORS_STTS_CD.in_(VISIBLE_STATUSES))
+    query = course_query().where(*conditions)
+    total = int(db.execute(select(func.count()).select_from(TB_CORS).where(*conditions)).scalar_one())
     rows = db.execute(query.order_by(TB_CORS.c.CORS_SN).limit(size).offset((page - 1) * size)).all()
     return CoursePage(
-        items=_summaries(db, bundle_sn, list(rows), now),
+        items=summaries(db, bundle_sn, list(rows), now),
         page=page,
         size=size,
         total=total,
@@ -341,9 +335,13 @@ def list_courses(
     )
 
 
-def _visible_course(db: Session, bundle_sn: int, course_id: str) -> Any:
+def visible_course(db: Session, bundle_sn: int, course_id: str) -> Any:
     row = db.execute(
-        _course_query().where(TB_CORS.c.OPER_BNDL_SN == bundle_sn, TB_CORS.c.CORS_SN == int(course_id))
+        course_query().where(
+            TB_CORS.c.OPER_BNDL_SN == bundle_sn,
+            TB_CORS.c.CORS_SN == int(course_id),
+            TB_CORS.c.CORS_STTS_CD.in_(VISIBLE_STATUSES),
+        )
     ).first()
     if row is None:
         raise ApiError(ErrorCode.NOT_FOUND)
@@ -365,8 +363,8 @@ def _plan_file(db: Session, bundle_sn: int, course_sn: int) -> Any:
 
 
 def get_course(db: Session, bundle_sn: int, course_id: str, now: datetime) -> CourseDetail:
-    row = _visible_course(db, bundle_sn, course_id)
-    summary = _summaries(db, bundle_sn, [row], now)[0]
+    row = visible_course(db, bundle_sn, course_id)
+    summary = summaries(db, bundle_sn, [row], now)[0]
     has_plan = (
         bool(row.LCTR_PLAN_CN and str(row.LCTR_PLAN_CN).strip())
         or _plan_file(db, bundle_sn, int(row.CORS_SN)) is not None
@@ -385,7 +383,7 @@ def get_course(db: Session, bundle_sn: int, course_id: str, now: datetime) -> Co
 
 
 def get_plan(db: Session, bundle_sn: int, course_id: str) -> CoursePlan:
-    row = _visible_course(db, bundle_sn, course_id)
+    row = visible_course(db, bundle_sn, course_id)
     file = _plan_file(db, bundle_sn, int(row.CORS_SN))
     return CoursePlan(
         course_id=str(int(row.CORS_SN)),

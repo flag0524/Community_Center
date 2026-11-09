@@ -1,5 +1,6 @@
 # 인증 라우터가 쓰는 의존성: 설정, 시계, 운영묶음, 쿠키·CSRF 처리, 현재 로그인한 회원·관리자
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 
@@ -9,11 +10,12 @@ from sqlalchemy.orm import Session
 
 from app.adapters.sms import build_sender
 from app.adapters.sms.base import SmsSender
-from app.auth.sessions import SessionRecord, find_active
+from app.auth.sessions import SessionRecord, find_active, touch
 from app.auth.tokens import csrf_for, new_token, same
 from app.core.config import Settings, get_settings
 from app.core.errors import ApiError, ErrorCode
 from app.db.bundle import BundleResolver
+from app.db.session import get_db
 from app.db.tables import TB_MBR, TB_MNGR
 from app.routers.deps import ADMIN_SESSION_COOKIE_NAME, CSRF_HEADER_NAME, SESSION_COOKIE_NAME
 
@@ -92,3 +94,35 @@ def active_member(db: Session, member_sn: int) -> bool:
 def active_admin(db: Session, admin_sn: int) -> bool:
     use = db.execute(select(TB_MNGR.c.USE_YN).where(TB_MNGR.c.MNGR_SN == admin_sn)).scalar_one_or_none()
     return use == "Y"
+
+
+# 화면이 저절로 부르는 조회에 붙인다. 사용자의 활동이 아니어서 유휴 시간을 늘리지 않는다
+BACKGROUND_HEADER = "X-Background"
+
+
+@dataclass(frozen=True)
+class Member:
+    """로그인한 회원. 회원 번호와 운영묶음은 요청 값이 아니라 세션에서만 온다(RQ-SER-NF-001)."""
+
+    member_sn: int
+    bundle_sn: int
+    record: SessionRecord
+
+
+def require_member(
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+    clock: Annotated[Clock, Depends(get_clock)],
+    bundles: Annotated[BundleResolver, Depends(get_bundle_resolver)],
+) -> Member:
+    """살아 있는 회원 세션이 있어야 한다. 활동으로 보는 요청은 유휴 시간을 처음부터 다시 센다(AUTH-05)."""
+    now = clock()
+    record = current_session(request, "member", db, now)
+    if record is None or record.member_sn is None or record.bundle_sn is None:
+        raise ApiError(ErrorCode.UNAUTHENTICATED)
+    member_sn, bundle_sn = record.member_sn, record.bundle_sn
+    if bundle_sn != bundles.resolve(db) or not active_member(db, member_sn):
+        raise ApiError(ErrorCode.UNAUTHENTICATED)
+    if request.headers.get(BACKGROUND_HEADER) != "1":
+        record = touch(db, record, "member", now)
+    return Member(member_sn, bundle_sn, record)
