@@ -1,19 +1,19 @@
 # 인증 라우터가 쓰는 의존성: 설정, 시계, 운영묶음, 쿠키·CSRF 처리, 현재 로그인한 회원·관리자
 from collections.abc import Callable
 from datetime import UTC, datetime
-from functools import lru_cache
 from typing import Annotated, Literal
 
 from fastapi import Depends, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.adapters.sms import build_sender
+from app.adapters.sms.base import SmsSender
 from app.auth.sessions import SessionRecord, find_active
 from app.auth.tokens import csrf_for, new_token, same
-from app.core.config import Settings, load_settings
+from app.core.config import Settings, get_settings
 from app.core.errors import ApiError, ErrorCode
 from app.db.bundle import BundleResolver
-from app.db.session import get_db
 from app.db.tables import TB_MBR, TB_MNGR
 from app.routers.deps import ADMIN_SESSION_COOKIE_NAME, CSRF_HEADER_NAME, SESSION_COOKIE_NAME
 
@@ -24,9 +24,8 @@ COOKIE_NAMES = {"member": SESSION_COOKIE_NAME, "admin": ADMIN_SESSION_COOKIE_NAM
 SEED_COOKIE_NAMES = {"member": "jori_csrf_seed", "admin": "jori_admin_csrf_seed"}
 
 
-@lru_cache(maxsize=1)
-def get_settings() -> Settings:
-    return load_settings()
+def get_sms_sender(settings: Annotated[Settings, Depends(get_settings)]) -> SmsSender:
+    return build_sender(settings)
 
 
 def utc_now() -> datetime:
@@ -41,11 +40,9 @@ def get_clock() -> Clock:
 _resolvers: dict[str, BundleResolver] = {}
 
 
-def get_bundle(
-    db: Annotated[Session, Depends(get_db)], settings: Annotated[Settings, Depends(get_settings)]
-) -> int:
-    resolver = _resolvers.setdefault(settings.site_id, BundleResolver(settings.site_id))
-    return resolver.resolve(db)
+def get_bundle_resolver(settings: Annotated[Settings, Depends(get_settings)]) -> BundleResolver:
+    """DB를 쓰지 않는 의존성이다. 잘못된 입력이 DB 조회까지 일으키지 않게, 조회는 핸들러가 검증 뒤에 한다."""
+    return _resolvers.setdefault(settings.site_id, BundleResolver(settings.site_id))
 
 
 def request_id_of(request: Request) -> str:

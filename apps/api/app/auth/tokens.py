@@ -13,14 +13,14 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("ascii", errors="replace")).hexdigest()  # CHAR(64)
 
 
-def _derived_key(secret: str, purpose: str) -> bytes:
+def derived_key(secret: str, purpose: str) -> bytes:
     """한 비밀키에서 용도별 키를 갈라 쓴다. 한 용도의 값이 다른 용도에 통하지 않는다."""
     return hmac.new(secret.encode("utf-8"), f"jori:{purpose}".encode(), hashlib.sha256).digest()
 
 
 def csrf_for(secret: str, scope: str, value: str) -> str:
     """scope는 로그인 뒤 'session'(값=세션 토큰 해시), 로그인 전 'anon'(값=무작위 시드)이다(DV17)."""
-    return hmac.new(_derived_key(secret, "csrf"), f"{scope}:{value}".encode(), hashlib.sha256).hexdigest()
+    return hmac.new(derived_key(secret, "csrf"), f"{scope}:{value}".encode(), hashlib.sha256).hexdigest()
 
 
 def same(left: str | None, right: str | None) -> bool:

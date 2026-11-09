@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.core.config import Settings, load_settings
+from app.core.config import Settings, get_settings
 
 
 def create_db_engine(settings: Settings) -> Engine:
@@ -21,7 +21,7 @@ def create_db_engine(settings: Settings) -> Engine:
 
 @lru_cache(maxsize=1)
 def get_engine() -> Engine:
-    return create_db_engine(load_settings())
+    return create_db_engine(get_settings())
 
 
 def open_session(engine: Engine) -> Session:

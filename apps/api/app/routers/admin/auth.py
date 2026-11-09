@@ -14,7 +14,6 @@ from app.auth.deps import (
     clear_cookie,
     current_session,
     get_clock,
-    get_settings,
     request_id_of,
     session_csrf,
     set_cookie,
@@ -23,7 +22,7 @@ from app.auth.deps import (
 from app.auth.login import admin_login as authenticate_admin
 from app.auth.sessions import ADMIN_IDLE_SECONDS, discard, touch
 from app.auth.tokens import new_token
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
 from app.core.errors import ApiError, ErrorCode
 from app.db.session import get_db
 from app.db.tables import TB_MNGR

@@ -3,6 +3,7 @@ import json
 import os
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -72,3 +73,18 @@ def migrated_engine(db_engine: Engine) -> Iterator[Engine]:
         command.upgrade(config, "head")
         connection.commit()
     yield db_engine
+
+
+@pytest.fixture(scope="session")
+def schema_doc() -> object:
+    from app.tools.schema_doc import parse_schema_doc
+
+    return parse_schema_doc()
+
+
+@pytest.fixture()
+def world(migrated_engine: Engine, schema_doc: Any) -> Iterator[Any]:
+    """인증·OTP 시험의 세계. 실제 앱을 시험 트랜잭션·가짜 시계·모의 문자 발송기로 돌린다."""
+    from tests.world import build_world
+
+    yield from build_world(migrated_engine, schema_doc)

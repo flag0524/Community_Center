@@ -1,145 +1,33 @@
 # 회원·관리자 로그인, 세션 쿠키·CSRF, 실패 잠금, 유휴 만료, 로그아웃을 실제 앱과 MariaDB로 확인하는 시험
-from collections.abc import Iterator
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+import logging
+from datetime import timedelta
 from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import func, select, text, update
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session
 
 from app.auth import deps as auth_deps
 from app.auth import passwords
-from app.auth.passwords import hash_password
 from app.core.config import Settings
 from app.db import tables
-from app.db.session import get_db
-from app.main import create_app
-from app.tools.schema_doc import SchemaDoc, parse_schema_doc
-from tests.factory import RowFactory
+from app.tools.schema_doc import SchemaDoc
+from tests.world import (
+    ADMIN,
+    ITERATIONS,
+    MEMBER,
+    PASSWORD,
+    START,
+    World,
+    anonymous_token,
+    build_world,
+    cookie_header,
+    login,
+    make_admin,
+    make_member,
+)
 
 pytestmark = pytest.mark.db
-
-PASSWORD = "Correct-Horse-9"
-ITERATIONS = 1000  # 시험에서는 빠르게. 운영 기본값은 600,000이다.
-START = datetime(2026, 11, 9, 9, 0, 0)
-
-
-class FakeClock:
-    def __init__(self) -> None:
-        self.now = START
-
-    def __call__(self) -> datetime:
-        return self.now
-
-    def advance(self, **kwargs: int) -> None:
-        self.now += timedelta(**kwargs)
-
-
-@dataclass
-class World:
-    client: TestClient
-    clock: FakeClock
-    db: Session
-    factory: RowFactory
-    bundle: int
-    settings: Settings
-
-
-@pytest.fixture(scope="module")
-def schema() -> SchemaDoc:
-    return parse_schema_doc()
-
-
-def build_world(engine: Engine, schema: SchemaDoc, settings: Settings | None = None) -> Iterator[World]:
-    clock = FakeClock()
-    settings = settings or Settings(
-        database_url="unused", site_id="test-site", secret_key="s" * 40, pbkdf2_iterations=ITERATIONS
-    )
-    with engine.connect() as connection:
-        outer = connection.begin()
-        db = Session(
-            bind=connection, join_transaction_mode="create_savepoint", expire_on_commit=False, autoflush=False
-        )
-        factory = RowFactory(connection, schema)
-        bundle = factory.bundle()
-        app = create_app()
-
-        def override_db() -> Iterator[Session]:
-            try:
-                yield db
-                db.commit()
-            except BaseException:
-                db.rollback()
-                raise
-
-        app.dependency_overrides[get_db] = override_db
-        app.dependency_overrides[auth_deps.get_settings] = lambda: settings
-        app.dependency_overrides[auth_deps.get_clock] = lambda: clock
-        app.dependency_overrides[auth_deps.get_bundle] = lambda: bundle
-        # base_url을 https로 해야 Secure 쿠키가 다시 실린다
-        client = TestClient(app, base_url="https://testserver", raise_server_exceptions=False)
-        yield World(client, clock, db, factory, bundle, settings)
-        db.close()
-        outer.rollback()
-
-
-@pytest.fixture()
-def world(migrated_engine: Engine, schema: SchemaDoc) -> Iterator[World]:
-    yield from build_world(migrated_engine, schema)
-
-
-def make_member(w: World, login_id: str = "member1", **values: Any) -> dict[str, Any]:
-    return w.factory.make(
-        "TB_MBR",
-        OPER_BNDL_SN=w.bundle,
-        LGN_ID=login_id,
-        PSWD_HASH_VL=hash_password(PASSWORD, ITERATIONS),
-        MBR_NM="김회원",
-        **values,
-    )
-
-
-def make_admin(w: World, login_id: str = "admin1", **values: Any) -> dict[str, Any]:
-    return w.factory.make(
-        "TB_MNGR",
-        LGN_ID=login_id,
-        PSWD_HASH_VL=hash_password(PASSWORD, ITERATIONS),
-        MNGR_NM="김관리",
-        **values,
-    )
-
-
-def anonymous_token(client: TestClient, base: str) -> str:
-    """로그인 전 세션 조회가 시드 쿠키와 CSRF 토큰을 내려 준다(프런트가 로그인 전에 하는 일)."""
-    body = client.get(f"{base}/auth/session").json()
-    assert body["authenticated"] is False
-    return str(body["csrfToken"])
-
-
-def login(w: World, base: str, login_id: str, password: str = PASSWORD, token: str | None = None) -> Any:
-    token = token if token is not None else anonymous_token(w.client, base)
-    return w.client.post(
-        f"{base}/auth/login",
-        json={"loginId": login_id, "password": password},
-        headers={"X-CSRF-Token": token},
-    )
-
-
-MEMBER = "/api/v1"
-ADMIN = "/api/admin/v1"
-
-
-def cookie_header(response: Any, name: str) -> str:
-    """응답에는 쿠키가 여러 개 실린다(세션 쿠키, 로그인 전 시드 쿠키 삭제). 이름으로 정확히 하나를 고른다."""
-    matches = [h for h in response.headers.get_list("set-cookie") if h.startswith(f"{name}=")]
-    assert len(matches) == 1, (name, response.headers.get_list("set-cookie"))
-    return str(matches[0])
-
-
-# --- 로그인과 세션 ---------------------------------------------------------
 
 
 def test_회원_로그인은_세션_쿠키와_CSRF_토큰을_주고_세션_조회가_같은_값을_돌려준다(world: World) -> None:
@@ -411,12 +299,16 @@ def test_관리자_잠금_수치가_정해지지_않았으면_몇_번을_틀려�
     assert failures == 8  # 이력은 남긴다
 
 
-def test_관리자_잠금_수치를_설정하면_그대로_적용한다(migrated_engine: Engine, schema: SchemaDoc) -> None:
+def test_관리자_잠금_수치를_설정하면_그대로_적용한다(migrated_engine: Engine, schema_doc: SchemaDoc) -> None:
     settings = Settings(
-        database_url="unused", site_id="s", secret_key="s" * 40, pbkdf2_iterations=ITERATIONS,
-        admin_lock_failures=3, admin_lock_minutes=20,
-    )  # fmt: skip
-    for w in build_world(migrated_engine, schema, settings):
+        database_url="unused",
+        site_id="s",
+        secret_key="s" * 40,
+        pbkdf2_iterations=ITERATIONS,
+        admin_lock_failures=3,
+        admin_lock_minutes=20,
+    )
+    for w in build_world(migrated_engine, schema_doc, settings):
         make_admin(w)
         statuses = [login(w, ADMIN, "admin1", "wrong").status_code for _ in range(3)]
         assert statuses == [401, 401, 429]
@@ -432,7 +324,6 @@ def test_사용_중지된_관리자는_로그인할_수_없다(world: World) -> 
 
 def test_요청_본문과_로그에_비밀번호가_남지_않는다(world: World, caplog: pytest.LogCaptureFixture) -> None:
     make_member(world)
-    import logging
 
     with caplog.at_level(logging.DEBUG):
         login(world, MEMBER, "member1", "wrong-password")

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.adapters.sms.base import SmsSender
 from app.auth.deps import (
     SEED_COOKIE_NAMES,
     Clock,
@@ -13,19 +14,22 @@ from app.auth.deps import (
     anonymous_csrf,
     clear_cookie,
     current_session,
-    get_bundle,
+    get_bundle_resolver,
     get_clock,
-    get_settings,
+    get_sms_sender,
     request_id_of,
     session_csrf,
     set_cookie,
     verify_csrf,
 )
 from app.auth.login import member_login
+from app.auth.otp import GATE_COOKIE, gate_blocks, issue_otp, make_gate
+from app.auth.otp import verify_otp as check_otp
 from app.auth.sessions import MEMBER_IDLE_SECONDS, discard
 from app.auth.tokens import new_token
-from app.core.config import Settings
-from app.core.errors import ErrorCode, not_implemented
+from app.core.config import Settings, get_settings
+from app.core.errors import ApiError, ErrorCode, not_implemented
+from app.db.bundle import BundleResolver
 from app.db.session import get_db
 from app.db.tables import TB_MBR
 from app.domain.member.schemas import (
@@ -50,13 +54,57 @@ OTP_ERRORS = error_responses(ErrorCode.OTP_INVALID, ErrorCode.OTP_EXPIRED, Error
 
 
 @router.post("/auth/otp", responses=OTP_ERRORS, dependencies=[Depends(csrf_header)])
-def request_otp(body: OtpRequest) -> OtpIssued:
-    not_implemented()
+def request_otp(
+    body: OtpRequest,
+    request: Request,
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    bundles: Annotated[BundleResolver, Depends(get_bundle_resolver)],
+    clock: Annotated[Clock, Depends(get_clock)],
+    sender: Annotated[SmsSender, Depends(get_sms_sender)],
+) -> OtpIssued:
+    """대상이 있든 없든 같은 모양으로 답한다(FN-061). 재전송은 60초에 한 번이다."""
+    now = clock()
+    record = current_session(request, "member", db, now)
+    verify_csrf(request, settings, "member", record)
+    if gate_blocks(settings.secret_key, request.cookies.get(GATE_COOKIE), now):
+        raise ApiError(ErrorCode.OTP_RESEND_TOO_SOON)
+    issued = issue_otp(
+        db,
+        settings,
+        sender,
+        bundle_sn=bundles.resolve(db),
+        purpose=body.purpose,
+        phone=body.phone,
+        name=body.name,
+        login_id=body.login_id,
+        request_id=request_id_of(request),
+        now=now,
+    )
+    set_cookie(response, settings, GATE_COOKIE, make_gate(settings.secret_key, now))
+    return OtpIssued(
+        server_now=now.replace(tzinfo=UTC),
+        cert_request_id=str(issued.cert_sn),
+        expires_at=issued.expires_at.replace(tzinfo=UTC),
+        resend_available_at=issued.resend_available_at.replace(tzinfo=UTC),
+    )
 
 
 @router.post("/auth/otp/verify", responses=OTP_ERRORS, dependencies=[Depends(csrf_header)])
-def verify_otp(body: OtpVerifyRequest) -> OtpVerifyResult:
-    not_implemented()
+def verify_otp(
+    body: OtpVerifyRequest,
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> OtpVerifyResult:
+    """일치 여부만 확인한다. 틀리면 실패 횟수가 늘고 5회가 되면 무효다."""
+    now = clock()
+    record = current_session(request, "member", db, now)
+    verify_csrf(request, settings, "member", record)
+    result = check_otp(db, settings, cert_sn=int(body.cert_request_id), code=body.code, now=now)
+    return OtpVerifyResult(verified=result.verified, remaining_attempts=result.remaining_attempts)
 
 
 @router.post(
@@ -70,7 +118,7 @@ def login(
     response: Response,
     db: Annotated[Session, Depends(get_db)],
     settings: Annotated[Settings, Depends(get_settings)],
-    bundle_sn: Annotated[int, Depends(get_bundle)],
+    bundles: Annotated[BundleResolver, Depends(get_bundle_resolver)],
     clock: Annotated[Clock, Depends(get_clock)],
 ) -> SessionInfo:
     now = clock()
@@ -78,7 +126,7 @@ def login(
     done = member_login(
         db,
         settings,
-        bundle_sn=bundle_sn,
+        bundle_sn=bundles.resolve(db),
         login_id=body.login_id,
         password=body.password,
         request_id=request_id_of(request),
@@ -149,8 +197,15 @@ def get_session(
 @router.get("/join/check-id")
 def check_login_id(
     login_id: Annotated[str, Query(alias="loginId", min_length=1, max_length=64)],
+    db: Annotated[Session, Depends(get_db)],
+    bundles: Annotated[BundleResolver, Depends(get_bundle_resolver)],
 ) -> LoginIdCheck:
-    not_implemented()
+    taken = db.execute(
+        select(TB_MBR.c.MBR_SN).where(
+            TB_MBR.c.OPER_BNDL_SN == bundles.resolve(db), TB_MBR.c.LGN_ID == login_id
+        )
+    ).first()
+    return LoginIdCheck(available=taken is None)
 
 
 @router.post(

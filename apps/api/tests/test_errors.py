@@ -4,7 +4,9 @@ import re
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
+from app.db.session import get_db
 from app.main import create_app
 
 KEY = {"Idempotency-Key": "test-key-12345678"}
@@ -12,7 +14,13 @@ KEY = {"Idempotency-Key": "test-key-12345678"}
 
 @pytest.fixture(scope="module")
 def client() -> TestClient:
-    return TestClient(create_app(), raise_server_exceptions=False)
+    app = create_app()
+    # 이 시험들은 입력 검증과 오류 형식만 본다. 환경변수와 DB 없이 돌도록 둘 다 시험용으로 바꾼다.
+    app.dependency_overrides[get_settings] = lambda: Settings(database_url="unused", site_id="test")
+    app.dependency_overrides[get_db] = lambda: (
+        None
+    )  # 검증이 실패하면 핸들러는 호출되지 않아 세션을 쓰지 않는다
+    return TestClient(app, raise_server_exceptions=False)
 
 
 def assert_error_shape(body: dict[str, object], code: ErrorCode) -> None:
