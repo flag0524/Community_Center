@@ -134,8 +134,16 @@ def test_회원과_관리자를_동시에_연결한_인증요청은_막는다(co
 
 def test_파일에_소유자가_둘이면_막는다(factory: RowFactory) -> None:
     course = factory.make("TB_CORS")
+    post = factory.make(
+        "TB_PST", OPER_BNDL_SN=course["OPER_BNDL_SN"]
+    )  # 두 번째 소유자를 시험이 직접 지정한다
     with pytest.raises(DBAPIError) as two:
-        factory.make("TB_FILE", CORS_SN=course["CORS_SN"], OPER_BNDL_SN=course["OPER_BNDL_SN"])
+        factory.make(
+            "TB_FILE",
+            CORS_SN=course["CORS_SN"],
+            PST_SN=post["PST_SN"],
+            OPER_BNDL_SN=course["OPER_BNDL_SN"],
+        )
     assert two.value.orig is not None
     assert "`CK_R18_OWNER`" in str(two.value.orig.args[1])
 

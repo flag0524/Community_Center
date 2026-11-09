@@ -25,6 +25,18 @@ ALSO_REQUIRE: dict[str, tuple[str, ...]] = {
     "TB_SMS_TRGT": ("MBR_SN",),
     "TB_SMS_DMND": ("DMND_MNGR_SN",),
 }
+# 첨부파일의 단일 소유자 컬럼(FILE-10). 게시물 외의 소유자를 시험이 지정하면 게시물은 만들지 않는다.
+FILE_OWNERS = (
+    "CORS_SN",
+    "INSTR_SN",
+    "SITE_CONTS_SN",
+    "ATNLC_APLY_SN",
+    "RFND_SN",
+    "INSTR_APLY_SN",
+    "MBR_STATS_SRC_SN",
+    "RDCT_BFHD_SRNG_SN",
+    "CORS_DGSTFN_SRC_SN",
+)
 
 
 class RowFactory:
@@ -73,6 +85,8 @@ class RowFactory:
                 continue
             given = [column in provided for column in fk.columns]
             forced = any(column in ALSO_REQUIRE.get(table_name, ()) for column in fk.columns)
+            if table_name == "TB_FILE" and any(owner in provided for owner in FILE_OWNERS):
+                forced = False  # 시험이 소유자를 정했으면 게시물을 따로 붙이지 않는다(소유자는 정확히 하나)
             # 선택 외래키는 운영묶음 컬럼을 뺀 나머지가 하나도 안 채워졌을 때만 건너뛴다(묶음은 늘 채워져 있다)
             own_given = any(column in provided for column in fk.columns if column != BUNDLE)
             if all(given) or (fk.nullable and not forced and not own_given):
