@@ -22,13 +22,16 @@ from app.auth.deps import (
     set_cookie,
     verify_csrf,
 )
+from app.auth.join import join_member
 from app.auth.login import member_login
 from app.auth.otp import GATE_COOKIE, gate_blocks, issue_otp, make_gate
 from app.auth.otp import verify_otp as check_otp
+from app.auth.recovery import find_login_id
+from app.auth.recovery import reset_password as reset_member_password
 from app.auth.sessions import MEMBER_IDLE_SECONDS, discard
 from app.auth.tokens import new_token
 from app.core.config import Settings, get_settings
-from app.core.errors import ApiError, ErrorCode, not_implemented
+from app.core.errors import ApiError, ErrorCode
 from app.db.bundle import BundleResolver
 from app.db.session import get_db
 from app.db.tables import TB_MBR
@@ -217,13 +220,54 @@ def check_login_id(
     },
     dependencies=[Depends(csrf_header)],
 )
-def join(body: JoinRequest) -> MemberBrief:
-    not_implemented()
+def join(
+    body: JoinRequest,
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    bundles: Annotated[BundleResolver, Depends(get_bundle_resolver)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> MemberBrief:
+    """인증 소비·회원 생성·약관 동의 이력을 한 트랜잭션으로 확정한다. 가입만으로는 로그인되지 않는다."""
+    now = clock()
+    verify_csrf(request, settings, "member", current_session(request, "member", db, now))
+    joined = join_member(
+        db,
+        settings,
+        bundle_sn=bundles.resolve(db),
+        cert_sn=int(body.cert_request_id),
+        code=body.code,
+        login_id=body.login_id,
+        password=body.password,
+        email=body.email,
+        agreements=body.agreements,
+        request_id=request_id_of(request),
+        now=now,
+    )
+    return MemberBrief(member_id=str(joined.member_sn), name=joined.name, login_id=joined.login_id)
 
 
 @router.post("/auth/find-id", responses=OTP_ERRORS, dependencies=[Depends(csrf_header)])
-def find_id(body: FindIdRequest) -> FindIdResult:
-    not_implemented()
+def find_id(
+    body: FindIdRequest,
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    bundles: Annotated[BundleResolver, Depends(get_bundle_resolver)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> FindIdResult:
+    now = clock()
+    verify_csrf(request, settings, "member", current_session(request, "member", db, now))
+    masked = find_login_id(
+        db,
+        settings,
+        bundle_sn=bundles.resolve(db),
+        cert_sn=int(body.cert_request_id),
+        code=body.code,
+        request_id=request_id_of(request),
+        now=now,
+    )
+    return FindIdResult(masked_login_id=masked)
 
 
 @router.post(
@@ -233,5 +277,25 @@ def find_id(body: FindIdRequest) -> FindIdResult:
     responses=OTP_ERRORS,
     dependencies=[Depends(csrf_header)],
 )
-def reset_password(body: PasswordResetRequest) -> None:
-    not_implemented()
+def reset_password(
+    body: PasswordResetRequest,
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    bundles: Annotated[BundleResolver, Depends(get_bundle_resolver)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> Response:
+    now = clock()
+    verify_csrf(request, settings, "member", current_session(request, "member", db, now))
+    reset_member_password(
+        db,
+        settings,
+        bundle_sn=bundles.resolve(db),
+        cert_sn=int(body.cert_request_id),
+        code=body.code,
+        login_id=body.login_id,
+        new_password=body.new_password,
+        request_id=request_id_of(request),
+        now=now,
+    )
+    return Response(status_code=204)

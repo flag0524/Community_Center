@@ -19,7 +19,9 @@ PHONE = "01012345678"
 
 def request_otp(w: World, purpose: str = "JOIN", phone: str = PHONE, **extra: Any) -> Any:
     token = anonymous_token(w.client, MEMBER)
-    body = {"purpose": purpose, "phone": phone, **extra}
+    # 가입 인증에는 이름이 필요하다(가입 요청에 이름이 없어 인증 단계에서 받는다). 시험이 넘긴 값이 이긴다.
+    defaults: dict[str, Any] = {"name": "김가입"} if purpose == "JOIN" else {}
+    body = {"purpose": purpose, "phone": phone, **defaults, **extra}
     return w.client.post(f"{MEMBER}/auth/otp", json=body, headers={"X-CSRF-Token": token})
 
 
@@ -353,7 +355,7 @@ def test_문자는_인증_요청을_커밋한_뒤에_보내고_공급자_호출�
 
     monkeypatch.setattr(world.db, "commit", spy_commit)
     monkeypatch.setattr(world.sms, "send", spy_send)
-    body = {"purpose": "JOIN", "phone": PHONE}
+    body = {"purpose": "JOIN", "phone": PHONE, "name": "김가입"}
     assert (
         world.client.post(f"{MEMBER}/auth/otp", json=body, headers={"X-CSRF-Token": token}).status_code == 200
     )
@@ -365,3 +367,10 @@ def test_공급자_호출_뒤에도_발송_이력이_저장된다(world: World) 
     """발송 결과 기록은 커밋 뒤의 별도 쓰기라 응답 처리 중에 사라지지 않는다."""
     request_otp(world)
     assert world.db.execute(select(func.count()).select_from(tables.TB_SMS_SNDNG_HSTRY)).scalar_one() == 1
+
+
+def test_가입_인증은_이름이_없으면_400이고_문자를_보내지_않는다(world: World) -> None:
+    for missing in (None, "", "   "):
+        response = request_otp(world, name=missing)
+        assert response.status_code == 400 and "name" in response.json()["fields"]
+    assert world.sms.outbox == []

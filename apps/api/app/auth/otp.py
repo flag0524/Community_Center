@@ -129,6 +129,9 @@ def issue_otp(
     if purpose not in PURPOSE_CODES:
         raise ApiError(ErrorCode.NOT_IMPLEMENTED)  # 전화번호 변경은 로그인한 회원의 프로필 기능에서 다룬다
     purpose_code = PURPOSE_CODES[purpose]
+    if purpose is OtpPurpose.JOIN and not (name and name.strip()):
+        # 가입 요청에는 이름이 없어서 인증 단계에서 받아 암호문에 담아 둔다
+        raise ApiError(ErrorCode.VALIDATION_FAILED, fields={"name": "이름을 입력해 주세요."})
     target = (
         None if purpose is OtpPurpose.JOIN else _find_member(db, bundle_sn, purpose, phone, name, login_id)
     )
@@ -268,3 +271,41 @@ def check_code(db: Session, settings: Settings, row: Any, code: str, now: dateti
 def verify_otp(db: Session, settings: Settings, *, cert_sn: int, code: str, now: datetime) -> Verification:
     """일치 여부만 확인한다. 사용 완료로 표시하지 않는다(최종 업무 API가 다시 검증하고 표시한다)."""
     return check_code(db, settings, load_for_update(db, cert_sn), code, now)
+
+
+def consume_otp(
+    db: Session,
+    settings: Settings,
+    *,
+    cert_sn: int,
+    code: str,
+    purpose: OtpPurpose,
+    bundle_sn: int,
+    now: datetime,
+) -> Any:
+    """업무 확정 API가 인증을 소비하기 전에 다시 검증한다. 인증 행을 잠근 채 돌려주므로 같은 트랜잭션에서
+    사용 완료(mark_used)와 업무 변경을 함께 확정한다. 틀린 코드는 횟수를 올리고 커밋한 뒤 거절한다."""
+    row = load_for_update(db, cert_sn)
+    if row is not None and (row.CERT_PRPS_CD != PURPOSE_CODES[purpose] or int(row.OPER_BNDL_SN) != bundle_sn):
+        row = None  # 다른 목적·다른 묶음의 인증은 없는 것과 같다
+    if not check_code(db, settings, row, code, now).verified:
+        db.commit()  # 실패 횟수가 오류 응답과 함께 사라지지 않게 먼저 확정한다
+        raise ApiError(ErrorCode.OTP_INVALID)
+    return row
+
+
+def reject_after_failure(db: Session, row: Any) -> ApiError:
+    """코드는 맞았지만 다른 조건이 틀려도 실패로 센다. 맞는 코드로 다른 값을 계속 시험하지 못하게 한다."""
+    db.execute(
+        update(TB_CERT_DMND)
+        .where(TB_CERT_DMND.c.CERT_DMND_SN == row.CERT_DMND_SN)
+        .values(FAIL_NMTM=int(row.FAIL_NMTM) + 1)
+    )
+    db.commit()
+    return ApiError(ErrorCode.OTP_INVALID)
+
+
+def mark_used(db: Session, cert_sn: int, now: datetime) -> None:
+    db.execute(
+        update(TB_CERT_DMND).where(TB_CERT_DMND.c.CERT_DMND_SN == cert_sn).values(CERT_USE_CMPTN_DT=now)
+    )
