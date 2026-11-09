@@ -5,12 +5,12 @@ from fastapi import APIRouter, Depends, Path
 from sqlalchemy.orm import Session
 
 from app.auth.deps import Clock, get_bundle_resolver, get_clock
-from app.core.errors import ErrorCode, not_implemented
+from app.core.errors import ErrorCode
 from app.db.bundle import BundleResolver
 from app.db.session import get_db
 from app.domain.member.schemas import TermDocument
 from app.domain.member.types import TermType
-from app.domain.site import service
+from app.domain.site import home, service
 from app.domain.site.schemas import ContactResponse, ContentDocument, ContentSlug, HomeResponse
 from app.routers.deps import PUBLIC_ERRORS, error_responses
 
@@ -18,8 +18,12 @@ router = APIRouter(tags=["site"], responses=PUBLIC_ERRORS)
 
 
 @router.get("/home")
-def get_home() -> HomeResponse:
-    not_implemented()
+def get_home(
+    db: Annotated[Session, Depends(get_db)],
+    bundles: Annotated[BundleResolver, Depends(get_bundle_resolver)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> HomeResponse:
+    return home.get_home(db, bundles.resolve(db), clock())
 
 
 @router.get("/site/contact")

@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime, timedelta, timezone
 from typing import Any
 
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, and_, select
 from sqlalchemy.orm import Session
 
 from app.auth.join import TERM_CONTENT_TYPES
@@ -24,6 +24,15 @@ def _kst_date(value: datetime | None) -> date | None:
     return None if value is None else value.replace(tzinfo=UTC).astimezone(KST).date()
 
 
+def published_window(now: datetime) -> ColumnElement[bool]:
+    """게시 여부가 Y이고 게시 시작 이상·종료 미만인 콘텐츠 행. 약관·안내 글·홈 콘텐츠·파일 공개 판정이 함께 쓴다."""
+    return and_(
+        TB_SITE_CONTS.c.PSTG_YN == "Y",
+        (TB_SITE_CONTS.c.PSTG_BGNG_DT.is_(None)) | (TB_SITE_CONTS.c.PSTG_BGNG_DT <= now),
+        (TB_SITE_CONTS.c.PSTG_END_DT.is_(None)) | (TB_SITE_CONTS.c.PSTG_END_DT > now),
+    )
+
+
 def _latest_published(
     db: Session,
     bundle_sn: int,
@@ -37,9 +46,7 @@ def _latest_published(
     query = select(TB_SITE_CONTS).where(
         TB_SITE_CONTS.c.OPER_BNDL_SN == bundle_sn,
         TB_SITE_CONTS.c.CONTS_TYPE_CD == content_type,
-        TB_SITE_CONTS.c.PSTG_YN == "Y",
-        (TB_SITE_CONTS.c.PSTG_BGNG_DT.is_(None)) | (TB_SITE_CONTS.c.PSTG_BGNG_DT <= now),
-        (TB_SITE_CONTS.c.PSTG_END_DT.is_(None)) | (TB_SITE_CONTS.c.PSTG_END_DT > now),
+        published_window(now),
     )
     if content_id is not None:
         query = query.where(TB_SITE_CONTS.c.CONTS_ID == content_id)

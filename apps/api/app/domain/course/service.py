@@ -55,7 +55,7 @@ def _education_state(today: date, begin: date, end: date) -> EducationState:
     return EducationState.ONGOING if today <= end else EducationState.ENDED
 
 
-def _ymd(value: str) -> date:
+def ymd(value: str) -> date:
     return date(int(value[:4]), int(value[4:6]), int(value[6:8]))
 
 
@@ -97,11 +97,11 @@ def list_categories(db: Session, bundle_sn: int) -> CategoryList:
     return CategoryList(items=[CategoryRef(category_id=str(int(r[0])), name=str(r[1])) for r in rows])
 
 
-def _cycle_info(row: Any, now: datetime) -> CycleInfo:
+def cycle_info(row: Any, now: datetime) -> CycleInfo:
     return CycleInfo(
         name=str(row.EDU_CYCL_NM),
-        education_start=_ymd(row.EDU_BGNG_YMD),
-        education_end=_ymd(row.EDU_END_YMD),
+        education_start=ymd(row.EDU_BGNG_YMD),
+        education_end=ymd(row.EDU_END_YMD),
         reception_start=_utc(row.RCPT_BGNG_DT),
         reception_end=_utc(row.RCPT_END_DT),
         reception_state=reception_state(OPEN, row.RCPT_BGNG_DT, row.RCPT_END_DT, now),
@@ -250,7 +250,7 @@ def _summaries(db: Session, bundle_sn: int, rows: list[Any], now: datetime) -> l
             if row.CORS_CLSF_SN is None or row.CLSF_NM is None
             else CategoryRef(category_id=str(int(row.CORS_CLSF_SN)), name=str(row.CLSF_NM))
         )
-        begin, end = _ymd(row.EDU_BGNG_YMD), _ymd(row.EDU_END_YMD)
+        begin, end = ymd(row.EDU_BGNG_YMD), ymd(row.EDU_END_YMD)
         result.append(
             CourseSummary(
                 course_id=str(course),
@@ -336,7 +336,7 @@ def list_courses(
         size=size,
         total=total,
         criteria=CourseListCriteria(
-            basis_at=_utc(now), cycle=None if cycle is None else _cycle_info(cycle, now)
+            basis_at=_utc(now), cycle=None if cycle is None else cycle_info(cycle, now)
         ),
     )
 
