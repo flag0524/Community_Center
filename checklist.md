@@ -120,7 +120,7 @@
   - [x] B4-3d 감면 적용 이력 기록(B4-3b에 합침. 이력이 없으면 같은 기수에 감면을 다시 쓸 수 있어 분리할 수 없다)
 - [ ] B4-4 결제
   - [x] B4-4a·b 결제 요청·승인 확인·영수증, PG 어댑터 포트(모의) ADR-040
-  - [ ] B4-4c PG 웹훅 수신(서명 검증·TB_STLM_EVENT 멱등·충돌 격리)
+  - [x] B4-4c PG 웹훅 수신(서명 검증·TB_STLM_EVENT 멱등·충돌 격리) ADR-041
   - [ ] 결제기한 만료 워커와 PS.PENDING 재조회·대사는 B5에서 expire_application과 같은 방식으로
 - [ ] 운영 DB(Ubuntu)에서 바이너리 로그를 켠 채 READ COMMITTED 쓰기와 `binlog_format` MIXED/ROW를 확인(ADR-038)
 - [ ] 승격 안내 문자의 실제 발송은 B5 워커가 아웃박스(TB_SMS_DMND/TRGT, SS.WAIT)를 읽어 한다
