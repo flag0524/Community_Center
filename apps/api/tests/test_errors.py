@@ -83,16 +83,10 @@ def test_검증_오류는_400이고_입력값을_되돌려_주지_않는다(clie
     assert secret not in response.text
 
 
-def test_신청_요청에_금액을_보내면_수신_자체를_거절한다(client: TestClient) -> None:
+def test_로그인하지_않은_신청_요청은_본문을_검증하기_전에_401이다(client: TestClient) -> None:
     response = client.post("/api/v1/me/applications", json={"courseId": "1", "payableAmount": 0}, headers=KEY)
-    assert response.status_code == 400
-    assert "payableAmount" in response.json()["fields"]
-
-
-def test_신청_생성에_Idempotency_Key가_없으면_400이다(client: TestClient) -> None:
-    response = client.post("/api/v1/me/applications", json={"courseId": "1"})
-    assert response.status_code == 400
-    assert_error_shape(response.json(), ErrorCode.VALIDATION_FAILED)
+    assert response.status_code == 401
+    assert_error_shape(response.json(), ErrorCode.UNAUTHENTICATED)
 
 
 def test_일련번호_경로_파라미터가_숫자가_아니면_400이다(client: TestClient) -> None:

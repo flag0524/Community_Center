@@ -693,7 +693,8 @@ def test_승인이_여럿이면_가장_나중_승인을_고른다(world: World) 
     first = approval(world, me, cyc)
     last = approval(world, me, cyc, RDCT_TYPE_CD="DR.VETERAN")
     member = load_member(world.db, me["MBR_SN"])
-    assert find_usable_approval(world.db, member, cyc["EDU_CYCL_SN"], START) == last["RDCT_BFHD_SRNG_SN"]
+    chosen = find_usable_approval(world.db, member, cyc["EDU_CYCL_SN"], START)
+    assert chosen is not None and chosen.sn == last["RDCT_BFHD_SRNG_SN"]
     assert first["RDCT_BFHD_SRNG_SN"] != last["RDCT_BFHD_SRNG_SN"]
 
 

@@ -1,13 +1,13 @@
 # 신청 화면 미리보기, 신청 생성·조회·취소 라우터
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Security
+from fastapi import APIRouter, Depends, Path, Query, Request, Security
 from sqlalchemy.orm import Session
 
-from app.auth.deps import Clock, Member, get_clock, require_member
+from app.auth.deps import Clock, Member, get_clock, request_id_of, require_member, require_member_write
 from app.core.errors import ErrorCode, not_implemented
 from app.db.session import get_db
-from app.domain.application import service
+from app.domain.application import create, service
 from app.domain.application.schemas import (
     Application,
     ApplicationCreate,
@@ -27,6 +27,7 @@ router = APIRouter(tags=["applications"], responses=MEMBER_ERRORS, dependencies=
 ApplicationId = Annotated[str, Path(pattern=r"^[0-9]{1,22}$", description="신청 일련번호(문자열)")]
 Db = Annotated[Session, Depends(get_db)]
 Me = Annotated[Member, Depends(require_member)]
+MeWrite = Annotated[Member, Depends(require_member_write)]
 Now = Annotated[Clock, Depends(get_clock)]
 
 APPLY_ERRORS = error_responses(
@@ -50,8 +51,23 @@ def get_apply_preview(
 
 
 @router.post("/me/applications", status_code=201, responses=APPLY_ERRORS, dependencies=[Depends(csrf_header)])
-def create_application(body: ApplicationCreate, idempotency_key: IdempotencyKey) -> Application:
-    not_implemented()
+def create_application(
+    body: ApplicationCreate,
+    idempotency_key: IdempotencyKey,
+    request: Request,
+    db: Db,
+    me: MeWrite,
+    clock: Now,
+) -> Application:
+    return create.create_application(
+        db,
+        member_sn=me.member_sn,
+        bundle_sn=me.bundle_sn,
+        course_id=body.course_id,
+        idem_key=idempotency_key,
+        request_id=request_id_of(request),
+        now=clock(),
+    )
 
 
 @router.get("/me/applications")

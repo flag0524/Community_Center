@@ -126,3 +126,13 @@ def require_member(
     if request.headers.get(BACKGROUND_HEADER) != "1":
         record = touch(db, record, "member", now)
     return Member(member_sn, bundle_sn, record)
+
+
+def require_member_write(
+    request: Request,
+    settings: Annotated[Settings, Depends(get_settings)],
+    member: Annotated[Member, Depends(require_member)],
+) -> Member:
+    """상태를 바꾸는 요청은 로그인에 더해 CSRF 토큰도 맞아야 한다(DV17)."""
+    verify_csrf(request, settings, "member", member.record)
+    return member

@@ -12,12 +12,28 @@ REDUCTION_PERCENT = 50
 REDUCTION_TYPES = ("DR.LIVELIHD", "DR.VETERAN", "DR.DISABLED")
 
 
+REDUCTION_REASON = {  # 신청 행에 남기는 감면 사유. 증빙 내용이 아니라 대상 유형만 적는다
+    "DR.LIVELIHD": "기초생활보장 수급자 본인 사전심사 승인",
+    "DR.VETERAN": "국가유공자 본인 사전심사 승인",
+    "DR.DISABLED": "등록 장애인 본인 사전심사 승인",
+}
+
+
+@dataclass(frozen=True)
+class Approval:
+    """적용할 사전심사 승인. 신청 행의 감면 사유·담당자와 감면 이력에 쓴다."""
+
+    sn: int
+    type_code: str
+    reviewer_sn: int
+
+
 @dataclass(frozen=True)
 class Quote:
     fee: int
     reduction: int
     payable: int
-    approval_sn: int | None  # 적용한 사전심사 승인. 없으면 감면이 없다
+    approval: Approval | None  # 적용한 사전심사 승인. 없으면 감면이 없다
 
 
 def is_resident(member: Any) -> bool:
@@ -61,12 +77,16 @@ def _already_reduced(db: Session, bundle_sn: int, member_sn: int, cycle_sn: int)
     return bool(db.execute(select(exists(applied))).scalar_one())
 
 
-def find_usable_approval(db: Session, member: Any, cycle_sn: int, now: datetime) -> int | None:
+def find_usable_approval(db: Session, member: Any, cycle_sn: int, now: datetime) -> Approval | None:
     """회원·기수 단위로 승인된 사전심사 중 지금 쓸 수 있는 것의 번호(TDD 5.5)."""
     if member.HAB_RGN_CD != "RA.JORI" or member.HAB_IDNTY_STTS_CD != "RV.OK":
         return None
     approval = db.execute(
-        select(TB_RDCT_BFHD_SRNG.c.RDCT_BFHD_SRNG_SN)
+        select(
+            TB_RDCT_BFHD_SRNG.c.RDCT_BFHD_SRNG_SN,
+            TB_RDCT_BFHD_SRNG.c.RDCT_TYPE_CD,
+            TB_RDCT_BFHD_SRNG.c.SRNG_MNGR_SN,
+        )
         .where(
             TB_RDCT_BFHD_SRNG.c.OPER_BNDL_SN == member.OPER_BNDL_SN,
             TB_RDCT_BFHD_SRNG.c.MBR_SN == member.MBR_SN,
@@ -77,10 +97,10 @@ def find_usable_approval(db: Session, member: Any, cycle_sn: int, now: datetime)
         )
         .order_by(TB_RDCT_BFHD_SRNG.c.RDCT_BFHD_SRNG_SN.desc())
         .limit(1)
-    ).scalar_one_or_none()
+    ).first()
     if approval is None or _already_reduced(db, int(member.OPER_BNDL_SN), int(member.MBR_SN), cycle_sn):
         return None
-    return int(approval)
+    return Approval(int(approval.RDCT_BFHD_SRNG_SN), str(approval.RDCT_TYPE_CD), int(approval.SRNG_MNGR_SN))
 
 
 def quote(db: Session, member: Any, course: Any, now: datetime) -> Quote:
@@ -88,4 +108,4 @@ def quote(db: Session, member: Any, course: Any, now: datetime) -> Quote:
     fee = int(course.TTCHG)
     approval = find_usable_approval(db, member, int(course.EDU_CYCL_SN), now)
     reduction = fee * REDUCTION_PERCENT // 100 if approval is not None else 0
-    return Quote(fee=fee, reduction=reduction, payable=fee - reduction, approval_sn=approval)
+    return Quote(fee=fee, reduction=reduction, payable=fee - reduction, approval=approval)

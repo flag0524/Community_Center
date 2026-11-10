@@ -27,6 +27,7 @@ from app.domain.refund.types import RefundStage
 
 PAYMENT_WINDOW_SECONDS = 600  # 자리 배정 시각부터 결제할 수 있는 시간(SEAT-01)
 ACTIVE = ("ES.WAIT", "ES.HOLD", "ES.CONFIRM")  # 같은 강좌에 하나만 둘 수 있는 신청 상태
+SEAT_STATUSES = ("ES.HOLD", "ES.CONFIRM")  # 정원을 차지하는 신청 상태(ADR-028)
 
 STATUS = {
     "ES.WAIT": ApplicationStatus.WAITING,

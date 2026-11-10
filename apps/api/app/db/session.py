@@ -10,9 +10,14 @@ from app.core.config import Settings, get_settings
 
 
 def create_db_engine(settings: Settings) -> Engine:
-    """시각은 UTC로 저장한다(스키마 N07). 서버 설정과 관계없이 세션마다 UTC로 고정한다."""
+    """시각은 UTC로 저장한다(스키마 N07). 서버 설정과 관계없이 세션마다 UTC로 고정한다.
+
+    격리 수준은 READ COMMITTED다. 기본(REPEATABLE READ)에서는 행 잠금을 기다린 뒤에도 일반 SELECT가
+    트랜잭션 처음의 옛 스냅샷을 봐서, 잠금 아래에서 세는 정원·감면 사용 여부가 틀린다(ADR-038).
+    """
     return create_engine(
         settings.database_url,
+        isolation_level="READ COMMITTED",
         pool_pre_ping=True,
         pool_recycle=1800,
         connect_args={"init_command": "SET time_zone = '+00:00'"},
