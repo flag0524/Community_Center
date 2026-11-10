@@ -1,15 +1,15 @@
 # 본인 신청 취소. 자리를 쥐고 있던 신청이면 같은 잠금 아래에서 대기자를 승격한다(TDD 5.7, FN-037)
 from datetime import datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.audit import record_job
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
-from app.db.tables import TB_ATNLC_APLY, TB_STLM
+from app.db.tables import TB_ATNLC_APLY
 from app.domain.application.schemas import Application
-from app.domain.application.seats import lock_course, promote_waiters, set_status
+from app.domain.application.seats import cancel_ready_payments, lock_course, promote_waiters, set_status
 from app.domain.application.service import SEAT_STATUSES, get_mine
 from app.domain.application.types import ApplicationDisplayState
 
@@ -53,15 +53,7 @@ def cancel_application(
 
     held_seat = row.APLY_STTS_CD in SEAT_STATUSES
     # 아직 승인 전인 결제창 발급분은 함께 취소한다. 승인 결과를 기다리는 결제가 있으면 위에서 이미 막았다.
-    db.execute(
-        update(TB_STLM)
-        .where(
-            TB_STLM.c.OPER_BNDL_SN == bundle_sn,
-            TB_STLM.c.ATNLC_APLY_SN == application_sn,
-            TB_STLM.c.STLM_STTS_CD == "PS.READY",
-        )
-        .values(STLM_STTS_CD="PS.CANCEL", MDFCN_DT=now, RCRD_VER=TB_STLM.c.RCRD_VER + 1)
-    )
+    cancel_ready_payments(db, bundle_sn, application_sn, now)
     set_status(db, application_sn, status="ES.CANCEL", now=now, reason=SELF_CANCEL_REASON)
     record_job(
         db,

@@ -88,3 +88,11 @@ def world(migrated_engine: Engine, schema_doc: Any) -> Iterator[Any]:
     from tests.world import build_world
 
     yield from build_world(migrated_engine, schema_doc)
+
+
+@pytest.fixture()
+def arena(migrated_engine: Engine, schema_doc: Any) -> Iterator[Any]:
+    """동시성 시험의 마당. 커밋되는 데이터와 요청마다 따로 연 DB 연결로 실제 앱을 돌린다."""
+    from tests.arena import build_arena
+
+    yield from build_arena(migrated_engine, schema_doc)

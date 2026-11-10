@@ -8,6 +8,8 @@ from fastapi import Depends, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.adapters.pg import build_gateway
+from app.adapters.pg.base import PaymentGateway
 from app.adapters.sms import build_sender
 from app.adapters.sms.base import SmsSender
 from app.auth.sessions import SessionRecord, find_active, touch
@@ -28,6 +30,10 @@ SEED_COOKIE_NAMES = {"member": "jori_csrf_seed", "admin": "jori_admin_csrf_seed"
 
 def get_sms_sender(settings: Annotated[Settings, Depends(get_settings)]) -> SmsSender:
     return build_sender(settings)
+
+
+def get_payment_gateway(settings: Annotated[Settings, Depends(get_settings)]) -> PaymentGateway:
+    return build_gateway(settings)
 
 
 def utc_now() -> datetime:

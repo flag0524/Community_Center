@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
+from app.adapters.pg.mock import MockPaymentGateway
 from app.adapters.sms.mock import MockSmsSender
 from app.auth import deps as auth_deps
 from app.auth.passwords import hash_password
@@ -52,6 +53,7 @@ class World:
     bundle: int
     settings: Settings
     sms: MockSmsSender  # 보낸 문자를 담는다. 인증번호는 여기서만 읽을 수 있다(DB에는 남지 않는다)
+    pg: MockPaymentGateway  # 승인 요청을 기록하고 결과를 시험이 정한다
 
 
 def build_world(engine: Engine, schema: SchemaDoc, settings: Settings | None = None) -> Iterator[World]:
@@ -82,9 +84,11 @@ def build_world(engine: Engine, schema: SchemaDoc, settings: Settings | None = N
         app.dependency_overrides[auth_deps.get_bundle_resolver] = lambda: FixedBundle(bundle)
         sms = MockSmsSender()
         app.dependency_overrides[auth_deps.get_sms_sender] = lambda: sms
+        pg = MockPaymentGateway()
+        app.dependency_overrides[auth_deps.get_payment_gateway] = lambda: pg
         # base_url을 https로 해야 Secure 쿠키가 다시 실린다
         client = TestClient(app, base_url="https://testserver", raise_server_exceptions=False)
-        yield World(client, clock, db, factory, bundle, settings, sms)
+        yield World(client, clock, db, factory, bundle, settings, sms, pg)
         db.close()
         outer.rollback()
 

@@ -17,6 +17,7 @@ from app.db.tables import (
     TB_OPER_BNDL,
     TB_SMS_DMND,
     TB_SMS_TRGT,
+    TB_STLM,
 )
 from app.domain.application.service import PAYMENT_WINDOW_SECONDS, SEAT_STATUSES
 from app.domain.course.service import VISIBLE_STATUSES
@@ -218,9 +219,46 @@ def set_status(
     }
     if status == "ES.CANCEL":
         values.update(RTRCN_DT=now, RTRCN_RSN=reason)
-    else:
+    elif status in ("ES.HOLD", "ES.CONFIRM"):  # 승격. 새 배정 시각과 기한을 기록한다
         values.update(SEAT_ALTMNT_DT=seat_at, STLM_DDLN_DT=deadline)
+    # 만료는 배정 시각·기한을 그대로 둔다(SEAT-02)
     db.execute(update(TB_ATNLC_APLY).where(TB_ATNLC_APLY.c.ATNLC_APLY_SN == application_sn).values(**values))
+
+
+def cancel_ready_payments(db: Session, bundle_sn: int, application_sn: int, now: datetime) -> None:
+    """결제창만 발급된(승인 요청 전) 결제를 승인 전 취소로 바꾼다. 승인 결과를 기다리는 결제는 건드리지 않는다."""
+    db.execute(
+        update(TB_STLM)
+        .where(
+            TB_STLM.c.OPER_BNDL_SN == bundle_sn,
+            TB_STLM.c.ATNLC_APLY_SN == application_sn,
+            TB_STLM.c.STLM_STTS_CD == "PS.READY",
+        )
+        .values(STLM_STTS_CD="PS.CANCEL", MDFCN_DT=now, RCRD_VER=TB_STLM.c.RCRD_VER + 1)
+    )
+
+
+def expire_application(
+    db: Session, settings: Settings, course: Any, application: Any, *, now: datetime, request_id: str
+) -> list[int]:
+    """결제기한이 지난 결제대기 신청을 만료시키고 자리를 돌려 대기자를 승격한다. 강좌 행 잠금 아래에서만 부른다.
+
+    승인 결과를 기다리는 결제(PS.PENDING)가 있으면 자리를 지켜야 하므로 호출하는 쪽이 먼저 걸러야 한다(ADR-006).
+    """
+    bundle_sn, application_sn = int(application.OPER_BNDL_SN), int(application.ATNLC_APLY_SN)
+    cancel_ready_payments(db, bundle_sn, application_sn, now)
+    set_status(db, application_sn, status="ES.EXPIRE", now=now)
+    _log(
+        db,
+        "APLY_EXPIRE",
+        bundle_sn,
+        application_sn,
+        int(application.MBR_SN),
+        request_id,
+        now,
+        "결제기한 만료",
+    )
+    return promote_waiters(db, settings, course, now=now, request_id=request_id)
 
 
 def _log(
