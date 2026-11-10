@@ -5,9 +5,10 @@ from fastapi import APIRouter, Depends, Path, Query, Request, Security
 from sqlalchemy.orm import Session
 
 from app.auth.deps import Clock, Member, get_clock, request_id_of, require_member, require_member_write
-from app.core.errors import ErrorCode, not_implemented
+from app.core.config import Settings, get_settings
+from app.core.errors import ErrorCode
 from app.db.session import get_db
-from app.domain.application import create, service
+from app.domain.application import cancel, create, service
 from app.domain.application.schemas import (
     Application,
     ApplicationCreate,
@@ -91,5 +92,20 @@ def get_my_application(application_id: ApplicationId, db: Db, me: Me, clock: Now
     responses=error_responses(ErrorCode.APLY_CANCEL_NOT_ALLOWED, ErrorCode.PAY_RESULT_PENDING),
     dependencies=[Depends(csrf_header)],
 )
-def cancel_my_application(application_id: ApplicationId) -> Application:
-    not_implemented()
+def cancel_my_application(
+    application_id: ApplicationId,
+    request: Request,
+    db: Db,
+    me: MeWrite,
+    settings: Annotated[Settings, Depends(get_settings)],
+    clock: Now,
+) -> Application:
+    return cancel.cancel_application(
+        db,
+        settings,
+        member_sn=me.member_sn,
+        bundle_sn=me.bundle_sn,
+        application_id=application_id,
+        request_id=request_id_of(request),
+        now=clock(),
+    )

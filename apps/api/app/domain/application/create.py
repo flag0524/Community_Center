@@ -2,15 +2,16 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, insert, select
+from sqlalchemy import insert, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.audit import record_job
 from app.core.errors import ApiError, ErrorCode
-from app.db.tables import TB_ATNLC_APLY, TB_CORS, TB_MBR, TB_RDCT_HSTRY
+from app.db.tables import TB_ATNLC_APLY, TB_MBR, TB_RDCT_HSTRY
 from app.domain.application.pricing import REDUCTION_REASON, quote
 from app.domain.application.schemas import Application
+from app.domain.application.seats import count_by_status, lock_course, next_wait_seq
 from app.domain.application.service import (
     PAYMENT_WINDOW_SECONDS,
     SEAT_STATUSES,
@@ -22,41 +23,6 @@ from app.domain.course.service import VISIBLE_STATUSES
 
 DUPLICATE_ENTRY = 1062
 IDEM_UNIQUE = "UQ_ATNLC_APLY_02"  # (운영묶음, 멱등키) 유일키 이름
-
-
-def _count(db: Session, bundle_sn: int, course_sn: int, statuses: tuple[str, ...]) -> int:
-    return int(
-        db.execute(
-            select(func.count()).where(
-                TB_ATNLC_APLY.c.OPER_BNDL_SN == bundle_sn,
-                TB_ATNLC_APLY.c.CORS_SN == course_sn,
-                TB_ATNLC_APLY.c.APLY_STTS_CD.in_(statuses),
-            )
-        ).scalar_one()
-    )
-
-
-def _next_wait_seq(db: Session, bundle_sn: int, course_sn: int) -> int:
-    last = db.execute(
-        select(func.max(TB_ATNLC_APLY.c.WTNG_SEQ)).where(
-            TB_ATNLC_APLY.c.OPER_BNDL_SN == bundle_sn,
-            TB_ATNLC_APLY.c.CORS_SN == course_sn,
-            TB_ATNLC_APLY.c.APLY_STTS_CD == "ES.WAIT",
-        )
-    ).scalar_one()
-    return 1 if last is None else int(last) + 1
-
-
-def _lock_course(db: Session, bundle_sn: int, course_sn: int) -> Any:
-    """잠금 순서는 강좌 → 회원 → 신청이다(C07). 정원 판정은 모두 이 잠금 아래에서 한다."""
-    row = db.execute(
-        select(TB_CORS)
-        .where(TB_CORS.c.OPER_BNDL_SN == bundle_sn, TB_CORS.c.CORS_SN == course_sn)
-        .with_for_update()
-    ).first()
-    if row is None or row.CORS_STTS_CD not in VISIBLE_STATUSES:
-        raise ApiError(ErrorCode.NOT_FOUND)
-    return row
 
 
 def _lock_member(db: Session, member_sn: int) -> Any:
@@ -84,7 +50,9 @@ def create_application(
     now: datetime,
 ) -> Application:
     course_sn = int(course_id)
-    course = _lock_course(db, bundle_sn, course_sn)
+    course = lock_course(db, bundle_sn, course_sn)
+    if course is None or course.CORS_STTS_CD not in VISIBLE_STATUSES:
+        raise ApiError(ErrorCode.NOT_FOUND)
     member = _lock_member(db, member_sn)
 
     # 같은 멱등키: 같은 회원·강좌면 이전 결과, 다르면 충돌(FN-033). 잠금을 얻은 뒤 보므로 동시 재전송도 걸린다.
@@ -98,8 +66,8 @@ def create_application(
             raise ApiError(ErrorCode.IDEMPOTENCY_CONFLICT)
         return get_mine(db, member_sn, bundle_sn, str(int(prior.ATNLC_APLY_SN)), now)
 
-    occupied = _count(db, bundle_sn, course_sn, SEAT_STATUSES)
-    waiting = _count(db, bundle_sn, course_sn, ("ES.WAIT",))
+    occupied = count_by_status(db, bundle_sn, course_sn, SEAT_STATUSES)
+    waiting = count_by_status(db, bundle_sn, course_sn, ("ES.WAIT",))
     blocker = first_blocker(
         member=member,
         course=course,
@@ -136,7 +104,7 @@ def create_application(
             values["STLM_DDLN_DT"] = now + timedelta(seconds=PAYMENT_WINDOW_SECONDS)
     else:
         values["APLY_STTS_CD"] = "ES.WAIT"
-        values["WTNG_SEQ"] = _next_wait_seq(db, bundle_sn, course_sn)
+        values["WTNG_SEQ"] = next_wait_seq(db, bundle_sn, course_sn)
 
     try:
         application_sn = int(
