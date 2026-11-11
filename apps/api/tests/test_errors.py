@@ -31,7 +31,7 @@ def assert_error_shape(body: dict[str, object], code: ErrorCode) -> None:
 
 
 def test_골격_엔드포인트는_501_NOT_IMPLEMENTED_형식으로_답한다(client: TestClient) -> None:
-    response = client.get("/api/admin/v1/dashboard")
+    response = client.get("/api/v1/reviews")  # 공개 골격 엔드포인트. 관리자 골격은 로그인 전에 401이다
     assert response.status_code == 501
     assert_error_shape(response.json(), ErrorCode.NOT_IMPLEMENTED)
 
