@@ -305,7 +305,7 @@ def get_transaction(db: Session, admin: Admin, *, now: datetime, transaction_id:
 # --- 재조회·수동 대사 ------------------------------------------------------------------------
 
 
-def _next_event_id(db: Session, bundle_sn: int, stlm_sn: int, prefix: str) -> str:
+def next_event_id(db: Session, bundle_sn: int, stlm_sn: int, prefix: str) -> str:
     number = db.execute(
         select(func.count()).where(
             TB_STLM_EVENT.c.OPER_BNDL_SN == bundle_sn,
@@ -365,7 +365,7 @@ def recheck(
             admin.bundle_sn,
             stlm_sn,
             kind="ET.RECON",
-            event_id=_next_event_id(db, admin.bundle_sn, stlm_sn, RECHECK_PREFIX),
+            event_id=next_event_id(db, admin.bundle_sn, stlm_sn, RECHECK_PREFIX),
             status=settled.event_status,
             content=settled.content,
             now=now,
@@ -425,7 +425,7 @@ def manual_reconcile(
         admin.bundle_sn,
         stlm_sn,
         kind="ET.RECON",
-        event_id=_next_event_id(db, admin.bundle_sn, stlm_sn, MANUAL_PREFIX),
+        event_id=next_event_id(db, admin.bundle_sn, stlm_sn, MANUAL_PREFIX),
         status=settled.event_status,
         content=content,
         now=now,

@@ -625,7 +625,7 @@ def create_by_admin(
 # --- 집행 -------------------------------------------------------------------------------------
 
 
-def _pg_key(bundle_sn: int, refund_sn: int) -> str:
+def pg_key(bundle_sn: int, refund_sn: int) -> str:
     """PG 취소의 멱등키. 재처리도 같은 키라 이중 취소가 되지 않는다(TDD 5.6, R14)."""
     return f"RFND-{bundle_sn}-{refund_sn}"
 
@@ -651,7 +651,7 @@ def _cancel_event(
         bundle_sn,
         int(refund.STLM_SN),
         kind="ET.RESPONSE",
-        event_id=f"{_pg_key(bundle_sn, int(refund.RFND_SN))}:{number}",
+        event_id=f"{pg_key(bundle_sn, int(refund.RFND_SN))}:{number}",
         status=status,
         content=content,
         now=now,
@@ -780,7 +780,7 @@ def execute(
     )
     if manual:
         return _detail(db, settings, admin, now, sn)
-    order_no, key = str(payment.STLM_NO), _pg_key(admin.bundle_sn, sn)
+    order_no, key = str(payment.STLM_NO), pg_key(admin.bundle_sn, sn)
     db.commit()  # PG를 부르기 전에 처리 중 상태를 남긴다. 호출 중 죽어도 같은 키로 이어서 확인한다(ADR-006)
     result = _call_cancel(gateway, order_no=order_no, amount=amount, key=key)  # 트랜잭션 밖
     now = clock()
