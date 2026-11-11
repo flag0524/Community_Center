@@ -393,7 +393,7 @@ def _mismatch(approval: ApproveResult, payment: Any, merchant_id: str) -> str | 
     return None
 
 
-def _settle(
+def settle_payment(
     db: Session,
     settings: Settings,
     *,
@@ -506,7 +506,7 @@ def _apply_result(
         status = PAYMENT.get(str(payment.STLM_STTS_CD), PaymentStatus.PENDING)
         return _confirm_result(db, member_sn, bundle_sn, stlm_sn, application_sn, status, now)
 
-    settled = _settle(
+    settled = settle_payment(
         db,
         settings,
         merchant_id=merchant_id,
@@ -640,7 +640,7 @@ def receive_webhook(
     course = lock_course(db, bundle_sn, int(owned.CORS_SN))
     application = lock_application(db, bundle_sn, application_sn)
     payment_row = lock_payment(db, stlm_sn)
-    settled = _settle(
+    settled = settle_payment(
         db,
         settings,
         merchant_id=gateway.merchant_id,

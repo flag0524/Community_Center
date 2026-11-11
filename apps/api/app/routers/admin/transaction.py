@@ -2,9 +2,16 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Response, Security
+from fastapi import APIRouter, Depends, Path, Query, Request, Response, Security
+from sqlalchemy.orm import Session
 
+from app.adapters.pg.base import PaymentGateway
+from app.auth.admin_access import Admin, require_admin, require_admin_write
+from app.auth.deps import Clock, get_clock, get_payment_gateway, request_id_of
+from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode, not_implemented
+from app.db.session import get_db
+from app.domain.admin import transaction_service as service
 from app.domain.admin.transaction_schemas import ReconcileRequest, Transaction, TransactionPage
 from app.domain.payment.types import PaymentMethod, PaymentStatus
 from app.routers.deps import CSV_RESPONSE, MEMBER_ERRORS, admin_session, csrf_header, error_responses
@@ -16,10 +23,18 @@ router = APIRouter(
 Serial = Annotated[str, Path(pattern=r"^[0-9]{1,22}$", description="일련번호(문자열)")]
 NOT_FOUND = error_responses(ErrorCode.NOT_FOUND)
 WRITE_ERRORS = error_responses(ErrorCode.NOT_FOUND, ErrorCode.CONFLICT_STATE, ErrorCode.VERSION_CONFLICT)
+Db = Annotated[Session, Depends(get_db)]
+Me = Annotated[Admin, Depends(require_admin)]
+MeWrite = Annotated[Admin, Depends(require_admin_write)]
+Now = Annotated[Clock, Depends(get_clock)]
+Config = Annotated[Settings, Depends(get_settings)]
 
 
 @router.get("/transactions")
 def list_transactions(
+    db: Db,
+    admin: Me,
+    clock: Now,
     q: Annotated[str | None, Query(max_length=100, description="주문번호 또는 신청번호")] = None,
     status: PaymentStatus | None = None,
     method: PaymentMethod | None = None,
@@ -32,7 +47,19 @@ def list_transactions(
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> TransactionPage:
     """결과 확인 중인 거래를 먼저 보이고 그 안에서는 최근 요청이 앞이다."""
-    not_implemented()
+    return service.list_transactions(
+        db,
+        admin,
+        now=clock(),
+        q=q,
+        status=status,
+        method=method,
+        from_date=from_date,
+        to_date=to_date,
+        conflict_only=conflict_only,
+        page=page,
+        size=size,
+    )
 
 
 @router.get(
@@ -53,16 +80,32 @@ def export_transactions_csv(
 
 
 @router.get("/transactions/{transaction_id}", responses=NOT_FOUND)
-def get_transaction(transaction_id: Serial) -> Transaction:
-    not_implemented()
+def get_transaction(transaction_id: Serial, db: Db, admin: Me, clock: Now) -> Transaction:
+    return service.get_transaction(db, admin, now=clock(), transaction_id=transaction_id)
 
 
 @router.post(
     "/transactions/{transaction_id}/recheck", responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)]
 )
-def recheck_transaction(transaction_id: Serial) -> Transaction:
+def recheck_transaction(
+    transaction_id: Serial,
+    request: Request,
+    db: Db,
+    admin: MeWrite,
+    settings: Config,
+    gateway: Annotated[PaymentGateway, Depends(get_payment_gateway)],
+    clock: Now,
+) -> Transaction:
     """PG에 결과를 다시 묻는다. 결과 확인 중인 거래에만 하고 결과가 불명이면 그대로 둔다."""
-    not_implemented()
+    return service.recheck(
+        db,
+        settings,
+        admin,
+        gateway,
+        clock=clock,
+        request_id=request_id_of(request),
+        transaction_id=transaction_id,
+    )
 
 
 @router.post(
@@ -72,6 +115,22 @@ def recheck_transaction(transaction_id: Serial) -> Transaction:
     ),
     dependencies=[Depends(csrf_header)],
 )
-def reconcile_transaction(transaction_id: Serial, body: ReconcileRequest) -> Transaction:
+def reconcile_transaction(
+    transaction_id: Serial,
+    body: ReconcileRequest,
+    request: Request,
+    db: Db,
+    admin: MeWrite,
+    settings: Config,
+    clock: Now,
+) -> Transaction:
     """결과 확인 중인 거래에만 한다. 근거는 필수이고 성공이면 승인번호도 필수다(FN-042)."""
-    not_implemented()
+    return service.manual_reconcile(
+        db,
+        settings,
+        admin,
+        now=clock(),
+        request_id=request_id_of(request),
+        transaction_id=transaction_id,
+        body=body,
+    )
