@@ -104,12 +104,17 @@ def test_PG를_부르는_동안에는_이미_처리_중이_커밋되어_다른_�
         connection.exec_driver_sql(
             f"UPDATE TB_RFND SET APRV_MNGR_SN={approver.admin_sn}, APRV_DT=NOW() WHERE RFND_SN={refund}"
         )
-    arena.pg.cancel_delay_seconds = 1.0
+    arena.pg.cancel_delay_seconds = 2.0  # 처음 바뀐 상태를 읽을 시간을 충분히 준다
     seen: list[str] = []
 
     def watch() -> Any:
-        time.sleep(0.4)  # 집행 요청이 PG 응답을 기다리는 중이다
-        seen.append(str(arena.query("SELECT RFND_STTS_CD s FROM TB_RFND WHERE RFND_SN=:r", r=refund)[0]["s"]))
+        # 상태가 처음 바뀌는 순간을 본다. 집행 요청의 준비 시간은 부하에 따라 달라 고정 대기로는 맞출 수 없다
+        for _ in range(160):
+            now = str(arena.query("SELECT RFND_STTS_CD s FROM TB_RFND WHERE RFND_SN=:r", r=refund)[0]["s"])
+            if now != "RS.APPROVE":
+                seen.append(now)
+                return
+            time.sleep(0.05)
 
     run, _ = parallel([post(executor, f"/refunds/{refund}/execute", {"version": 1}), watch])
     assert run.status_code == 200 and run.json()["status"] == "DONE"
