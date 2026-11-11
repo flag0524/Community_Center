@@ -2,9 +2,14 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query, Response, Security
+from fastapi import APIRouter, Depends, Path, Query, Response, Security
+from sqlalchemy.orm import Session
 
+from app.auth.admin_access import Admin, require_admin
+from app.auth.deps import Clock, get_clock
 from app.core.errors import ErrorCode, not_implemented
+from app.db.session import get_db
+from app.domain.admin import application_service as service
 from app.domain.admin.application_schemas import (
     AdminApplication,
     AdminApplicationPage,
@@ -21,10 +26,16 @@ router = APIRouter(
 
 Serial = Annotated[str, Path(pattern=r"^[0-9]{1,22}$", description="일련번호(문자열)")]
 NOT_FOUND = error_responses(ErrorCode.NOT_FOUND)
+Db = Annotated[Session, Depends(get_db)]
+Me = Annotated[Admin, Depends(require_admin)]
+Now = Annotated[Clock, Depends(get_clock)]
 
 
 @router.get("/applications")
 def list_admin_applications(
+    db: Db,
+    admin: Me,
+    clock: Now,
     q: Annotated[str | None, Query(max_length=100, description="신청번호 또는 이름")] = None,
     cycle_id: Annotated[str | None, Query(alias="cycleId", pattern=r"^[0-9]{1,22}$")] = None,
     course_id: Annotated[str | None, Query(alias="courseId", pattern=r"^[0-9]{1,22}$")] = None,
@@ -36,7 +47,20 @@ def list_admin_applications(
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> AdminApplicationPage:
     """범위 밖 강좌의 신청은 나오지 않는다. 범위는 신청자 거주지가 아니라 강좌의 운영 동이다."""
-    not_implemented()
+    return service.list_applications(
+        db,
+        admin,
+        now=clock(),
+        q=q,
+        cycle_id=cycle_id,
+        course_id=course_id,
+        status=status,
+        payment_status=payment_status,
+        from_date=from_date,
+        to_date=to_date,
+        page=page,
+        size=size,
+    )
 
 
 @router.get(
@@ -58,19 +82,22 @@ def export_applications_csv(
 
 
 @router.get("/applications/{application_id}", responses=NOT_FOUND)
-def get_admin_application(application_id: Serial) -> AdminApplication:
-    not_implemented()
+def get_admin_application(application_id: Serial, db: Db, admin: Me, clock: Now) -> AdminApplication:
+    return service.get_application(db, admin, now=clock(), application_id=application_id)
 
 
 @router.get("/waitlist")
 def list_waitlist(
+    db: Db,
+    admin: Me,
+    clock: Now,
     cycle_id: Annotated[str | None, Query(alias="cycleId", pattern=r"^[0-9]{1,22}$")] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> WaitlistPage:
-    not_implemented()
+    return service.list_waitlist(db, admin, now=clock(), cycle_id=cycle_id, page=page, size=size)
 
 
 @router.get("/waitlist/{course_id}", responses=NOT_FOUND)
-def get_waitlist(course_id: Serial) -> WaitlistDetail:
-    not_implemented()
+def get_waitlist(course_id: Serial, db: Db, admin: Me, clock: Now) -> WaitlistDetail:
+    return service.get_waitlist(db, admin, now=clock(), course_id=course_id)

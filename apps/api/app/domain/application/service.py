@@ -251,7 +251,7 @@ def _summaries(db: Session, bundle_sn: int, rows: list[Any], now: datetime) -> l
         ).all():
             refunds[int(r.STLM_SN)] = str(r.RFND_STTS_CD)  # 같은 결제의 환불이 여럿이면 마지막이 남는다
     waiting_rank = {
-        int(r.ATNLC_APLY_SN): _rank(db, bundle_sn, r) for r in rows if r.APLY_STTS_CD == "ES.WAIT"
+        int(r.ATNLC_APLY_SN): rank_in_waitlist(db, bundle_sn, r) for r in rows if r.APLY_STTS_CD == "ES.WAIT"
     }
     result = []
     for row in rows:
@@ -284,7 +284,7 @@ def _summaries(db: Session, bundle_sn: int, rows: list[Any], now: datetime) -> l
     return result
 
 
-def _rank(db: Session, bundle_sn: int, row: Any) -> int:
+def rank_in_waitlist(db: Session, bundle_sn: int, row: Any) -> int:
     """대기 순번. 같은 강좌의 대기 신청 중 (대기순서, 신청번호)가 내 앞인 수 + 1이다."""
     ahead = db.execute(
         select(func.count()).where(

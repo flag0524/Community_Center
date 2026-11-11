@@ -87,7 +87,7 @@ def business_days_between(received: date, today: date) -> int:
     return days
 
 
-def _kst_start(day: date) -> datetime:
+def kst_start(day: date) -> datetime:
     """한국 날짜의 시작을 DB의 UTC 시각으로."""
     return datetime.combine(day, time.min, tzinfo=KST).astimezone(UTC).replace(tzinfo=None)
 
@@ -161,7 +161,7 @@ def _summary(row: Any, now: datetime) -> dict[str, Any]:
     }
 
 
-def _scoped(query: Select[Any], scope: Scope) -> Select[Any]:
+def scoped(query: Select[Any], scope: Scope) -> Select[Any]:
     """범위는 요청 값이 아니라 환불이 걸린 강좌의 운영 동으로 판정한다(스키마 6.1)."""
     if scope.whole:
         return query
@@ -182,9 +182,9 @@ def _filters(
     if requester is RefundRequester.ADMIN:
         query = query.where(TB_RFND.c.DMND_MNGR_SN.is_not(None))
     if from_date is not None:
-        query = query.where(TB_RFND.c.RFND_DMND_DT >= _kst_start(from_date))
+        query = query.where(TB_RFND.c.RFND_DMND_DT >= kst_start(from_date))
     if to_date is not None:
-        query = query.where(TB_RFND.c.RFND_DMND_DT < _kst_start(to_date + timedelta(days=1)))
+        query = query.where(TB_RFND.c.RFND_DMND_DT < kst_start(to_date + timedelta(days=1)))
     return query
 
 
@@ -203,7 +203,7 @@ def list_refunds(
     scope = permit(
         db, admin, AU.RFND_A, now
     )  # 목록(ADM-PAY-004)은 승인 권한만, 상세는 승인·집행(화면설계서 5절)
-    query = _filters(_scoped(_base(admin.bundle_sn), scope), status, requester, from_date, to_date)
+    query = _filters(scoped(_base(admin.bundle_sn), scope), status, requester, from_date, to_date)
     total = int(db.execute(select(func.count()).select_from(query.order_by(None).subquery())).scalar_one())
     urgent = case((TB_RFND.c.RFND_STTS_CD.in_(REVIEWABLE), 0), else_=1)
     rows = db.execute(

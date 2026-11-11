@@ -194,7 +194,8 @@ def promote_waiters(
             int(member.MBR_SN),
             request_id,
             now,
-            "대기에서 승격" + ("" if queued else "(수신번호 없어 문자 제외)"),
+            f"대기에서 승격({'ES.CONFIRM' if free else 'ES.HOLD'})"
+            + ("" if queued else ", 수신번호 없어 문자 제외"),
         )
         promoted.append(application_sn)
     return promoted
