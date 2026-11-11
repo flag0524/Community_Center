@@ -125,6 +125,9 @@
 - [ ] 운영 DB(Ubuntu)에서 바이너리 로그를 켠 채 READ COMMITTED 쓰기와 `binlog_format` MIXED/ROW를 확인(ADR-038)
 - [ ] 승격 안내 문자의 실제 발송은 B5 워커가 아웃박스(TB_SMS_DMND/TRGT, SS.WAIT)를 읽어 한다
 - [ ] B4-5 환불
+  - [x] 회원 쪽 미리보기·접수(즉시 취소·자리 반환)·내역, 반환 기준액 공식 ADR-042
+  - [ ] 관리자 승인·반려·보류·집행(PG 취소 포트)·폐강 환불은 B4-6에서
+  - [ ] 환불 동시 접수 시험(arena)과 신청 화면 canRequestRefund의 기준액 0 반영
 - [ ] B4-6 관리자 업무
 - [ ] B4-7 파일·CSV·내보내기
 - [ ] B5 워커(만료·승격·SMS·정리)

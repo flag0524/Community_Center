@@ -55,7 +55,7 @@ def _owned_application(db: Session, bundle_sn: int, member_sn: int, application_
     return row
 
 
-def _lock_application(db: Session, bundle_sn: int, application_sn: int) -> Any:
+def lock_application(db: Session, bundle_sn: int, application_sn: int) -> Any:
     return db.execute(
         select(TB_ATNLC_APLY)
         .where(TB_ATNLC_APLY.c.OPER_BNDL_SN == bundle_sn, TB_ATNLC_APLY.c.ATNLC_APLY_SN == application_sn)
@@ -185,7 +185,7 @@ def request_payment(
     application_sn = int(application_id)
     owned = _owned_application(db, bundle_sn, member_sn, application_sn)
     course = lock_course(db, bundle_sn, int(owned.CORS_SN))  # 강좌 → 신청 순서(C07)
-    application = _lock_application(db, bundle_sn, application_sn)
+    application = lock_application(db, bundle_sn, application_sn)
 
     # 같은 키: 같은 신청·수단이면 이전 결과, 다르면 충돌. 기한은 신청의 값 그대로라 늘어나지 않는다(FN-036)
     prior = db.execute(
@@ -278,7 +278,7 @@ def _find_payment(db: Session, bundle_sn: int, member_sn: int, order_no: str) ->
     return row
 
 
-def _lock_payment(db: Session, stlm_sn: int) -> Any:
+def lock_payment(db: Session, stlm_sn: int) -> Any:
     return db.execute(select(TB_STLM).where(TB_STLM.c.STLM_SN == stlm_sn).with_for_update()).one()
 
 
@@ -302,8 +302,8 @@ def confirm_payment(
         select(TB_ATNLC_APLY.c.CORS_SN).where(TB_ATNLC_APLY.c.ATNLC_APLY_SN == application_sn)
     ).one()
     course = lock_course(db, bundle_sn, int(owned.CORS_SN))
-    application = _lock_application(db, bundle_sn, application_sn)
-    payment = _lock_payment(db, stlm_sn)
+    application = lock_application(db, bundle_sn, application_sn)
+    payment = lock_payment(db, stlm_sn)
     if body.amount != int(payment.STLM_AMT):  # 브라우저가 보낸 금액은 대조에만 쓴다(R13)
         raise ApiError(ErrorCode.PAY_AMOUNT_MISMATCH)
     status = str(payment.STLM_STTS_CD)
@@ -498,8 +498,8 @@ def _apply_result(
         select(TB_ATNLC_APLY.c.CORS_SN).where(TB_ATNLC_APLY.c.ATNLC_APLY_SN == application_sn)
     ).one()
     course = lock_course(db, bundle_sn, int(owned.CORS_SN))
-    application = _lock_application(db, bundle_sn, application_sn)
-    payment = _lock_payment(db, stlm_sn)
+    application = lock_application(db, bundle_sn, application_sn)
+    payment = lock_payment(db, stlm_sn)
     if payment.STLM_STTS_CD != "PS.PENDING":  # 그 사이 다른 경로(통보·대사)가 먼저 끝냈다. 그 결과를 따른다
         status = PAYMENT.get(str(payment.STLM_STTS_CD), PaymentStatus.PENDING)
         return _confirm_result(db, member_sn, bundle_sn, stlm_sn, application_sn, status, now)
@@ -636,8 +636,8 @@ def receive_webhook(
         select(TB_ATNLC_APLY.c.CORS_SN).where(TB_ATNLC_APLY.c.ATNLC_APLY_SN == application_sn)
     ).one()
     course = lock_course(db, bundle_sn, int(owned.CORS_SN))
-    application = _lock_application(db, bundle_sn, application_sn)
-    payment_row = _lock_payment(db, stlm_sn)
+    application = lock_application(db, bundle_sn, application_sn)
+    payment_row = lock_payment(db, stlm_sn)
     settled = _settle(
         db,
         settings,
