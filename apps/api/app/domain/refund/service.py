@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.audit import record_job
+from app.auth.crypto import encrypt
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
 from app.core.schema import PageCriteria
@@ -199,10 +200,12 @@ def create_refund(
     bundle_sn: int,
     application_id: str,
     reason: str | None,
+    account: tuple[str, str, str] | None = None,
     idem_key: str,
     request_id: str,
     now: datetime,
 ) -> Refund:
+    """account는 (은행코드, 예금주, 계좌번호)다. 있으면 수동 계좌환불이고 암호화해 저장하며 로그에는 남기지 않는다."""
     application_sn = int(application_id)
     owned = _application(db, bundle_sn, member_sn, application_sn)
     # 잠금 순서는 강좌 → 신청 → 결제 → 환불이다(C07). 한도 판정은 결제 행을 잠근 뒤에 한다(R14).
@@ -246,6 +249,9 @@ def create_refund(
                     RFND_RSN=(reason or "").strip() or DEFAULT_REASON,
                     RFND_DMND_DT=now,
                     DMND_MBR_SN=member_sn,
+                    RFND_BANK_CD=None if account is None else account[0],
+                    RFND_DPSTR_ENCPT_VL=None if account is None else encrypt(settings.secret_key, account[1]),
+                    RFND_ACTNO_ENCPT_VL=None if account is None else encrypt(settings.secret_key, account[2]),
                     IDEM_KEY=idem_key,
                     REG_DT=now,
                 )

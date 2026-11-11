@@ -1,7 +1,7 @@
 # 환불 미리보기·접수·내역 API의 요청·응답 모델
 from datetime import date
 
-from pydantic import AwareDatetime, Field
+from pydantic import AwareDatetime, Field, model_validator
 
 from app.core.schema import ApiModel, Page, SerialId, ServerTimed, Won
 from app.domain.refund.types import RefundRule, RefundStage, RefundStatus
@@ -28,8 +28,20 @@ class RefundPreview(ServerTimed):
 
 
 class RefundCreate(ApiModel):
+    """수동 계좌환불이 필요할 때만 은행·예금주·계좌를 함께 보낸다. 셋 중 일부만 보내면 400이다(R15)."""
+
     application_id: SerialId
     reason: str | None = Field(default=None, max_length=500)
+    bank_code: str | None = Field(default=None, min_length=1, max_length=20)
+    account_holder: str | None = Field(default=None, min_length=1, max_length=50)
+    account_number: str | None = Field(default=None, pattern=r"^[0-9-]{6,20}$")
+
+    @model_validator(mode="after")
+    def _account_all_or_none(self) -> "RefundCreate":
+        given = [v is not None for v in (self.bank_code, self.account_holder, self.account_number)]
+        if any(given) and not all(given):
+            raise ValueError("은행, 예금주, 계좌번호는 함께 입력해야 합니다.")
+        return self
 
 
 class Refund(ApiModel):

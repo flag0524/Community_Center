@@ -66,6 +66,13 @@ def create_refund(
         bundle_sn=me.bundle_sn,
         application_id=body.application_id,
         reason=body.reason,
+        account=(
+            (body.bank_code, body.account_holder, body.account_number)
+            if body.bank_code is not None
+            and body.account_holder is not None
+            and body.account_number is not None
+            else None
+        ),
         idem_key=idempotency_key,
         request_id=request_id_of(request),
         now=clock(),

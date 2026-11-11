@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from sqlalchemy import text
 
+from app.auth.crypto import decrypt
 from app.domain.refund.calc import reference_amount
 from app.domain.refund.types import RefundRule
 from tests.test_applications_read import RESIDENT, application, payment, sign_in
@@ -232,6 +233,48 @@ def test_환불_접수는_작업이력에_남는다(world: World) -> None:
     request_refund(world, app)
     found = rows(world, "SELECT MBR_SN, JOB_CD FROM TB_JOB_HSTRY WHERE JOB_CD = 'RFND_REQUEST'")
     assert len(found) == 1 and found[0]["MBR_SN"] == me["MBR_SN"]
+
+
+# --- 수동 계좌환불 입력 ----------------------------------------------------------------------
+
+
+def test_계좌를_함께_보내면_암호화해_저장하고_응답과_이력에는_담지_않는다(world: World) -> None:
+    me = sign_in(world, **RESIDENT)
+    app = paid_application(world, me, open_course(world))
+    r = request_refund(world, app, bankCode="004", accountHolder="홍길동", accountNumber="110-1234-56789")
+    assert r.status_code == 201
+    saved = rows(world, "SELECT RFND_BANK_CD b, RFND_ACTNO_ENCPT_VL a, RFND_DPSTR_ENCPT_VL h FROM TB_RFND")[0]
+    assert saved["b"] == "004" and saved["a"] != "110-1234-56789" and saved["h"] != "홍길동"
+    assert decrypt(world.settings.secret_key, saved["a"]) == "110-1234-56789"
+    assert decrypt(world.settings.secret_key, saved["h"]) == "홍길동"
+    leaked = str(r.json()) + str(rows(world, "SELECT CHG_CN FROM TB_JOB_HSTRY"))
+    assert "1234" not in leaked and "홍길동" not in leaked
+
+
+def test_계좌를_보내지_않으면_원거래_취소_환불이고_계좌를_저장하지_않는다(world: World) -> None:
+    me = sign_in(world, **RESIDENT)
+    app = paid_application(world, me, open_course(world))
+    assert request_refund(world, app).status_code == 201
+    saved = rows(world, "SELECT RFND_BANK_CD b, RFND_ACTNO_ENCPT_VL a, RFND_DPSTR_ENCPT_VL h FROM TB_RFND")[0]
+    assert (saved["b"], saved["a"], saved["h"]) == (None, None, None)
+
+
+@pytest.mark.parametrize(
+    "partial",
+    [
+        {"bankCode": "004"},
+        {"accountHolder": "홍길동", "accountNumber": "110123456789"},
+        {"bankCode": "004", "accountHolder": "홍길동"},
+        {"bankCode": "004", "accountHolder": "홍길동", "accountNumber": "abc"},
+        {"bankCode": "004", "accountHolder": "홍길동", "accountNumber": "123"},
+    ],
+    ids=["은행만", "은행없음", "계좌없음", "계좌형식", "계좌짧음"],
+)
+def test_계좌는_셋이_함께_올바른_형식일_때만_받는다(world: World, partial: dict[str, Any]) -> None:
+    me = sign_in(world, **RESIDENT)
+    app = paid_application(world, me, open_course(world))
+    r = request_refund(world, app, **partial)
+    assert r.status_code == 400 and rows(world, "SELECT 1 FROM TB_RFND") == []
 
 
 # --- 멱등 ------------------------------------------------------------------------------------

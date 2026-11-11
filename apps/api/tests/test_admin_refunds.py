@@ -156,6 +156,14 @@ def test_동_담당자는_자기_동_강좌의_환불만_보고_다른_동은_40
         assert state(world, target)["RFND_STTS_CD"] == "RS.REQUEST"
 
 
+def test_목록은_승인_권한만_열고_상세는_승인이나_집행_권한으로_본다(world: World) -> None:
+    only_x = staff(world, "x", "AU.RFND_X")
+    target = refund(world)
+    use(world, only_x)
+    assert call(world, "GET", "/refunds").status_code == 403
+    assert call(world, "GET", f"/refunds/{target['RFND_SN']}").status_code == 200
+
+
 def test_승인_권한만으로는_집행할_수_없다(world: World) -> None:
     only_a = staff(world, "a", "AU.RFND_A")
     target = refund(world, status="RS.APPROVE", approver=staff(world, "other", "AU.RFND_A"))

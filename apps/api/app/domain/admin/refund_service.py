@@ -200,7 +200,9 @@ def list_refunds(
     page: int,
     size: int,
 ) -> AdminRefundPage:
-    scope = permit_any(db, admin, VIEW, now)
+    scope = permit(
+        db, admin, AU.RFND_A, now
+    )  # 목록(ADM-PAY-004)은 승인 권한만, 상세는 승인·집행(화면설계서 5절)
     query = _filters(_scoped(_base(admin.bundle_sn), scope), status, requester, from_date, to_date)
     total = int(db.execute(select(func.count()).select_from(query.order_by(None).subquery())).scalar_one())
     urgent = case((TB_RFND.c.RFND_STTS_CD.in_(REVIEWABLE), 0), else_=1)

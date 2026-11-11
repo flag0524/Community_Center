@@ -466,8 +466,16 @@ def test_강좌_목록_기준에는_교육기수를_담고_상세에는_기수�
     assert "cycleName" in schemas["CourseDetail"]["properties"]
 
 
-def test_환불_접수_모델에는_금액_필드가_없다(spec: Schema) -> None:
-    assert set(spec["components"]["schemas"]["RefundCreate"]["properties"]) == {"applicationId", "reason"}
+def test_환불_접수_모델에는_금액_필드가_없고_계좌는_선택이다(spec: Schema) -> None:
+    model = spec["components"]["schemas"]["RefundCreate"]
+    assert set(model["properties"]) == {
+        "applicationId",
+        "reason",
+        "bankCode",
+        "accountHolder",
+        "accountNumber",
+    }
+    assert model["required"] == ["applicationId"]
 
 
 def test_신청은_영수증_조회에_쓸_결제_일련번호를_가진다(spec: Schema) -> None:
