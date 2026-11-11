@@ -1,9 +1,15 @@
 # 관리자 교육기수·강좌 관리 라우터. 기수는 AU.CONF_W, 강좌는 조회 AU.CORS_R·변경 AU.CORS_W다
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Response, Security
+from fastapi import APIRouter, Depends, Path, Query, Request, Response, Security
+from sqlalchemy.orm import Session
 
+from app.auth.admin_access import Admin, require_admin, require_admin_write
+from app.auth.deps import Clock, get_clock, request_id_of
+from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode, not_implemented
+from app.db.session import get_db
+from app.domain.admin import education_service as service
 from app.domain.admin.education_schemas import (
     AdminCourse,
     AdminCoursePage,
@@ -33,17 +39,32 @@ Serial = Annotated[str, Path(pattern=r"^[0-9]{1,22}$", description="일련번호
 SerialQuery = Annotated[str | None, Query(pattern=r"^[0-9]{1,22}$")]
 Page_ = Annotated[int, Query(ge=1)]
 Size = Annotated[int, Query(ge=1, le=100)]
-WRITE_ERRORS = error_responses(ErrorCode.VERSION_CONFLICT, ErrorCode.IDEMPOTENCY_CONFLICT)
+WRITE_ERRORS = error_responses(
+    ErrorCode.NOT_FOUND,
+    ErrorCode.CONFLICT_STATE,
+    ErrorCode.RULE_REJECTED,
+    ErrorCode.VERSION_CONFLICT,
+    ErrorCode.IDEMPOTENCY_CONFLICT,
+)
+Db = Annotated[Session, Depends(get_db)]
+Me = Annotated[Admin, Depends(require_admin)]
+MeWrite = Annotated[Admin, Depends(require_admin_write)]
+Now = Annotated[Clock, Depends(get_clock)]
+Config = Annotated[Settings, Depends(get_settings)]
 
 
 @router.get("/cycles")
-def list_cycles(page: Page_ = 1, size: Size = 20) -> CyclePage:
-    not_implemented()
+def list_cycles(db: Db, admin: Me, clock: Now, page: Page_ = 1, size: Size = 20) -> CyclePage:
+    return service.list_cycles(db, admin, now=clock(), page=page, size=size)
 
 
 @router.post("/cycles", status_code=201, responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)])
-def create_cycle(body: CycleWrite, idempotency_key: IdempotencyKey) -> Cycle:
-    not_implemented()
+def create_cycle(
+    body: CycleWrite, idempotency_key: IdempotencyKey, request: Request, db: Db, admin: MeWrite, clock: Now
+) -> Cycle:
+    return service.create_cycle(
+        db, admin, now=clock(), request_id=request_id_of(request), body=body, idem_key=idempotency_key
+    )
 
 
 @router.get(
@@ -56,23 +77,30 @@ def export_cycles_csv() -> Response:
     not_implemented()
 
 
-@router.get("/cycles/{cycle_id}")
-def get_cycle(cycle_id: Serial) -> Cycle:
-    not_implemented()
+@router.get("/cycles/{cycle_id}", responses=error_responses(ErrorCode.NOT_FOUND))
+def get_cycle(cycle_id: Serial, db: Db, admin: Me, clock: Now) -> Cycle:
+    return service.get_cycle(db, admin, now=clock(), cycle_id=cycle_id)
 
 
 @router.put("/cycles/{cycle_id}", responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)])
-def update_cycle(cycle_id: Serial, body: CycleUpdate) -> Cycle:
-    not_implemented()
+def update_cycle(
+    cycle_id: Serial, body: CycleUpdate, request: Request, db: Db, admin: MeWrite, clock: Now
+) -> Cycle:
+    return service.update_cycle(
+        db, admin, now=clock(), request_id=request_id_of(request), cycle_id=cycle_id, body=body
+    )
 
 
 @router.get("/course-options")
-def get_course_options() -> CourseOptions:
-    not_implemented()
+def get_course_options(db: Db, admin: Me, clock: Now) -> CourseOptions:
+    return service.get_options(db, admin, now=clock())
 
 
 @router.get("/courses")
 def list_admin_courses(
+    db: Db,
+    admin: Me,
+    clock: Now,
     q: Annotated[str | None, Query(max_length=100)] = None,
     cycle_id: Annotated[str | None, Query(alias="cycleId", pattern=r"^[0-9]{1,22}$")] = None,
     class_id: Annotated[str | None, Query(alias="classId", pattern=r"^[0-9]{1,22}$")] = None,
@@ -82,7 +110,18 @@ def list_admin_courses(
     size: Size = 20,
 ) -> AdminCoursePage:
     """범위 밖 강좌는 조건과 무관하게 목록에 나오지 않는다(RQ-SER-NF-009)."""
-    not_implemented()
+    return service.list_courses(
+        db,
+        admin,
+        now=clock(),
+        q=q,
+        cycle_id=cycle_id,
+        class_id=class_id,
+        dong_id=dong_id,
+        status=status,
+        page=page,
+        size=size,
+    )
 
 
 @router.get(
@@ -102,41 +141,70 @@ def export_courses_csv(
 
 
 @router.post("/courses", status_code=201, responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)])
-def create_admin_course(body: CourseWrite, idempotency_key: IdempotencyKey) -> AdminCourse:
-    not_implemented()
+def create_admin_course(
+    body: CourseWrite, idempotency_key: IdempotencyKey, request: Request, db: Db, admin: MeWrite, clock: Now
+) -> AdminCourse:
+    return service.create_course(
+        db, admin, now=clock(), request_id=request_id_of(request), body=body, idem_key=idempotency_key
+    )
 
 
-@router.get("/courses/{course_id}")
-def get_admin_course(course_id: Serial) -> AdminCourse:
-    not_implemented()
+@router.get("/courses/{course_id}", responses=error_responses(ErrorCode.NOT_FOUND))
+def get_admin_course(course_id: Serial, db: Db, admin: Me, clock: Now) -> AdminCourse:
+    return service.get_course(db, admin, now=clock(), course_id=course_id)
 
 
 @router.put("/courses/{course_id}", responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)])
-def update_admin_course(course_id: Serial, body: CourseUpdate) -> AdminCourse:
+def update_admin_course(
+    course_id: Serial, body: CourseUpdate, request: Request, db: Db, admin: MeWrite, clock: Now
+) -> AdminCourse:
     """모집정원은 현재 점유보다 작게 줄일 수 없다(화면설계서 ADM-EDU-001P)."""
-    not_implemented()
+    return service.update_course(
+        db, admin, now=clock(), request_id=request_id_of(request), course_id=course_id, body=body
+    )
 
 
 @router.post("/courses/{course_id}/publish", responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)])
-def publish_course(course_id: Serial) -> AdminCourse:
+def publish_course(course_id: Serial, request: Request, db: Db, admin: MeWrite, clock: Now) -> AdminCourse:
     """공개 요청 검사: 승인 강사, 일정 1건 이상, 기수 내 기간, 접수기간."""
-    not_implemented()
+    return service.publish(db, admin, now=clock(), request_id=request_id_of(request), course_id=course_id)
 
 
 @router.post(
     "/courses/{course_id}/close-reception", responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)]
 )
-def close_course_reception(course_id: Serial) -> AdminCourse:
-    not_implemented()
+def close_course_reception(
+    course_id: Serial, request: Request, db: Db, admin: MeWrite, clock: Now
+) -> AdminCourse:
+    return service.close_reception(
+        db, admin, now=clock(), request_id=request_id_of(request), course_id=course_id
+    )
 
 
-@router.get("/courses/{course_id}/cancel-preview")
-def get_cancel_preview(course_id: Serial) -> CancelPreview:
-    not_implemented()
+@router.get("/courses/{course_id}/cancel-preview", responses=error_responses(ErrorCode.NOT_FOUND))
+def get_cancel_preview(course_id: Serial, db: Db, admin: Me, clock: Now) -> CancelPreview:
+    return service.cancel_preview(db, admin, now=clock(), course_id=course_id)
 
 
 @router.post(
     "/courses/{course_id}/cancel-course", responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)]
 )
-def cancel_course(course_id: Serial, body: CancelCourseRequest) -> AdminCourse:
-    not_implemented()
+def cancel_course(
+    course_id: Serial,
+    body: CancelCourseRequest,
+    request: Request,
+    db: Db,
+    admin: MeWrite,
+    settings: Config,
+    clock: Now,
+) -> AdminCourse:
+    """유효한 신청을 모두 취소하고 결제한 건은 전액 환불을 접수한다. 폐강은 환불 완료가 아니다(FN-057)."""
+    return service.cancel_course(
+        db,
+        settings,
+        admin,
+        now=clock(),
+        request_id=request_id_of(request),
+        course_id=course_id,
+        reason=body.reason,
+    )
