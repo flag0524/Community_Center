@@ -18,7 +18,7 @@ from app.auth.sessions import issue_session
 from app.core.config import Settings, get_settings
 from app.db.session import create_db_engine, get_db, open_session
 from app.main import create_app
-from app.routers.deps import SESSION_COOKIE_NAME
+from app.routers.deps import ADMIN_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME
 from tests.factory import RowFactory
 from tests.world import ITERATIONS, START, FakeClock, FixedBundle
 
@@ -34,6 +34,13 @@ class Applicant:
 
 
 @dataclass
+class Staff:
+    admin_sn: int
+    client: TestClient
+    csrf: str
+
+
+@dataclass
 class Arena:
     """커밋되는 데이터와 실제 요청 단위 세션을 쓰는 앱. 시험이 끝나면 만든 행을 지운다."""
 
@@ -43,6 +50,7 @@ class Arena:
     engine: Engine
     bundles: list[int] = field(default_factory=list)
     admins: list[int] = field(default_factory=list)
+    roles: list[int] = field(default_factory=list)
     pg: MockPaymentGateway = field(default_factory=MockPaymentGateway)  # 모든 요청이 같은 PG를 쓴다
     app: Any = None
 
@@ -84,6 +92,36 @@ class Arena:
         client.cookies.set(SESSION_COOKIE_NAME, token)
         return Applicant(member_sn, client, session_csrf(self.settings, record))
 
+    def staff(self, bundle: int, login: str, *authorities: str) -> "Staff":
+        """묶음 전체 범위에서 주어진 기능권한을 가진 담당자와 그 세션. 시험이 끝나면 함께 지운다."""
+        with self.migrated.begin() as connection:
+            f = RowFactory(connection, self.schema)
+            admin = int(
+                f.make("TB_MNGR", LGN_ID=f"{login}-{bundle}"[:20], PSWD_HASH_VL="x" * 20, MNGR_NM=login)[
+                    "MNGR_SN"
+                ]
+            )
+            role = f.make("TB_MNGR_ROLE", ROLE_ID=f"{login}-{bundle}"[:40], ROLE_NM=login)
+            for code in authorities:
+                f.make("TB_ROLE_AUTHRT", ROLE_SN=role["ROLE_SN"], AUTHRT_CD=code)
+            f.make(
+                "TB_MNGR_SCP",
+                MNGR_SN=admin,
+                ROLE_SN=role["ROLE_SN"],
+                SCP_TYPE_CD="SK.GROUP",
+                OPER_BNDL_SN=bundle,
+                VLD_BGNG_DT=START - DAY,
+                GRNT_MNGR_SN=admin,
+            )
+        self.admins.append(admin)
+        self.roles.append(int(role["ROLE_SN"]))
+        with open_session(self.engine) as session:
+            token, record = issue_session(session, bundle_sn=None, member_sn=None, admin_sn=admin, now=START)
+            session.commit()
+        client = TestClient(self.app, base_url="https://testserver", raise_server_exceptions=False)
+        client.cookies.set(ADMIN_SESSION_COOKIE_NAME, token)
+        return Staff(admin, client, session_csrf(self.settings, record))
+
     def query(self, sql: str, **params: Any) -> list[Any]:
         with self.migrated.connect() as connection:
             return list(connection.execute(text(sql), params).mappings().all())
@@ -97,7 +135,11 @@ class Arena:
                     connection.execute(text(f"DELETE FROM {name} WHERE OPER_BNDL_SN = :b"), {"b": bundle})
                 connection.execute(text("DELETE FROM TB_OPER_BNDL WHERE OPER_BNDL_SN = :b"), {"b": bundle})
             for admin in self.admins:
-                connection.execute(text("DELETE FROM TB_MNGR WHERE MNGR_SN = :a"), {"a": admin})
+                for table in ("TB_LGN_SSN", "TB_MNGR_SCP", "TB_MNGR"):
+                    connection.execute(text(f"DELETE FROM {table} WHERE MNGR_SN = :a"), {"a": admin})
+            for role in self.roles:
+                connection.execute(text("DELETE FROM TB_ROLE_AUTHRT WHERE ROLE_SN = :r"), {"r": role})
+                connection.execute(text("DELETE FROM TB_MNGR_ROLE WHERE ROLE_SN = :r"), {"r": role})
             connection.execute(text("SET FOREIGN_KEY_CHECKS=1"))
 
 
@@ -201,6 +243,8 @@ def make_application(
         extra.update(SEAT_ALTMNT_DT=START, STLM_DDLN_DT=START + timedelta(minutes=10))
     if state == "ES.WAIT":
         extra["WTNG_SEQ"] = seq
+    if state in ("ES.CANCEL", "ES.EXPIRE"):
+        extra.update(RTRCN_DT=START, RTRCN_RSN="취소")
     row = f.make(
         "TB_ATNLC_APLY",
         OPER_BNDL_SN=bundle,

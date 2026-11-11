@@ -76,7 +76,7 @@ def _has_status(db: Session, bundle_sn: int, application_sn: int, status: str) -
     )
 
 
-def _event(
+def record_event(
     db: Session,
     bundle_sn: int,
     stlm_sn: int,
@@ -87,6 +87,7 @@ def _event(
     content: dict[str, Any],
     now: datetime,
     fail_reason: str | None = None,
+    refund_sn: int | None = None,
 ) -> None:
     """PG와 주고받은 사건을 남긴다. 정규화한 허용 항목만 담고 PG 전문은 복사하지 않는다(스키마 4.23)."""
     body = json.dumps(content, ensure_ascii=False, sort_keys=True)
@@ -94,6 +95,7 @@ def _event(
         insert(TB_STLM_EVENT).values(
             OPER_BNDL_SN=bundle_sn,
             STLM_SN=stlm_sn,
+            RFND_SN=refund_sn,
             EVENT_TYPE_CD=kind,
             EVENT_ID=event_id,
             PRCS_STTS_CD=status,
@@ -333,7 +335,7 @@ def confirm_payment(
         ):
             raise ApiError(ErrorCode.PAY_NOT_PAYABLE) from None  # 이미 다른 결제에 쓴 거래 아이디다
         raise
-    _event(
+    record_event(
         db,
         bundle_sn,
         stlm_sn,
@@ -516,7 +518,7 @@ def _apply_result(
         request_id=request_id,
     )
     event_id = f"RES:{approval.transaction_id}" if approval.transaction_id else f"RES:{now.isoformat()}"
-    _event(
+    record_event(
         db,
         bundle_sn,
         stlm_sn,

@@ -38,7 +38,7 @@ IN_PROGRESS = ("RS.REQUEST", "RS.HOLD", "RS.APPROVE", "RS.PENDING", "RS.FAIL")
 RESERVED = ("RS.REQUEST", "RS.HOLD", "RS.APPROVE", "RS.PENDING", "RS.FAIL", "RS.DONE")
 
 
-def _paid_payment(db: Session, bundle_sn: int, application_sn: int) -> Any:
+def paid_payment(db: Session, bundle_sn: int, application_sn: int) -> Any:
     return db.execute(
         select(TB_STLM.c.STLM_SN, TB_STLM.c.STLM_AMT).where(
             TB_STLM.c.OPER_BNDL_SN == bundle_sn,
@@ -48,7 +48,7 @@ def _paid_payment(db: Session, bundle_sn: int, application_sn: int) -> Any:
     ).first()
 
 
-def _reserved(db: Session, bundle_sn: int, stlm_sn: int) -> int:
+def reserved_amount(db: Session, bundle_sn: int, stlm_sn: int) -> int:
     total = db.execute(
         select(func.coalesce(func.sum(TB_RFND.c.RFND_AMT), 0)).where(
             TB_RFND.c.OPER_BNDL_SN == bundle_sn,
@@ -59,7 +59,7 @@ def _reserved(db: Session, bundle_sn: int, stlm_sn: int) -> int:
     return int(total)
 
 
-def _in_progress(db: Session, bundle_sn: int, stlm_sn: int) -> bool:
+def in_progress(db: Session, bundle_sn: int, stlm_sn: int) -> bool:
     return (
         db.execute(
             select(TB_RFND.c.RFND_SN).where(
@@ -113,11 +113,11 @@ def preview(
 ) -> RefundPreview:
     application_sn = int(application_id)
     application = _application(db, bundle_sn, member_sn, application_sn)
-    payment = _paid_payment(db, bundle_sn, application_sn)
+    payment = paid_payment(db, bundle_sn, application_sn)
     if payment is None:  # 결제가 끝나지 않았거나 결제가 없는(0원) 신청은 환불이 없다
         raise ApiError(ErrorCode.RFND_NOT_ALLOWED)
     paid = int(payment.STLM_AMT)
-    reserved = _reserved(db, bundle_sn, int(payment.STLM_SN))
+    reserved = reserved_amount(db, bundle_sn, int(payment.STLM_SN))
     # 수강확정이거나, 이미 환불을 접수해 진행 상태를 보려는 신청만 볼 수 있다
     if application.APLY_STTS_CD != "ES.CONFIRM" and reserved == 0:
         raise ApiError(ErrorCode.RFND_NOT_ALLOWED)
@@ -185,6 +185,12 @@ def _refund_query() -> Any:
     )
 
 
+def close_application(db: Session, bundle_sn: int, application_sn: int, now: datetime) -> None:
+    """환불을 접수한 신청을 취소한다. 회원·담당자 접수가 같이 쓴다. 자리 반환과 승격은 호출한 쪽이 이어서 한다."""
+    cancel_ready_payments(db, bundle_sn, application_sn, now)
+    set_status(db, application_sn, status="ES.CANCEL", now=now, reason=REFUND_CANCEL_REASON)
+
+
 def create_refund(
     db: Session,
     settings: Settings,
@@ -202,7 +208,7 @@ def create_refund(
     # 잠금 순서는 강좌 → 신청 → 결제 → 환불이다(C07). 한도 판정은 결제 행을 잠근 뒤에 한다(R14).
     course = lock_course(db, bundle_sn, int(owned.CORS_SN))
     application = lock_application(db, bundle_sn, application_sn)
-    payment = _paid_payment(db, bundle_sn, application_sn)
+    payment = paid_payment(db, bundle_sn, application_sn)
 
     # 같은 멱등키: 같은 신청이면 이전 결과, 다르면 충돌(FN-033). 잠금을 얻은 뒤 보므로 동시 재전송도 걸린다.
     prior = db.execute(
@@ -217,14 +223,14 @@ def create_refund(
         raise ApiError(ErrorCode.RFND_NOT_ALLOWED)
     stlm_sn = int(payment.STLM_SN)
     lock_payment(db, stlm_sn)
-    if _in_progress(db, bundle_sn, stlm_sn):  # 진행 중인 환불이 있으면 새로 접수하지 않는다
+    if in_progress(db, bundle_sn, stlm_sn):  # 진행 중인 환불이 있으면 새로 접수하지 않는다
         raise ApiError(ErrorCode.RFND_NOT_ALLOWED)
     ref = reference_amount(
         int(payment.STLM_AMT), str(owned.EDU_BGNG_YMD), str(owned.EDU_END_YMD), kst_today(now)
     )
     if ref.amount <= 0:
         raise ApiError(ErrorCode.RFND_NOT_ALLOWED)
-    amount = ref.amount - _reserved(db, bundle_sn, stlm_sn)  # 금액은 서버가 정한다. 요청에는 없다(DV25)
+    amount = ref.amount - reserved_amount(db, bundle_sn, stlm_sn)  # 금액은 서버가 정한다. 요청에는 없다(DV25)
     if amount <= 0:
         raise ApiError(ErrorCode.RFND_LIMIT_EXCEEDED)
 
@@ -257,8 +263,7 @@ def create_refund(
         raise
 
     # 환불을 접수하면 신청을 취소하고 자리를 돌려준다(TDD 5.7). 반려돼도 신청은 되살리지 않는다.
-    cancel_ready_payments(db, bundle_sn, application_sn, now)
-    set_status(db, application_sn, status="ES.CANCEL", now=now, reason=REFUND_CANCEL_REASON)
+    close_application(db, bundle_sn, application_sn, now)
     record_job(
         db,
         actor="AK.MEMBER",

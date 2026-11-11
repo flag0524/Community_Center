@@ -9,9 +9,24 @@ from itertools import count
 from threading import Lock
 from time import sleep
 
-from app.adapters.pg.base import CURRENCY, ApproveOutcome, ApproveResult, WebhookEvent, WebhookRejected
+from app.adapters.pg.base import (
+    CURRENCY,
+    ApproveOutcome,
+    ApproveResult,
+    CancelOutcome,
+    CancelResult,
+    WebhookEvent,
+    WebhookRejected,
+)
 
 SIGNATURE_HEADER = "x-mock-signature"
+
+
+@dataclass(frozen=True)
+class CancelCall:
+    order_no: str
+    amount: int
+    idempotency_key: str
 
 
 @dataclass(frozen=True)
@@ -40,6 +55,14 @@ class MockPaymentGateway:
     # 주문번호별 거래 조회 결과. 시험이 정하고, 없으면 결과를 알 수 없다
     lookup_results: dict[str, ApproveResult] = field(default_factory=dict)
     lookup_raises: bool = False
+    # 취소(환불). 같은 멱등키는 한 번만 취소된다
+    cancel_calls: list[CancelCall] = field(default_factory=list)
+    cancel_lookups: list[str] = field(default_factory=list)
+    canceled: dict[str, CancelResult] = field(default_factory=dict)
+    next_cancel: CancelOutcome = CancelOutcome.DONE
+    answer_cancel_amount: int | None = None
+    cancel_raises: bool = False
+    cancel_delay_seconds: float = 0.0
     _ids: "count[int]" = field(default_factory=lambda: count(1))
     _lock: Lock = field(default_factory=Lock)
 
@@ -81,6 +104,37 @@ class MockPaymentGateway:
         return self.lookup_results.get(
             order_no, ApproveResult(ApproveOutcome.UNKNOWN, failure_code="MOCK_TIMEOUT")
         )
+
+    def cancel(self, *, order_no: str, amount: int, idempotency_key: str) -> CancelResult:
+        with self._lock:
+            self.cancel_calls.append(CancelCall(order_no, amount, idempotency_key))
+            done = self.canceled.get(idempotency_key)  # 같은 키는 한 번만 취소하고 같은 결과를 돌려준다
+            outcome = self.next_cancel
+            self.next_cancel = CancelOutcome.DONE
+            if done is None and outcome is CancelOutcome.DONE:
+                done = CancelResult(
+                    CancelOutcome.DONE,
+                    cancel_id=f"mock-cancel-{len(self.canceled) + 1}",
+                    amount=self.answer_cancel_amount if self.answer_cancel_amount is not None else amount,
+                )
+                self.canceled[idempotency_key] = done
+        if self.cancel_delay_seconds:
+            sleep(self.cancel_delay_seconds)
+        if self.cancel_raises:  # 취소는 PG에서 이뤄졌는데 응답만 유실되는 상황
+            raise TimeoutError("모의 통신 오류")
+        if done is not None:
+            return done
+        if outcome is CancelOutcome.REJECTED:
+            return CancelResult(outcome, failure_code="MOCK_CANCEL_REJECTED")
+        return CancelResult(CancelOutcome.UNKNOWN, failure_code="MOCK_TIMEOUT")
+
+    def lookup_cancel(self, *, idempotency_key: str) -> CancelResult:
+        with self._lock:
+            self.cancel_lookups.append(idempotency_key)
+            found = self.canceled.get(idempotency_key)
+        if self.lookup_raises:
+            raise TimeoutError("모의 통신 오류")
+        return found or CancelResult(CancelOutcome.UNKNOWN, failure_code="MOCK_TIMEOUT")
 
     def sign(self, body: bytes) -> str:
         return hmac.new(self.webhook_secret.encode(), body, hashlib.sha256).hexdigest()

@@ -45,6 +45,22 @@ class WebhookRejected(Exception):
     """서명이 틀렸거나 형식을 읽을 수 없는 통보. 저장하지 않고 보안 로그에만 남긴다."""
 
 
+class CancelOutcome(StrEnum):
+    DONE = "DONE"  # 취소(환불)가 완료됐다
+    REJECTED = "REJECTED"  # 취소가 거절·실패했음이 확인됐다
+    UNKNOWN = "UNKNOWN"  # 시간 초과·통신 오류처럼 결과를 알 수 없다. 같은 멱등키로 조회해 확인한다
+
+
+@dataclass(frozen=True)
+class CancelResult:
+    """결제 취소 요청과 취소 조회가 함께 쓰는 결과. 공급자가 알려 준 값이라 호출한 쪽이 금액을 대조한다."""
+
+    outcome: CancelOutcome
+    cancel_id: str | None = None
+    amount: int | None = None  # 공급자가 취소한 금액
+    failure_code: str | None = None
+
+
 class PaymentGateway(Protocol):
     provider_name: str
     merchant_id: str
@@ -63,4 +79,12 @@ class PaymentGateway(Protocol):
 
     def parse_webhook(self, *, headers: Mapping[str, str], body: bytes) -> WebhookEvent:
         """서명을 확인하고 통보를 읽는다. 서명이 틀리면 WebhookRejected를 던진다."""
+        ...
+
+    def cancel(self, *, order_no: str, amount: int, idempotency_key: str) -> CancelResult:
+        """원결제를 amount만큼 취소(환불)한다. 같은 멱등키로 다시 불러도 한 번만 취소돼야 한다(TDD 5.6)."""
+        ...
+
+    def lookup_cancel(self, *, idempotency_key: str) -> CancelResult:
+        """멱등키로 취소 결과를 조회한다. 응답이 유실됐을 때 실제 취소 여부를 확인한다."""
         ...
