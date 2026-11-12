@@ -23,6 +23,7 @@ class Settings:
     sms_provider: str = "mock"  # 공급자는 계약 후 정해진다(Q2~Q4). 그 전에는 모의 어댑터만 있다
     sms_sender_number: str = "TBD"  # 발신번호도 미정이라 값을 지어내지 않고 TBD로 표시한다
     file_root: str = "/data/files"  # 첨부파일 저장 위치. 웹 루트 밖이어야 한다(TRD 4.5)
+    file_scanner: str = "mock"  # 파일 검사기. 실제 검사기(clamd)는 배포 환경이 정해진 뒤 더한다
     pg_provider: str = "mock"  # 결제대행사는 계약 후 정해진다(PRD Q1). 그 전에는 모의 어댑터만 있다
     pg_merchant_id: str = "TBD"  # 가맹점 아이디도 미정이라 값을 지어내지 않는다
     worker_status_file: str = (
@@ -62,6 +63,7 @@ def load_settings(environ: dict[str, str] | None = None) -> Settings:
         sms_provider=env.get("JORI_SMS_PROVIDER", "mock"),
         sms_sender_number=env.get("JORI_SMS_SENDER_NUMBER", "TBD"),
         file_root=env.get("JORI_FILE_ROOT") or "/data/files",
+        file_scanner=env.get("JORI_FILE_SCANNER", "mock"),
         pg_provider=env.get("JORI_PG_PROVIDER", "mock"),
         pg_merchant_id=env.get("JORI_PG_MERCHANT_ID", "TBD"),
         worker_status_file=env.get("JORI_WORKER_STATUS_FILE") or "/var/run/jori/worker-status.json",

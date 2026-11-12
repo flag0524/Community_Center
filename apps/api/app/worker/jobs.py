@@ -1,4 +1,5 @@
 # 워커 작업: 결제기한 만료, 결제 결과 재조회, 환불 결과 조회. 대상을 DB 상태로 찾고 항목마다 커밋한다(TDD 7, ADR-048)
+import hashlib
 import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -8,6 +9,7 @@ from sqlalchemy import exists, func, insert, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.adapters.pg.base import ApproveOutcome, ApproveResult, CancelOutcome, CancelResult, PaymentGateway
+from app.adapters.scan.base import FileScanner, ScanUnavailable
 from app.adapters.sms.base import DeliveryState, SendOutcome, SmsLookup, SmsSender
 from app.audit import record_job
 from app.auth.crypto import decrypt
@@ -16,6 +18,7 @@ from app.core.config import Settings
 from app.db.tables import (
     TB_ATNLC_APLY,
     TB_CORS,
+    TB_FILE,
     TB_RFND,
     TB_SMS_DMND,
     TB_SMS_SNDNG_HSTRY,
@@ -27,6 +30,7 @@ from app.domain.admin.refund_service import pg_key, settle_cancel
 from app.domain.admin.transaction_service import RECHECK_MAX, RECHECK_PREFIX, next_event_id
 from app.domain.application.seats import expire_application, lock_course
 from app.domain.payment.service import lock_application, lock_payment, record_event, settle_payment
+from app.files.storage import StorageError, read_blob
 
 log = logging.getLogger("app.worker")
 
@@ -414,3 +418,69 @@ def recheck_sms(db: Session, sender: SmsSender, bundle_sn: int, clock: Clock) ->
         )
         db.commit()
     return checked
+
+
+# --- 파일 검사 ----------------------------------------------------------------------------------
+
+
+def scan_files(db: Session, settings: Settings, scanner: FileScanner, bundle_sn: int, clock: Clock) -> int:
+    """검사 대기(FS.PENDING) 파일을 검사해 통과(FS.SAFE)나 차단(FS.BLOCK)으로 정한다(TDD 7.4, NF-SER-002). 정한 수를 돌려준다.
+
+    저장된 내용의 해시가 올릴 때의 값과 다르면 바뀐 파일이라 차단한다. 검사기에 닿지 못하거나 파일을 읽지 못하면
+    통과로 보지 않고 검사 대기로 두어 다음 주기에 다시 한다. 차단 사유(탐지 이름)는 로그·이력에 남기지 않는다.
+    """
+    due = db.execute(
+        select(TB_FILE.c.FILE_SN)
+        .where(TB_FILE.c.OPER_BNDL_SN == bundle_sn, TB_FILE.c.FILE_STTS_CD == "FS.PENDING")
+        .order_by(TB_FILE.c.REG_DT, TB_FILE.c.FILE_SN)
+        .limit(BATCH)
+    ).all()
+    db.rollback()
+    decided = 0
+    for item in due:
+        file_sn = int(item.FILE_SN)
+        info = db.execute(
+            select(TB_FILE.c.STRG_KEY, TB_FILE.c.FILE_HASH_VL).where(TB_FILE.c.FILE_SN == file_sn)
+        ).one()
+        db.rollback()
+        try:
+            data = read_blob(settings.file_root, str(info.STRG_KEY))
+        except StorageError:
+            log.warning("검사할 파일을 읽지 못했다 file=%s", file_sn)
+            continue
+        if hashlib.sha256(data).hexdigest() != str(info.FILE_HASH_VL):
+            safe = False  # 올린 뒤 내용이 바뀌었다
+        else:
+            try:
+                safe = scanner.scan(data).clean
+            except ScanUnavailable:
+                log.warning("파일 검사기에 닿지 못했다")
+                continue
+        now = clock()
+        target = db.execute(
+            select(TB_FILE.c.FILE_STTS_CD)
+            .where(TB_FILE.c.FILE_SN == file_sn)
+            .with_for_update(skip_locked=True)
+        ).first()
+        if target is None or target.FILE_STTS_CD != "FS.PENDING":  # 그 사이 삭제 등 다른 처리가 먼저 끝냈다
+            db.rollback()
+            continue
+        db.execute(
+            update(TB_FILE)
+            .where(TB_FILE.c.FILE_SN == file_sn)
+            .values(FILE_STTS_CD="FS.SAFE" if safe else "FS.BLOCK", MDFCN_DT=now)
+        )
+        record_job(
+            db,
+            actor="AK.SYSTEM",
+            job="FILE_SCAN",
+            table="TB_FILE",
+            key=file_sn,
+            request_id=_request_id(),
+            now=now,
+            bundle_sn=bundle_sn,
+            change="검사 통과" if safe else "차단",
+        )
+        db.commit()
+        decided += 1
+    return decided

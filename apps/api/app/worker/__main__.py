@@ -9,6 +9,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy.orm import Session
 
 from app.adapters.pg import build_gateway
+from app.adapters.scan import build_scanner
 from app.adapters.sms import build_sender
 from app.core.config import get_settings
 from app.core.times import KST
@@ -29,7 +30,9 @@ def main() -> None:
         bundle_sn = BundleResolver(settings.site_id).resolve(session)
     status_file = Path(settings.worker_status_file)
     scheduler = BlockingScheduler(timezone=UTC)
-    for job in build_jobs(settings, build_gateway(settings), build_sender(settings), bundle_sn, utc_now):
+    for job in build_jobs(
+        settings, build_gateway(settings), build_sender(settings), build_scanner(settings), bundle_sn, utc_now
+    ):
         # 같은 작업이 겹쳐 돌지 않고(max_instances=1) 밀린 실행은 한 번으로 합친다(coalesce)
         trigger = (
             CronTrigger(hour=job.cron[0], minute=job.cron[1], timezone=KST)

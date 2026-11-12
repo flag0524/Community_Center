@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import create_engine, text
 
 from app.adapters.pg.base import ApproveOutcome, ApproveResult, CancelOutcome, CancelResult
+from app.adapters.scan.mock import MockScanner
 from app.domain.admin.refund_service import pg_key
 from app.worker import jobs
 from app.worker.runner import Job, build_jobs, run_guarded
@@ -477,9 +478,10 @@ def test_작업이_오류를_내도_실행기는_멈추지_않고_결과를_기�
 
 
 def test_작업_목록은_문서의_주기를_따른다(world: World) -> None:
-    listed = build_jobs(world.settings, world.pg, world.sms, world.bundle, world.clock)
+    listed = build_jobs(world.settings, world.pg, world.sms, MockScanner(), world.bundle, world.clock)
     assert [(j.name, j.seconds, j.cron) for j in listed] == [
         ("sms_dispatch", 5, None),
+        ("file_scan", 10, None),
         ("expire_payments", 10, None),
         ("recheck_payments", 30, None),
         ("recheck_refunds", 30, None),
