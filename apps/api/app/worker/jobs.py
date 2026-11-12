@@ -4,14 +4,25 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import exists, select
+from sqlalchemy import exists, func, insert, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.adapters.pg.base import ApproveOutcome, ApproveResult, CancelOutcome, CancelResult, PaymentGateway
+from app.adapters.sms.base import DeliveryState, SendOutcome, SmsLookup, SmsSender
 from app.audit import record_job
+from app.auth.crypto import decrypt
 from app.auth.tokens import new_token
 from app.core.config import Settings
-from app.db.tables import TB_ATNLC_APLY, TB_CORS, TB_RFND, TB_STLM, TB_STLM_EVENT
+from app.db.tables import (
+    TB_ATNLC_APLY,
+    TB_CORS,
+    TB_RFND,
+    TB_SMS_DMND,
+    TB_SMS_SNDNG_HSTRY,
+    TB_SMS_TRGT,
+    TB_STLM,
+    TB_STLM_EVENT,
+)
 from app.domain.admin.refund_service import pg_key, settle_cancel
 from app.domain.admin.transaction_service import RECHECK_MAX, RECHECK_PREFIX, next_event_id
 from app.domain.application.seats import expire_application, lock_course
@@ -236,4 +247,170 @@ def recheck_refunds(db: Session, gateway: PaymentGateway, bundle_sn: int, clock:
         )
         db.commit()
         checked += 1
+    return checked
+
+
+# --- 문자 발송 ----------------------------------------------------------------------------------
+
+SEND_STATUS = {
+    SendOutcome.ACCEPTED: "SS.SENDING",
+    SendOutcome.REJECTED: "SS.FAIL",
+    SendOutcome.UNKNOWN: "SS.UNKNOWN",
+}
+# OTP 문자는 인증번호 원문을 아는 API가 직접 보낸다. 워커는 건드리지 않는다(TDD 8.1)
+NOT_OTP = or_(TB_SMS_DMND.c.SRC_EVENT_ID.is_(None), ~TB_SMS_DMND.c.SRC_EVENT_ID.like("CERT:%"))
+
+
+def _attempt_key(trgt_sn: int, seq: int) -> str:
+    return f"sms-{trgt_sn}-{seq}"
+
+
+def dispatch_sms(db: Session, settings: Settings, sender: SmsSender, bundle_sn: int, clock: Clock) -> int:
+    """아웃박스에 쌓인 문자(수신대상 SS.WAIT)를 보낸다(TDD 7.3, FN-028). 시도한 수를 돌려준다.
+
+    보내기 전에 시도 행과 결과 확인 중(SS.UNKNOWN)을 먼저 커밋한다. 발송 직후 죽어도 같은 문자를 새로 보내지 않고
+    조회로 확인한다. 확인된 실패와 결과 불명은 자동으로 다시 보내지 않는다(SMS-04).
+    """
+    due = db.execute(
+        select(TB_SMS_TRGT.c.SMS_TRGT_SN)
+        .join(TB_SMS_DMND, TB_SMS_DMND.c.SMS_DMND_SN == TB_SMS_TRGT.c.SMS_DMND_SN)
+        .where(TB_SMS_TRGT.c.OPER_BNDL_SN == bundle_sn, TB_SMS_TRGT.c.TRGT_STTS_CD == "SS.WAIT", NOT_OTP)
+        .order_by(TB_SMS_TRGT.c.SMS_TRGT_SN)
+        .limit(BATCH)
+    ).all()
+    db.rollback()
+    sent = 0
+    for item in due:
+        trgt_sn = int(item.SMS_TRGT_SN)
+        now = clock()
+        target = db.execute(
+            select(TB_SMS_TRGT).where(TB_SMS_TRGT.c.SMS_TRGT_SN == trgt_sn).with_for_update(skip_locked=True)
+        ).first()
+        if target is None or target.TRGT_STTS_CD != "SS.WAIT":  # 다른 처리가 잡았거나 이미 보냈다
+            db.rollback()
+            continue
+        request = db.execute(
+            select(TB_SMS_DMND.c.SMS_CN, TB_SMS_DMND.c.DSPTCH_TELNO).where(
+                TB_SMS_DMND.c.SMS_DMND_SN == target.SMS_DMND_SN
+            )
+        ).one()
+        key = _attempt_key(trgt_sn, 1)
+        db.execute(
+            insert(TB_SMS_SNDNG_HSTRY).values(
+                OPER_BNDL_SN=bundle_sn,
+                SMS_TRGT_SN=trgt_sn,
+                SNDNG_SEQ=1,
+                SPLR_NM=sender.provider_name,
+                SPLR_ACNT_ID=sender.provider_name,
+                IDEM_KEY=key,
+                PRCS_STTS_CD="SS.UNKNOWN",
+                SNDNG_DMND_DT=now,
+                RCRD_VER=1,
+            )
+        )
+        db.execute(
+            update(TB_SMS_TRGT)
+            .where(TB_SMS_TRGT.c.SMS_TRGT_SN == trgt_sn)
+            .values(TRGT_STTS_CD="SS.UNKNOWN", MDFCN_DT=now, RCRD_VER=TB_SMS_TRGT.c.RCRD_VER + 1)
+        )
+        phone = decrypt(settings.secret_key, str(target.RCPTN_TELNO_ENCPT_VL))
+        text, from_number = str(request.SMS_CN), str(request.DSPTCH_TELNO)
+        db.commit()  # 시도를 먼저 확정한다. 공급자 호출은 잠금·트랜잭션 밖이다
+        try:
+            result = sender.send(to=phone, text=text, sender=from_number, idempotency_key=key)
+            outcome, message_id, failure = result.outcome, result.message_id, result.failure_code
+        except Exception:  # 통신 오류는 결과 불명이다. 새로 보내지 않고 조회한다
+            outcome, message_id, failure = SendOutcome.UNKNOWN, None, "SEND_ERROR"
+        status = SEND_STATUS[outcome]
+        now = clock()
+        db.execute(
+            update(TB_SMS_SNDNG_HSTRY)
+            .where(TB_SMS_SNDNG_HSTRY.c.SMS_TRGT_SN == trgt_sn, TB_SMS_SNDNG_HSTRY.c.SNDNG_SEQ == 1)
+            .values(
+                PRCS_STTS_CD=status,
+                SPLR_MSG_ID=message_id,
+                FAIL_CD=failure,
+                RSLT_IDNTY_DT=now if outcome is SendOutcome.REJECTED else None,
+                RCRD_VER=TB_SMS_SNDNG_HSTRY.c.RCRD_VER + 1,
+            )
+        )
+        db.execute(
+            update(TB_SMS_TRGT)
+            .where(TB_SMS_TRGT.c.SMS_TRGT_SN == trgt_sn)
+            .values(TRGT_STTS_CD=status, MDFCN_DT=now, RCRD_VER=TB_SMS_TRGT.c.RCRD_VER + 1)
+        )
+        db.commit()
+        sent += 1
+    return sent
+
+
+def recheck_sms(db: Session, sender: SmsSender, bundle_sn: int, clock: Clock) -> int:
+    """공급자가 접수한 문자(SS.SENDING)의 최종 전달과 결과를 모르는 문자(SS.UNKNOWN)의 실제 발송 여부를 조회한다.
+
+    전달 확인이면 SS.SENT, 실패 확인이면 SS.FAIL로 바꾼다. 아직 모르면 그대로 두고 새로 보내지 않는다. 조회한 수를 돌려준다.
+    """
+    now = clock()
+    latest = (
+        select(func.max(TB_SMS_SNDNG_HSTRY.c.SNDNG_SEQ))
+        .where(TB_SMS_SNDNG_HSTRY.c.SMS_TRGT_SN == TB_SMS_TRGT.c.SMS_TRGT_SN)
+        .correlate(TB_SMS_TRGT)
+        .scalar_subquery()
+    )
+    due = db.execute(
+        select(TB_SMS_TRGT.c.SMS_TRGT_SN, TB_SMS_SNDNG_HSTRY.c.IDEM_KEY, TB_SMS_SNDNG_HSTRY.c.SPLR_MSG_ID)
+        .join(TB_SMS_DMND, TB_SMS_DMND.c.SMS_DMND_SN == TB_SMS_TRGT.c.SMS_DMND_SN)
+        .join(
+            TB_SMS_SNDNG_HSTRY,
+            (TB_SMS_SNDNG_HSTRY.c.SMS_TRGT_SN == TB_SMS_TRGT.c.SMS_TRGT_SN)
+            & (TB_SMS_SNDNG_HSTRY.c.SNDNG_SEQ == latest),
+        )
+        .where(
+            TB_SMS_TRGT.c.OPER_BNDL_SN == bundle_sn,
+            TB_SMS_TRGT.c.TRGT_STTS_CD.in_(("SS.SENDING", "SS.UNKNOWN")),
+            TB_SMS_SNDNG_HSTRY.c.SNDNG_DMND_DT <= now - SETTLE_GRACE,
+            NOT_OTP,
+        )
+        .order_by(TB_SMS_TRGT.c.SMS_TRGT_SN)
+        .limit(BATCH)
+    ).all()
+    db.rollback()
+    checked = 0
+    for item in due:
+        trgt_sn = int(item.SMS_TRGT_SN)
+        try:
+            found = sender.lookup(idempotency_key=str(item.IDEM_KEY), message_id=item.SPLR_MSG_ID)
+        except Exception:  # 조회 실패는 아직 모르는 것이다
+            found = SmsLookup(DeliveryState.UNKNOWN, "LOOKUP_ERROR")
+        checked += 1
+        if found.state not in (DeliveryState.DELIVERED, DeliveryState.FAILED):
+            continue
+        now = clock()
+        target = db.execute(
+            select(TB_SMS_TRGT.c.TRGT_STTS_CD)
+            .where(TB_SMS_TRGT.c.SMS_TRGT_SN == trgt_sn)
+            .with_for_update(skip_locked=True)
+        ).first()
+        if target is None or target.TRGT_STTS_CD not in ("SS.SENDING", "SS.UNKNOWN"):
+            db.rollback()
+            continue
+        delivered = found.state is DeliveryState.DELIVERED
+        status = "SS.SENT" if delivered else "SS.FAIL"
+        db.execute(
+            update(TB_SMS_SNDNG_HSTRY)
+            .where(
+                TB_SMS_SNDNG_HSTRY.c.SMS_TRGT_SN == trgt_sn, TB_SMS_SNDNG_HSTRY.c.IDEM_KEY == item.IDEM_KEY
+            )
+            .values(
+                PRCS_STTS_CD=status,
+                RSLT_IDNTY_DT=now,
+                FAIL_CD=None if delivered else found.failure_code,
+                RCRD_VER=TB_SMS_SNDNG_HSTRY.c.RCRD_VER + 1,
+            )
+        )
+        db.execute(
+            update(TB_SMS_TRGT)
+            .where(TB_SMS_TRGT.c.SMS_TRGT_SN == trgt_sn)
+            .values(TRGT_STTS_CD=status, MDFCN_DT=now, RCRD_VER=TB_SMS_TRGT.c.RCRD_VER + 1)
+        )
+        db.commit()
     return checked

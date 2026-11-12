@@ -123,7 +123,7 @@
   - [x] B4-4c PG 웹훅 수신(서명 검증·TB_STLM_EVENT 멱등·충돌 격리) ADR-041
   - [x] 결제기한 만료 워커와 PS.PENDING 재조회·대사(B5a)
 - [ ] 운영 DB(Ubuntu)에서 바이너리 로그를 켠 채 READ COMMITTED 쓰기와 `binlog_format` MIXED/ROW를 확인(ADR-038)
-- [ ] 승격 안내 문자의 실제 발송은 B5 워커가 아웃박스(TB_SMS_DMND/TRGT, SS.WAIT)를 읽어 한다
+- [x] 승격 안내 문자의 실제 발송은 B5b 워커가 아웃박스(TB_SMS_DMND/TRGT, SS.WAIT)를 읽어 한다
 - [ ] B4-5 환불
   - [x] 회원 쪽 미리보기·접수(즉시 취소·자리 반환)·내역, 반환 기준액 공식 ADR-042
   - [x] 관리자 승인·반려·보류·집행(PG 취소 포트)·대리 접수·수동 이체 확인 ADR-044 (B4-6b)
@@ -142,6 +142,6 @@
 - [ ] B4-7 파일·CSV·내보내기
 - [ ] B5 워커(만료·승격·SMS·정리)
   - [x] B5a 결제기한 만료·결제 결과 재조회·환불 결과 조회, 실행기·상태 파일 ADR-048
-  - [ ] B5b 문자 발송(sms_dispatch, SS.UNKNOWN 조회)
+  - [x] B5b 문자 발송(sms_dispatch, 접수·결과 불명 조회, 재발송 금지) ADR-049
   - [ ] B5c file_scan·consistency_check·retention, /api/health 연결, 웹훅 재시도, systemd 배포
 - [x] B1b 서술형 DB 검사 규칙 33건 + R27 81건을 CHECK로 옮김(배포 전이라 0001에 포함). 위반 사례 시험 50여 건, 변이 검사로 경계 공백 4곳을 메움

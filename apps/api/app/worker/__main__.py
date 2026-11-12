@@ -8,6 +8,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from sqlalchemy.orm import Session
 
 from app.adapters.pg import build_gateway
+from app.adapters.sms import build_sender
 from app.core.config import get_settings
 from app.db.bundle import BundleResolver
 from app.db.session import create_db_engine, open_session
@@ -28,7 +29,7 @@ def main() -> None:
         bundle_sn = BundleResolver(settings.site_id).resolve(session)
     status_file = Path(os.environ.get("JORI_WORKER_STATUS_FILE", DEFAULT_STATUS_FILE))
     scheduler = BlockingScheduler(timezone=UTC)
-    for job in build_jobs(settings, build_gateway(settings), bundle_sn, utc_now):
+    for job in build_jobs(settings, build_gateway(settings), build_sender(settings), bundle_sn, utc_now):
         # 같은 작업이 겹쳐 돌지 않고(max_instances=1) 밀린 실행은 한 번으로 합친다(coalesce)
         scheduler.add_job(
             run_guarded,

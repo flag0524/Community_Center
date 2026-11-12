@@ -9,6 +9,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.adapters.pg.base import PaymentGateway
+from app.adapters.sms.base import SmsSender
 from app.core.config import Settings
 from app.db.session import open_session
 from app.worker import jobs
@@ -25,10 +26,22 @@ class Job:
 
 
 def build_jobs(
-    settings: Settings, gateway: PaymentGateway, bundle_sn: int, clock: Callable[[], datetime]
+    settings: Settings,
+    gateway: PaymentGateway,
+    sender: SmsSender,
+    bundle_sn: int,
+    clock: Callable[[], datetime],
 ) -> list[Job]:
-    """TDD 7의 주기(만료 10초, 재조회 30초)를 따른다. 문자 발송 등은 이어서 더한다."""
+    """TDD 7의 주기(문자 5초, 만료 10초, 재조회 30초)를 따른다. 파일 검사·정합성 점검·정리는 이어서 더한다."""
     return [
+        Job(
+            "sms_dispatch",
+            5,
+            lambda db: (
+                jobs.dispatch_sms(db, settings, sender, bundle_sn, clock)
+                + jobs.recheck_sms(db, sender, bundle_sn, clock)
+            ),
+        ),
         Job("expire_payments", 10, lambda db: jobs.expire_payments(db, settings, bundle_sn, clock)),
         Job(
             "recheck_payments", 30, lambda db: jobs.recheck_payments(db, settings, gateway, bundle_sn, clock)

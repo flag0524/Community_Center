@@ -476,8 +476,9 @@ def test_작업이_오류를_내도_실행기는_멈추지_않고_결과를_기�
 
 
 def test_작업_목록은_문서의_주기를_따른다(world: World) -> None:
-    listed = build_jobs(world.settings, world.pg, world.bundle, world.clock)
+    listed = build_jobs(world.settings, world.pg, world.sms, world.bundle, world.clock)
     assert [(j.name, j.seconds) for j in listed] == [
+        ("sms_dispatch", 5),
         ("expire_payments", 10),
         ("recheck_payments", 30),
         ("recheck_refunds", 30),
