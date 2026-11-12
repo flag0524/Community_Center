@@ -1,7 +1,7 @@
 # 게시판 목록·상세·첨부 API의 응답 모델
 from pydantic import AwareDatetime, Field
 
-from app.core.schema import ApiModel, Page, SerialId
+from app.core.schema import ApiModel, CategoryCode, Page, SerialId
 from app.domain.board.types import BoardKey, InquiryStatus
 
 
@@ -57,7 +57,7 @@ class PostPage(Page[PostSummary]):
 class InquiryCategory(ApiModel):
     """문의 분류. 값은 공통코드(IQ)에서 오며 화면에 고정하지 않는다(PRD Q26)."""
 
-    category_id: SerialId
+    category_id: CategoryCode
     name: str
 
 
@@ -89,7 +89,7 @@ class InquiryAnswer(ApiModel):
 
 class InquiryDetail(ApiModel):
     post_id: SerialId
-    category_id: SerialId
+    category_id: CategoryCode
     category_name: str
     title: str
     body: str
@@ -103,7 +103,7 @@ class InquiryDetail(ApiModel):
 
 
 class InquiryWrite(ApiModel):
-    category_id: SerialId
+    category_id: CategoryCode
     title: str = Field(min_length=1, max_length=100)
     body: str = Field(min_length=1, max_length=2000)
     is_private: bool

@@ -21,6 +21,13 @@ SerialId = Annotated[
     ),
 ]
 
+# 공통코드는 12자 이하 문자열이 영구 식별자다. 문의 분류(IQ)는 일련번호가 없어 코드 자체를 번호로 쓴다.
+CategoryCode = Annotated[
+    str,
+    StringConstraints(pattern=r"^IQ\.[A-Z0-9_]{1,9}$"),
+    Field(description="문의 분류 코드(IQ). 예 IQ.COURSE", json_schema_extra={"x-code": "IQ"}),
+]
+
 # 금액은 원 단위 정수이고 상한은 스키마 검증 규칙(수강료 10,000,000원)을 따른다.
 Won = Annotated[int, Field(ge=0, le=10_000_000, description="원 단위 금액")]
 

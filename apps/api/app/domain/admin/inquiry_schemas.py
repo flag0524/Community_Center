@@ -3,9 +3,8 @@ from datetime import date
 
 from pydantic import AwareDatetime, Field
 
-from app.core.schema import ApiModel, Page, SerialId
+from app.core.schema import ApiModel, CategoryCode, Page, SerialId
 from app.domain.admin.content_types import AnswerAction
-from app.domain.admin.education_schemas import Option
 from app.domain.board.types import InquiryStatus
 
 
@@ -46,8 +45,13 @@ class AdminInquiry(AdminInquirySummary):
     can_answer: bool = Field(description="답변 권한이 있을 때만 true다.")
 
 
+class AdminInquiryCategory(ApiModel):
+    id: CategoryCode
+    name: str
+
+
 class AdminInquiryCategoryList(ApiModel):
-    items: list[Option]
+    items: list[AdminInquiryCategory]
 
 
 class InquiryAnswerWrite(ApiModel):

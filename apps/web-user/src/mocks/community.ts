@@ -10,10 +10,10 @@ type Review = Schemas['ReviewDetail'];
 
 const OTHER = { memberId: '1000000000000000000009', name: '김다른' };
 const CATEGORIES = [
-  { categoryId: '1', name: '수강신청' },
-  { categoryId: '2', name: '결제' },
-  { categoryId: '3', name: '환불' },
-  { categoryId: '4', name: '센터 이용' },
+  { categoryId: 'IQ.COURSE', name: '수강신청' },
+  { categoryId: 'IQ.PAYMENT', name: '결제' },
+  { categoryId: 'IQ.REFUND', name: '환불' },
+  { categoryId: 'IQ.CENTER', name: '센터 이용' },
 ];
 
 interface StoredInquiry extends Omit<Inquiry, 'canEdit' | 'canDelete' | 'status'> {
@@ -36,7 +36,7 @@ const DEMO_ID = '1000000000000000000001';
 const seedInquiries = (): StoredInquiry[] => [
   {
     postId: '601',
-    categoryId: '2',
+    categoryId: 'IQ.PAYMENT',
     categoryName: '결제',
     title: '결제 결과는 어디서 확인하나요?',
     body: '수강료 결제를 진행했습니다. 신청 내역에서 결과를 확인하는 방법을 알고 싶습니다.',
@@ -51,7 +51,7 @@ const seedInquiries = (): StoredInquiry[] => [
   },
   {
     postId: '602',
-    categoryId: '1',
+    categoryId: 'IQ.COURSE',
     categoryName: '수강신청',
     title: '대기신청 순번 문의',
     body: '대기신청 순번이 어떻게 정해지나요?',
@@ -63,7 +63,7 @@ const seedInquiries = (): StoredInquiry[] => [
   },
   {
     postId: '603',
-    categoryId: '3',
+    categoryId: 'IQ.REFUND',
     categoryName: '환불',
     title: '다른 회원의 문의',
     body: '다른 회원이 쓴 비공개 문의입니다.',
@@ -75,7 +75,7 @@ const seedInquiries = (): StoredInquiry[] => [
   },
   {
     postId: '604',
-    categoryId: '4',
+    categoryId: 'IQ.CENTER',
     categoryName: '센터 이용',
     title: '수강 시간 문의',
     body: '수강 시간이 궁금합니다.',

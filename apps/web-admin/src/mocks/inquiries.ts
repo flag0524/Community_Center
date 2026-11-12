@@ -7,11 +7,11 @@ import { csvResponse } from './csv';
 type Inquiry = Schemas['AdminInquiry'];
 
 const iid = (n: number) => `18${String(n).padStart(20, '0')}`;
-const cid = (n: number) => `19${String(n).padStart(20, '0')}`;
 const PAGE_SIZE = 20;
 
 // 문의 분류는 시안의 선택지이며 확정값이 아니다(PRD Q26).
-const CATEGORIES = ['수강 신청', '결제·환불', '시설·장소', '기타'].map((name, index) => ({ id: cid(index + 1), name }));
+const CATEGORY_CODES = ['IQ.COURSE', 'IQ.PAYMENT', 'IQ.FACILITY', 'IQ.ETC'];
+const CATEGORIES = ['수강 신청', '결제·환불', '시설·장소', '기타'].map((name, index) => ({ id: CATEGORY_CODES[index]!, name }));
 
 interface Seed {
   n: number;
