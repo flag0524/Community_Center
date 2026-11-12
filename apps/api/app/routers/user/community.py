@@ -1,9 +1,13 @@
 # 질문과 답변(문의)과 수강후기의 조회·작성·수정·삭제 라우터. 작성·수정·삭제는 본인 글만이고 타인의 글은 404다
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Response, Security
+from fastapi import APIRouter, Depends, Path, Query, Request, Response, Security
+from sqlalchemy.orm import Session
 
+from app.auth.deps import Clock, Member, get_clock, request_id_of, require_member, require_member_write
 from app.core.errors import ErrorCode, not_implemented
+from app.db.session import get_db
+from app.domain.board import inquiry
 from app.domain.board.schemas import (
     InquiryCategoryList,
     InquiryDetail,
@@ -33,6 +37,10 @@ member_router = APIRouter(
 PostId = Annotated[str, Path(pattern=r"^[0-9]{1,22}$", description="게시물 일련번호(문자열)")]
 Page_ = Annotated[int, Query(ge=1)]
 Size = Annotated[int, Query(ge=1, le=50)]
+Db = Annotated[Session, Depends(get_db)]
+Me = Annotated[Member, Depends(require_member)]
+MeWrite = Annotated[Member, Depends(require_member_write)]
+Now = Annotated[Clock, Depends(get_clock)]
 NOT_FOUND = error_responses(ErrorCode.NOT_FOUND)
 WRITE_ERRORS = error_responses(ErrorCode.NOT_FOUND, ErrorCode.RULE_REJECTED, ErrorCode.IDEMPOTENCY_CONFLICT)
 
@@ -52,38 +60,67 @@ def get_review(post_id: PostId) -> ReviewDetail:
 
 
 @member_router.get("/inquiry-categories")
-def list_inquiry_categories() -> InquiryCategoryList:
-    not_implemented()
+def list_inquiry_categories(db: Db, me: Me) -> InquiryCategoryList:
+    return inquiry.list_categories(db)
 
 
 @member_router.get("/inquiries")
-def list_inquiries(page: Page_ = 1, size: Size = 10) -> InquiryPage:
+def list_inquiries(db: Db, me: Me, clock: Now, page: Page_ = 1, size: Size = 10) -> InquiryPage:
     """모든 문의의 분류·상태·등록일을 준다. 다른 회원의 비공개 문의는 제목과 작성자를 가린다."""
-    not_implemented()
+    return inquiry.list_all(
+        db, member_sn=me.member_sn, bundle_sn=me.bundle_sn, now=clock(), page=page, size=size
+    )
 
 
 @member_router.get("/inquiries/{post_id}", responses=NOT_FOUND)
-def get_inquiry(post_id: PostId) -> InquiryDetail:
+def get_inquiry(post_id: PostId, db: Db, me: Me) -> InquiryDetail:
     """다른 회원의 비공개 문의는 없는 것과 같게 404다."""
-    not_implemented()
+    return inquiry.get_inquiry(db, member_sn=me.member_sn, bundle_sn=me.bundle_sn, post_id=post_id)
 
 
 @member_router.get("/me/inquiries")
-def list_my_inquiries(page: Page_ = 1, size: Size = 10) -> InquiryPage:
-    not_implemented()
+def list_my_inquiries(db: Db, me: Me, clock: Now, page: Page_ = 1, size: Size = 10) -> InquiryPage:
+    return inquiry.list_mine(
+        db, member_sn=me.member_sn, bundle_sn=me.bundle_sn, now=clock(), page=page, size=size
+    )
 
 
 @member_router.post(
     "/me/inquiries", status_code=201, responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)]
 )
-def create_inquiry(body: InquiryWrite, idempotency_key: IdempotencyKey) -> InquiryDetail:
-    not_implemented()
+def create_inquiry(
+    body: InquiryWrite,
+    idempotency_key: IdempotencyKey,
+    request: Request,
+    db: Db,
+    me: MeWrite,
+    clock: Now,
+) -> InquiryDetail:
+    return inquiry.create_inquiry(
+        db,
+        member_sn=me.member_sn,
+        bundle_sn=me.bundle_sn,
+        body=body,
+        idem_key=idempotency_key,
+        request_id=request_id_of(request),
+        now=clock(),
+    )
 
 
 @member_router.put("/me/inquiries/{post_id}", responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)])
-def update_inquiry(post_id: PostId, body: InquiryWrite) -> InquiryDetail:
+def update_inquiry(
+    post_id: PostId, body: InquiryWrite, request: Request, db: Db, me: MeWrite, clock: Now
+) -> InquiryDetail:
     """답변이 달린 문의는 고칠 수 없다(RULE_REJECTED)."""
-    not_implemented()
+    return inquiry.update_inquiry(
+        db,
+        member_sn=me.member_sn,
+        bundle_sn=me.bundle_sn,
+        post_id=post_id,
+        body=body,
+        request_id=request_id_of(request),
+        now=clock(),
+    )
 
 
 @member_router.delete(
@@ -93,8 +130,15 @@ def update_inquiry(post_id: PostId, body: InquiryWrite) -> InquiryDetail:
     responses=NOT_FOUND,
     dependencies=[Depends(csrf_header)],
 )
-def delete_inquiry(post_id: PostId) -> None:
-    not_implemented()
+def delete_inquiry(post_id: PostId, request: Request, db: Db, me: MeWrite, clock: Now) -> None:
+    inquiry.delete_inquiry(
+        db,
+        member_sn=me.member_sn,
+        bundle_sn=me.bundle_sn,
+        post_id=post_id,
+        request_id=request_id_of(request),
+        now=clock(),
+    )
 
 
 @member_router.get("/me/reviews")
