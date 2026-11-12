@@ -12,7 +12,7 @@ from app.adapters.pg.base import PaymentGateway
 from app.adapters.sms.base import SmsSender
 from app.core.config import Settings
 from app.db.session import open_session
-from app.worker import jobs
+from app.worker import consistency, jobs
 from app.worker.status import record_run
 
 log = logging.getLogger("app.worker")
@@ -21,8 +21,9 @@ log = logging.getLogger("app.worker")
 @dataclass(frozen=True)
 class Job:
     name: str
-    seconds: int
+    seconds: int  # 주기 작업의 간격(초). 매일 정해진 시각에 도는 작업은 0이다
     run: Callable[[Session], int]
+    cron: tuple[int, int] | None = None  # (시, 분) 한국 시각. 있으면 간격 대신 매일 이 시각에 돈다
 
 
 def build_jobs(
@@ -47,6 +48,12 @@ def build_jobs(
             "recheck_payments", 30, lambda db: jobs.recheck_payments(db, settings, gateway, bundle_sn, clock)
         ),
         Job("recheck_refunds", 30, lambda db: jobs.recheck_refunds(db, gateway, bundle_sn, clock)),
+        Job(
+            "consistency_check",
+            0,
+            lambda db: consistency.consistency_check(db, bundle_sn, clock),
+            cron=(3, 0),  # TDD 7.5: 매일 03:00
+        ),
     ]
 
 
@@ -55,7 +62,7 @@ def run_guarded(job: Job, engine: Engine, status_file: Path, clock: Callable[[],
     session = open_session(engine)
     try:
         handled = job.run(session)
-        record_run(status_file, job.name, ok=True, now=clock())
+        record_run(status_file, job.name, ok=True, now=clock(), handled=handled)
         if handled:
             log.info("작업 %s 처리 %d건", job.name, handled)
     except Exception as error:

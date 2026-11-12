@@ -5,6 +5,7 @@ from fastapi.routing import APIRoute
 from app.core.errors import install_error_handlers
 from app.core.openapi import install_openapi
 from app.routers.admin import admin_router
+from app.routers.health import router as health_router
 from app.routers.user import user_router
 from app.routers.webhook import router as webhook_router
 
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
     app.include_router(user_router)
     app.include_router(admin_router)
     app.include_router(webhook_router)
+    app.include_router(health_router)
     install_openapi(app)
     return app
 

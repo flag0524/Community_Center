@@ -143,5 +143,6 @@
 - [ ] B5 워커(만료·승격·SMS·정리)
   - [x] B5a 결제기한 만료·결제 결과 재조회·환불 결과 조회, 실행기·상태 파일 ADR-048
   - [x] B5b 문자 발송(sms_dispatch, 접수·결과 불명 조회, 재발송 금지) ADR-049
-  - [ ] B5c file_scan·consistency_check·retention, /api/health 연결, 웹훅 재시도, systemd 배포
+  - [x] B5c-1 일일 정합성 점검(consistency_check)·/api/health 연결 ADR-050
+  - [ ] B5c-2 retention(04:00)·file_scan, 대시보드 확인할 업무가 find_stale 읽기, 웹훅 재시도, systemd 배포
 - [x] B1b 서술형 DB 검사 규칙 33건 + R27 81건을 CHECK로 옮김(배포 전이라 0001에 포함). 위반 사례 시험 50여 건, 변이 검사로 경계 공백 4곳을 메움

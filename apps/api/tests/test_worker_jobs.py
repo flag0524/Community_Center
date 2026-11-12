@@ -447,6 +447,7 @@ def test_상태_파일에_작업별_마지막_실행과_결과를_남기고_오�
         "lastRun": "2026-11-09T09:01:00+00:00",
         "ok": False,
         "error": "TimeoutError",
+        "handled": None,
     }
     assert not is_stale(path, START + MINUTE * 5) and not is_stale(path, START + MINUTE * 6)
     assert is_stale(path, START + MINUTE * 6 + timedelta(seconds=1))
@@ -472,14 +473,15 @@ def test_작업이_오류를_내도_실행기는_멈추지_않고_결과를_기�
     state = json.loads(path.read_text(encoding="utf-8"))
     assert state["bad"]["ok"] is False and state["bad"]["error"] == "TimeoutError"
     assert "내부 사정" not in path.read_text(encoding="utf-8")  # 오류 내용은 담지 않고 종류만 남긴다
-    assert state["good"]["ok"] is True
+    assert state["good"]["ok"] is True and state["good"]["handled"] == 2  # 처리한 건수를 남긴다
 
 
 def test_작업_목록은_문서의_주기를_따른다(world: World) -> None:
     listed = build_jobs(world.settings, world.pg, world.sms, world.bundle, world.clock)
-    assert [(j.name, j.seconds) for j in listed] == [
-        ("sms_dispatch", 5),
-        ("expire_payments", 10),
-        ("recheck_payments", 30),
-        ("recheck_refunds", 30),
+    assert [(j.name, j.seconds, j.cron) for j in listed] == [
+        ("sms_dispatch", 5, None),
+        ("expire_payments", 10, None),
+        ("recheck_payments", 30, None),
+        ("recheck_refunds", 30, None),
+        ("consistency_check", 0, (3, 0)),  # 매일 03:00(한국 시각)
     ]
