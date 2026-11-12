@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 from app.auth.admin_access import Admin, require_admin, require_admin_write
 from app.auth.deps import Clock, get_clock, request_id_of
 from app.core.config import Settings, get_settings
-from app.core.errors import ErrorCode, not_implemented
+from app.core.errors import ErrorCode
 from app.db.session import get_db
 from app.domain.admin import education_service as service
+from app.domain.admin.csv_export import csv_response
 from app.domain.admin.education_schemas import (
     AdminCourse,
     AdminCoursePage,
@@ -72,9 +73,10 @@ def create_cycle(
     response_class=Response,
     responses={**error_responses(ErrorCode.RULE_REJECTED), **CSV_RESPONSE},
 )
-def export_cycles_csv() -> Response:
+def export_cycles_csv(request: Request, db: Db, admin: Me, clock: Now) -> Response:
     """교육기수 목록 전체. 기간과 접수기간은 한국 시간 날짜로 담는다."""
-    not_implemented()
+    content = service.export_cycles_csv(db, admin, now=clock(), request_id=request_id_of(request))
+    return csv_response("cycles.csv", content)
 
 
 @router.get("/cycles/{cycle_id}", responses=error_responses(ErrorCode.NOT_FOUND))
@@ -130,6 +132,10 @@ def list_admin_courses(
     responses={**error_responses(ErrorCode.RULE_REJECTED), **CSV_RESPONSE},
 )
 def export_courses_csv(
+    request: Request,
+    db: Db,
+    admin: Me,
+    clock: Now,
     q: Annotated[str | None, Query(max_length=100)] = None,
     cycle_id: Annotated[str | None, Query(alias="cycleId", pattern=r"^[0-9]{1,22}$")] = None,
     class_id: Annotated[str | None, Query(alias="classId", pattern=r"^[0-9]{1,22}$")] = None,
@@ -137,7 +143,18 @@ def export_courses_csv(
     status: CourseAdminStatus | None = None,
 ) -> Response:
     """목록과 같은 조건·범위로 만든다. 범위 밖 강좌는 담지 않는다(RQ-SER-NF-009)."""
-    not_implemented()
+    content = service.export_courses_csv(
+        db,
+        admin,
+        now=clock(),
+        request_id=request_id_of(request),
+        q=q,
+        cycle_id=cycle_id,
+        class_id=class_id,
+        dong_id=dong_id,
+        status=status,
+    )
+    return csv_response("courses.csv", content)
 
 
 @router.post("/courses", status_code=201, responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)])

@@ -24,6 +24,7 @@ from app.db.tables import (
 )
 from app.domain.admin.application_schemas import LinkedRefund
 from app.domain.admin.application_types import ActionKind, NoticeHandling, ReconcileOutcome
+from app.domain.admin.csv_export import audit_export, build_csv, chunks, fetch_all
 from app.domain.admin.refund_service import kst_start, mask_name, scoped
 from app.domain.admin.transaction_schemas import (
     PgNotice,
@@ -133,22 +134,21 @@ def _summary(row: Any, recheck: tuple[int, datetime | None], conflicts: set[int]
     }
 
 
-def list_transactions(
+def _filtered(
     db: Session,
     admin: Admin,
-    *,
     now: datetime,
+    conflicts: set[int],
+    *,
     q: str | None,
     status: PaymentStatus | None,
     method: PaymentMethod | None,
     from_date: date | None,
     to_date: date | None,
     conflict_only: bool,
-    page: int,
-    size: int,
-) -> TransactionPage:
+) -> Any:
+    """목록과 내보내기가 함께 쓰는 조회. 결과 확인 중인 거래를 먼저, 그 안에서는 최근 요청이 앞이다."""
     scope = permit_any(db, admin, VIEW, now)
-    conflicts = _conflict_payments(db, admin.bundle_sn)
     query = scoped(_base(admin.bundle_sn), scope)
     if q:
         needle = q.strip()
@@ -166,16 +166,71 @@ def list_transactions(
         query = query.where(TB_STLM.c.STLM_DMND_DT < kst_start(to_date + timedelta(days=1)))
     if conflict_only:
         query = query.where(TB_STLM.c.STLM_SN.in_(conflicts or {0}))
+    return query.order_by(
+        case((TB_STLM.c.STLM_STTS_CD == "PS.PENDING", 0), else_=1),  # 결과 확인 중인 거래를 먼저
+        TB_STLM.c.STLM_DMND_DT.desc(),
+        TB_STLM.c.STLM_SN.desc(),
+    )
+
+
+def _recheck_stats_all(
+    db: Session, bundle_sn: int, stlm_sns: list[int]
+) -> dict[int, tuple[int, datetime | None]]:
+    stats: dict[int, tuple[int, datetime | None]] = {}
+    for part in chunks(stlm_sns):
+        stats.update(_recheck_stats(db, bundle_sn, part))
+    return stats
+
+
+def export_csv(db: Session, admin: Admin, *, now: datetime, request_id: str, **filters: Any) -> bytes:
+    """목록과 같은 조건·권한으로 만든다. 확인 중인 금액은 순수납에 넣지 않고 상태 열로 구분한다."""
+    conflicts = _conflict_payments(db, admin.bundle_sn)
+    rows = fetch_all(db, _filtered(db, admin, now, conflicts, **filters))
+    stats = _recheck_stats_all(db, admin.bundle_sn, [int(r.STLM_SN) for r in rows])
+    items = [TransactionSummary(**_summary(r, stats.get(int(r.STLM_SN), (0, None)), conflicts)) for r in rows]
+    audit_export(db, admin, "TB_STLM", len(items), request_id, now, filters)
+    return build_csv(
+        [
+            "주문번호",
+            "신청번호",
+            "금액",
+            "수단",
+            "상태",
+            "요청시각",
+            "PG 승인시각",
+            "재조회 횟수",
+            "충돌 통보",
+        ],
+        [
+            [
+                i.order_no,
+                i.application_no,
+                i.amount,
+                i.method.value,
+                i.status.value,
+                i.requested_at,
+                i.approved_at,
+                i.recheck_count,
+                i.has_conflict,
+            ]
+            for i in items
+        ],
+    )
+
+
+def list_transactions(
+    db: Session,
+    admin: Admin,
+    *,
+    now: datetime,
+    page: int,
+    size: int,
+    **filters: Any,
+) -> TransactionPage:
+    conflicts = _conflict_payments(db, admin.bundle_sn)
+    query = _filtered(db, admin, now, conflicts, **filters)
     total = int(db.execute(select(func.count()).select_from(query.order_by(None).subquery())).scalar_one())
-    rows = db.execute(
-        query.order_by(
-            case((TB_STLM.c.STLM_STTS_CD == "PS.PENDING", 0), else_=1),  # 결과 확인 중인 거래를 먼저
-            TB_STLM.c.STLM_DMND_DT.desc(),
-            TB_STLM.c.STLM_SN.desc(),
-        )
-        .limit(size)
-        .offset((page - 1) * size)
-    ).all()
+    rows = db.execute(query.limit(size).offset((page - 1) * size)).all()
     stats = _recheck_stats(db, admin.bundle_sn, [int(r.STLM_SN) for r in rows])
     return TransactionPage(
         items=[

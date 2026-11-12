@@ -9,10 +9,11 @@ from app.adapters.pg.base import PaymentGateway
 from app.auth.admin_access import Admin, require_admin, require_admin_write
 from app.auth.deps import Clock, get_clock, get_payment_gateway, request_id_of
 from app.core.config import Settings, get_settings
-from app.core.errors import ErrorCode, not_implemented
+from app.core.errors import ErrorCode
 from app.db.session import get_db
 from app.domain.admin import refund_service as service
 from app.domain.admin.application_types import RefundRequester
+from app.domain.admin.csv_export import csv_response
 from app.domain.admin.refund_schemas import (
     AdminRefund,
     AdminRefundCreate,
@@ -109,13 +110,27 @@ def create_admin_refund(
     responses={**error_responses(ErrorCode.RULE_REJECTED), **CSV_RESPONSE},
 )
 def export_refunds_csv(
+    request: Request,
+    db: Db,
+    admin: Me,
+    clock: Now,
     status: RefundStatus | None = None,
     requester: RefundRequester | None = None,
     from_date: Annotated[date | None, Query(alias="from")] = None,
     to_date: Annotated[date | None, Query(alias="to")] = None,
 ) -> Response:
     """목록과 같은 조건·권한으로 만든다. 환불 계좌 같은 민감 값은 담지 않는다."""
-    not_implemented()
+    content = service.export_csv(
+        db,
+        admin,
+        now=clock(),
+        request_id=request_id_of(request),
+        status=status,
+        requester=requester,
+        from_date=from_date,
+        to_date=to_date,
+    )
+    return csv_response("refunds.csv", content)
 
 
 @router.get("/refunds/{refund_id}", responses=error_responses(ErrorCode.NOT_FOUND))

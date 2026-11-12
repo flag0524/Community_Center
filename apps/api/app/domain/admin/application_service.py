@@ -35,6 +35,7 @@ from app.domain.admin.application_schemas import (
     WaitlistPage,
 )
 from app.domain.admin.application_types import SmsResult
+from app.domain.admin.csv_export import audit_export, build_csv, chunks, fetch_all
 from app.domain.admin.refund_service import kst_start, mask_name, scoped
 from app.domain.admin.types import AdminAuthority as AU
 from app.domain.application.service import PAYMENT, REFUND_STAGE, STATUS, flags, rank_in_waitlist
@@ -110,19 +111,19 @@ def _payments_and_refunds(
     pay_sns = [int(r.PAY_SN) for r in rows if r.PAY_SN is not None]
     if not pay_sns:
         return {}, {}
-    payments = {
-        int(p.STLM_SN): p
-        for p in db.execute(
-            select(TB_STLM).where(TB_STLM.c.OPER_BNDL_SN == bundle_sn, TB_STLM.c.STLM_SN.in_(pay_sns))
-        ).all()
-    }
+    payments: dict[int, Any] = {}
     refunds: dict[int, Any] = {}
-    for r in db.execute(
-        select(TB_RFND)
-        .where(TB_RFND.c.OPER_BNDL_SN == bundle_sn, TB_RFND.c.STLM_SN.in_(pay_sns))
-        .order_by(TB_RFND.c.RFND_SN)
-    ).all():
-        refunds[int(r.STLM_SN)] = r  # 같은 결제의 환불이 여럿이면 마지막이 남는다
+    for part in chunks(pay_sns):  # 내보내기는 수만 건이라 IN 목록을 나눠 읽는다
+        for p in db.execute(
+            select(TB_STLM).where(TB_STLM.c.OPER_BNDL_SN == bundle_sn, TB_STLM.c.STLM_SN.in_(part))
+        ).all():
+            payments[int(p.STLM_SN)] = p
+        for r in db.execute(
+            select(TB_RFND)
+            .where(TB_RFND.c.OPER_BNDL_SN == bundle_sn, TB_RFND.c.STLM_SN.in_(part))
+            .order_by(TB_RFND.c.RFND_SN)
+        ).all():
+            refunds[int(r.STLM_SN)] = r  # 같은 결제의 환불이 여럿이면 마지막이 남는다
     return payments, refunds
 
 
@@ -142,11 +143,11 @@ def _summary(row: Any, payment: Any, refund: Any, now: datetime) -> dict[str, An
     }
 
 
-def list_applications(
+def _filtered(
     db: Session,
     admin: Admin,
-    *,
     now: datetime,
+    *,
     q: str | None,
     cycle_id: str | None,
     course_id: str | None,
@@ -154,9 +155,8 @@ def list_applications(
     payment_status: PaymentStatus | None,
     from_date: date | None,
     to_date: date | None,
-    page: int,
-    size: int,
-) -> AdminApplicationPage:
+) -> Any:
+    """목록과 내보내기가 함께 쓰는 조회. 권한·범위·조건이 한 곳에서 정해진다."""
     scope = permit(db, admin, AU.APLY_R, now)
     query = scoped(_base(admin.bundle_sn), scope)
     if q:
@@ -177,14 +177,12 @@ def list_applications(
         query = query.where(TB_ATNLC_APLY.c.APLY_DT >= kst_start(from_date))
     if to_date is not None:
         query = query.where(TB_ATNLC_APLY.c.APLY_DT < kst_start(to_date + timedelta(days=1)))
-    total = int(db.execute(select(func.count()).select_from(query.order_by(None).subquery())).scalar_one())
-    rows = db.execute(
-        query.order_by(TB_ATNLC_APLY.c.APLY_DT.desc(), TB_ATNLC_APLY.c.ATNLC_APLY_SN.desc())
-        .limit(size)
-        .offset((page - 1) * size)
-    ).all()
-    payments, refunds = _payments_and_refunds(db, admin.bundle_sn, list(rows))
-    items = [
+    return query.order_by(TB_ATNLC_APLY.c.APLY_DT.desc(), TB_ATNLC_APLY.c.ATNLC_APLY_SN.desc())
+
+
+def _summaries(db: Session, admin: Admin, rows: list[Any], now: datetime) -> list[AdminApplicationSummary]:
+    payments, refunds = _payments_and_refunds(db, admin.bundle_sn, rows)
+    return [
         AdminApplicationSummary(
             **_summary(
                 r,
@@ -195,8 +193,46 @@ def list_applications(
         )
         for r in rows
     ]
+
+
+def list_applications(
+    db: Session,
+    admin: Admin,
+    *,
+    now: datetime,
+    page: int,
+    size: int,
+    **filters: Any,
+) -> AdminApplicationPage:
+    query = _filtered(db, admin, now, **filters)
+    total = int(db.execute(select(func.count()).select_from(query.order_by(None).subquery())).scalar_one())
+    rows = list(db.execute(query.limit(size).offset((page - 1) * size)).all())
+    items = _summaries(db, admin, rows, now)
     return AdminApplicationPage(
         items=items, page=page, size=size, total=total, criteria=PageCriteria(basis_at=utc(now))
+    )
+
+
+def export_csv(db: Session, admin: Admin, *, now: datetime, request_id: str, **filters: Any) -> bytes:
+    """목록과 같은 조건·권한·가려진 값으로 만든다. 페이지 제한만 없고 5만 행을 넘으면 거절한다."""
+    rows = fetch_all(db, _filtered(db, admin, now, **filters))
+    items = _summaries(db, admin, rows, now)
+    audit_export(db, admin, "TB_ATNLC_APLY", len(items), request_id, now, filters)
+    return build_csv(
+        ["신청번호", "강좌", "신청자", "신청 상태", "표시 상태", "결제 상태", "환불 상태", "신청일시"],
+        [
+            [
+                i.application_no,
+                i.course_name,
+                i.applicant_name,
+                i.status.value,
+                i.display_state.value,
+                None if i.payment_status is None else i.payment_status.value,
+                None if i.refund_status is None else i.refund_status.value,
+                i.applied_at,
+            ]
+            for i in items
+        ],
     )
 
 

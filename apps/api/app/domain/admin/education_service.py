@@ -30,6 +30,7 @@ from app.db.tables import (
     TB_STLM,
 )
 from app.db.versioned import update_versioned
+from app.domain.admin.csv_export import audit_export, build_csv, fetch_all
 from app.domain.admin.education_schemas import (
     AdminCourse,
     AdminCoursePage,
@@ -374,19 +375,18 @@ def _summary(row: Any, now: datetime) -> dict[str, Any]:
     }
 
 
-def list_courses(
+def _filtered_courses(
     db: Session,
     admin: Admin,
-    *,
     now: datetime,
+    *,
     q: str | None,
     cycle_id: str | None,
     class_id: str | None,
     dong_id: str | None,
     status: CourseAdminStatus | None,
-    page: int,
-    size: int,
-) -> AdminCoursePage:
+) -> Any:
+    """목록과 내보내기가 함께 쓰는 조회. 범위 밖 강좌는 조건과 무관하게 나오지 않는다(RQ-SER-NF-009)."""
     scope = permit_any(db, admin, READ, now)
     query = scoped(_course_query(admin.bundle_sn), scope)
     if q and q.strip():
@@ -399,21 +399,99 @@ def list_courses(
         query = query.where(TB_CORS.c.DONG_SN == int(dong_id))
     if status is not None:
         query = query.where(TB_CORS.c.CORS_STTS_CD.in_(STATUS_CODES[status]))
+    return query.order_by(TB_CORS.c.RCPT_BGNG_DT.desc(), TB_CORS.c.CORS_SN.desc())
+
+
+def _course_summary(r: Any, now: datetime) -> AdminCourseSummary:
+    return AdminCourseSummary(
+        **_summary(r, now),
+        cycle_name=str(r.EDU_CYCL_NM),
+        class_name=None if r.CORS_CLSF_NM is None else str(r.CORS_CLSF_NM),
+        instructor_name="" if r.INSTRUCTOR_NM is None else str(r.INSTRUCTOR_NM),
+    )
+
+
+def export_courses_csv(db: Session, admin: Admin, *, now: datetime, request_id: str, **filters: Any) -> bytes:
+    """목록과 같은 조건·범위로 만든다. 범위 밖 강좌는 담지 않는다(RQ-SER-NF-009)."""
+    rows = fetch_all(db, _filtered_courses(db, admin, now, **filters))
+    items = [_course_summary(r, now) for r in rows]
+    audit_export(db, admin, "TB_CORS", len(items), request_id, now, filters)
+    return build_csv(
+        [
+            "강좌",
+            "기수",
+            "분류",
+            "강사",
+            "접수 시작",
+            "접수 종료",
+            "정원",
+            "점유",
+            "대기",
+            "수강료",
+            "상태",
+            "접수 상태",
+        ],
+        [
+            [
+                i.name,
+                i.cycle_name,
+                i.class_name,
+                i.instructor_name,
+                i.reception_start,
+                i.reception_end,
+                i.capacity,
+                i.occupied,
+                i.waiting,
+                i.tuition,
+                i.status.value,
+                i.reception_state.value,
+            ]
+            for i in items
+        ],
+    )
+
+
+def export_cycles_csv(db: Session, admin: Admin, *, now: datetime, request_id: str) -> bytes:
+    """교육기수 목록 전체. 기간과 접수기간은 한국 날짜로 담는다."""
+    _config_scope(db, admin, now)
+    rows = fetch_all(
+        db,
+        _cycle_query(admin.bundle_sn).order_by(TB_EDU_CYCL.c.EDU_YR.desc(), TB_EDU_CYCL.c.EDU_CYCL.desc()),
+    )
+    items = [_cycle(r) for r in rows]
+    audit_export(db, admin, "TB_EDU_CYCL", len(items), request_id, now, {})
+    return build_csv(
+        ["기수", "연도", "차수", "교육 시작", "교육 종료", "접수 시작", "접수 종료", "상태", "강좌 수"],
+        [
+            [
+                i.name,
+                i.year,
+                i.order,
+                i.education_start,
+                i.education_end,
+                i.reception_start,
+                i.reception_end,
+                i.status.value,
+                i.course_count,
+            ]
+            for i in items
+        ],
+    )
+
+
+def list_courses(
+    db: Session,
+    admin: Admin,
+    *,
+    now: datetime,
+    page: int,
+    size: int,
+    **filters: Any,
+) -> AdminCoursePage:
+    query = _filtered_courses(db, admin, now, **filters)
     total = int(db.execute(select(func.count()).select_from(query.order_by(None).subquery())).scalar_one())
-    rows = db.execute(
-        query.order_by(TB_CORS.c.RCPT_BGNG_DT.desc(), TB_CORS.c.CORS_SN.desc())
-        .limit(size)
-        .offset((page - 1) * size)
-    ).all()
-    items = [
-        AdminCourseSummary(
-            **_summary(r, now),
-            cycle_name=str(r.EDU_CYCL_NM),
-            class_name=None if r.CORS_CLSF_NM is None else str(r.CORS_CLSF_NM),
-            instructor_name="" if r.INSTRUCTOR_NM is None else str(r.INSTRUCTOR_NM),
-        )
-        for r in rows
-    ]
+    rows = db.execute(query.limit(size).offset((page - 1) * size)).all()
+    items = [_course_summary(r, now) for r in rows]
     return AdminCoursePage(
         items=items, page=page, size=size, total=total, criteria=PageCriteria(basis_at=utc(now))
     )

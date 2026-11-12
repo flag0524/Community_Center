@@ -28,6 +28,7 @@ from app.db.tables import (
 )
 from app.db.versioned import update_versioned
 from app.domain.admin.application_types import ExecutionMethod, RefundRequester
+from app.domain.admin.csv_export import audit_export, build_csv, fetch_all
 from app.domain.admin.refund_schemas import (
     AdminRefund,
     AdminRefundCreate,
@@ -188,34 +189,64 @@ def _filters(
     return query
 
 
+def _filtered(
+    db: Session,
+    admin: Admin,
+    now: datetime,
+    *,
+    status: RefundStatus | None,
+    requester: RefundRequester | None,
+    from_date: date | None,
+    to_date: date | None,
+) -> Any:
+    """목록과 내보내기가 함께 쓰는 조회. 목록(ADM-PAY-004)은 승인 권한만, 상세는 승인·집행(화면설계서 5절)이다."""
+    scope = permit(db, admin, AU.RFND_A, now)
+    query = _filters(scoped(_base(admin.bundle_sn), scope), status, requester, from_date, to_date)
+    urgent = case((TB_RFND.c.RFND_STTS_CD.in_(REVIEWABLE), 0), else_=1)
+    return query.order_by(
+        urgent,
+        case((urgent == 0, TB_RFND.c.RFND_DMND_DT), else_=None).asc(),  # 검토 중은 오래된 순
+        TB_RFND.c.RFND_DMND_DT.desc(),
+        TB_RFND.c.RFND_SN.desc(),
+    )
+
+
+def export_csv(db: Session, admin: Admin, *, now: datetime, request_id: str, **filters: Any) -> bytes:
+    """목록과 같은 조건·권한으로 만든다. 환불 계좌 같은 민감 값은 담지 않는다."""
+    rows = fetch_all(db, _filtered(db, admin, now, **filters))
+    items = [AdminRefundSummary(**_summary(r, now)) for r in rows]
+    audit_export(db, admin, "TB_RFND", len(items), request_id, now, filters)
+    return build_csv(
+        ["환불번호", "신청번호", "강좌", "요청액", "상태", "접수일", "경과 영업일", "지연", "요청자"],
+        [
+            [
+                i.refund_no,
+                i.application_no,
+                i.course_name,
+                i.requested_amount,
+                i.status.value,
+                i.received_on,
+                i.elapsed_business_days,
+                i.overdue,
+                i.requester.value,
+            ]
+            for i in items
+        ],
+    )
+
+
 def list_refunds(
     db: Session,
     admin: Admin,
     *,
     now: datetime,
-    status: RefundStatus | None,
-    requester: RefundRequester | None,
-    from_date: date | None,
-    to_date: date | None,
     page: int,
     size: int,
+    **filters: Any,
 ) -> AdminRefundPage:
-    scope = permit(
-        db, admin, AU.RFND_A, now
-    )  # 목록(ADM-PAY-004)은 승인 권한만, 상세는 승인·집행(화면설계서 5절)
-    query = _filters(scoped(_base(admin.bundle_sn), scope), status, requester, from_date, to_date)
+    query = _filtered(db, admin, now, **filters)
     total = int(db.execute(select(func.count()).select_from(query.order_by(None).subquery())).scalar_one())
-    urgent = case((TB_RFND.c.RFND_STTS_CD.in_(REVIEWABLE), 0), else_=1)
-    rows = db.execute(
-        query.order_by(
-            urgent,
-            case((urgent == 0, TB_RFND.c.RFND_DMND_DT), else_=None).asc(),  # 검토 중은 오래된 순
-            TB_RFND.c.RFND_DMND_DT.desc(),
-            TB_RFND.c.RFND_SN.desc(),
-        )
-        .limit(size)
-        .offset((page - 1) * size)
-    ).all()
+    rows = db.execute(query.limit(size).offset((page - 1) * size)).all()
     return AdminRefundPage(
         items=[AdminRefundSummary(**_summary(r, now)) for r in rows],
         page=page,

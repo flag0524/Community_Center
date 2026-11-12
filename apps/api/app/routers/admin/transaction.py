@@ -9,9 +9,10 @@ from app.adapters.pg.base import PaymentGateway
 from app.auth.admin_access import Admin, require_admin, require_admin_write
 from app.auth.deps import Clock, get_clock, get_payment_gateway, request_id_of
 from app.core.config import Settings, get_settings
-from app.core.errors import ErrorCode, not_implemented
+from app.core.errors import ErrorCode
 from app.db.session import get_db
 from app.domain.admin import transaction_service as service
+from app.domain.admin.csv_export import csv_response
 from app.domain.admin.transaction_schemas import ReconcileRequest, Transaction, TransactionPage
 from app.domain.payment.types import PaymentMethod, PaymentStatus
 from app.routers.deps import CSV_RESPONSE, MEMBER_ERRORS, admin_session, csrf_header, error_responses
@@ -68,6 +69,10 @@ def list_transactions(
     responses={**error_responses(ErrorCode.RULE_REJECTED), **CSV_RESPONSE},
 )
 def export_transactions_csv(
+    request: Request,
+    db: Db,
+    admin: Me,
+    clock: Now,
     q: Annotated[str | None, Query(max_length=100, description="주문번호 또는 신청번호")] = None,
     status: PaymentStatus | None = None,
     method: PaymentMethod | None = None,
@@ -76,7 +81,19 @@ def export_transactions_csv(
     conflict_only: Annotated[bool, Query(alias="conflictOnly")] = False,
 ) -> Response:
     """목록과 같은 조건·권한으로 만든다. 확인 중인 금액은 순수납에 넣지 않고 상태 열로 구분한다."""
-    not_implemented()
+    content = service.export_csv(
+        db,
+        admin,
+        now=clock(),
+        request_id=request_id_of(request),
+        q=q,
+        status=status,
+        method=method,
+        from_date=from_date,
+        to_date=to_date,
+        conflict_only=conflict_only,
+    )
+    return csv_response("transactions.csv", content)
 
 
 @router.get("/transactions/{transaction_id}", responses=NOT_FOUND)
