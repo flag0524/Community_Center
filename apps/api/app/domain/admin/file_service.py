@@ -15,7 +15,17 @@ from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
 from app.core.schema import PageCriteria
 from app.core.times import kst_today, utc
-from app.db.tables import TB_ATNLC_APLY, TB_CORS, TB_FILE, TB_JOB_HSTRY, TB_MNGR, TB_RFND, TB_STLM
+from app.db.tables import (
+    TB_ATNLC_APLY,
+    TB_BBS,
+    TB_CORS,
+    TB_FILE,
+    TB_JOB_HSTRY,
+    TB_MNGR,
+    TB_PST,
+    TB_RFND,
+    TB_STLM,
+)
 from app.domain.admin.file_schemas import (
     AdminFile,
     AdminFilePage,
@@ -65,7 +75,10 @@ class Owner:
 KINDS = {
     FileOwnerKind.COURSE: ("CORS_SN", "FP.PLAN", 1),  # 강의계획서는 한 개이고 바꾸려면 먼저 제거한다
     FileOwnerKind.REFUND: ("RFND_SN", "FP.PROOF", 5),
+    FileOwnerKind.POST: ("PST_SN", "FP.ATTACH", 5),  # 갤러리 게시판은 이미지(FP.IMAGE) 열 장이다
 }
+GALLERY_IMAGES = 10
+IMAGE_EXTENSIONS = ("jpg", "jpeg", "png")
 
 
 def _covers(scope: Scope, dong_sn: Any) -> bool:
@@ -124,11 +137,41 @@ def _refund_owner(db: Session, admin: Admin, now: datetime, sn: int) -> Owner | 
     )
 
 
+def _post_owner(db: Session, admin: Admin, now: datetime, sn: int) -> Owner | None:
+    row = db.execute(
+        select(
+            TB_PST.c.PST_TTL,
+            TB_PST.c.DONG_SN,
+            TB_PST.c.WRT_MBR_SN,
+            TB_BBS.c.ATCH_USE_YN,
+            TB_BBS.c.BBS_TYPE_CD,
+        )
+        .join(TB_BBS, (TB_BBS.c.OPER_BNDL_SN == TB_PST.c.OPER_BNDL_SN) & (TB_BBS.c.BBS_SN == TB_PST.c.BBS_SN))
+        .where(
+            TB_PST.c.OPER_BNDL_SN == admin.bundle_sn,
+            TB_PST.c.PST_SN == sn,
+            TB_PST.c.DEL_YN == "N",
+            TB_PST.c.UP_PST_SN.is_(None),
+        )
+    ).first()
+    if row is None:
+        return None
+    write = _covers(scope_for(db, admin, AU.POST_W, now), row.DONG_SN)
+    column, purpose, limit = KINDS[FileOwnerKind.POST]
+    if row.BBS_TYPE_CD == "BT.GALLERY":
+        purpose, limit = "FP.IMAGE", GALLERY_IMAGES
+    # 첨부를 끈 게시판과 회원이 쓴 글(내용을 고칠 수 없다)에는 파일을 더하거나 빼지 못한다
+    editable = write and row.ATCH_USE_YN == "Y" and row.WRT_MBR_SN is None
+    return Owner(FileOwnerKind.POST, column, sn, str(row.PST_TTL), write, write, editable, purpose, limit)
+
+
 def owner_of(db: Session, admin: Admin, now: datetime, kind: FileOwnerKind, sn: int) -> Owner:
     """권한이 없거나 없는 소유 업무는 같은 404다."""
     found = (
         _course_owner(db, admin, now, sn)
         if kind is FileOwnerKind.COURSE
+        else _post_owner(db, admin, now, sn)
+        if kind is FileOwnerKind.POST
         else _refund_owner(db, admin, now, sn)
     )
     if found is None or not found.can_view:
@@ -198,9 +241,14 @@ def upload_owner_file(
     if not owner.can_edit:
         raise ApiError(ErrorCode.CONFLICT_STATE)  # 소유 업무가 잠겼다(폐강·종료, 환불 승인 이후)
     upload = validate_upload(filename, data)
+    if owner.purpose == "FP.IMAGE" and upload.extension not in IMAGE_EXTENSIONS:
+        message = "갤러리에는 이미지(jpg·jpeg·png)만 올릴 수 있습니다."
+        raise ApiError(ErrorCode.RULE_REJECTED, message, fields={"file": message})
     # 같은 소유 업무의 올리기를 한 줄로 세워 멱등 표식 조회와 개수 검사와 삽입 사이의 틈을 막는다
     if owner.kind is FileOwnerKind.COURSE:
         lock_course(db, admin.bundle_sn, sn)
+    elif owner.kind is FileOwnerKind.POST:
+        db.execute(select(TB_PST.c.PST_SN).where(TB_PST.c.PST_SN == sn).with_for_update()).one()
     else:
         db.execute(select(TB_RFND.c.RFND_SN).where(TB_RFND.c.RFND_SN == sn).with_for_update()).one()
     mark = _idem_mark(idem_key, owner, upload)
@@ -280,7 +328,8 @@ def _visible_files(db: Session, admin: Admin, now: datetime) -> Any:
     course_scope = scope_for(db, admin, AU.CORS_W, now)
     refund_a, refund_x = scope_for(db, admin, AU.RFND_A, now), scope_for(db, admin, AU.RFND_X, now)
     refund_scope = Scope(refund_a.whole or refund_x.whole, refund_a.dongs | refund_x.dongs)
-    if course_scope.empty() and refund_scope.empty():
+    post_scope = scope_for(db, admin, AU.POST_W, now)
+    if course_scope.empty() and refund_scope.empty() and post_scope.empty():
         raise ApiError(ErrorCode.FORBIDDEN)
     pieces = []
     if not course_scope.empty():
@@ -297,6 +346,14 @@ def _visible_files(db: Session, admin: Admin, now: datetime) -> Any:
                 true() if refund_scope.whole else RFND_CORS.c.DONG_SN.in_(refund_scope.dongs),
             )
         )
+    if not post_scope.empty():
+        pieces.append(
+            and_(
+                TB_FILE.c.PST_SN.is_not(None),
+                TB_PST.c.DEL_YN == "N",
+                true() if post_scope.whole else TB_PST.c.DONG_SN.in_(post_scope.dongs),
+            )
+        )
     return or_(*pieces)
 
 
@@ -310,17 +367,22 @@ def _query(admin: Admin) -> Any:
         .outerjoin(TB_STLM, TB_STLM.c.STLM_SN == TB_RFND.c.STLM_SN)
         .outerjoin(TB_ATNLC_APLY, TB_ATNLC_APLY.c.ATNLC_APLY_SN == TB_STLM.c.ATNLC_APLY_SN)
         .outerjoin(RFND_CORS, RFND_CORS.c.CORS_SN == TB_ATNLC_APLY.c.CORS_SN)
+        .outerjoin(TB_PST, TB_PST.c.PST_SN == TB_FILE.c.PST_SN)
     )
     return (
-        select(TB_FILE, TB_CORS.c.CORS_NM)
+        select(TB_FILE, TB_CORS.c.CORS_NM, TB_PST.c.PST_TTL)
         .select_from(source)
         .where(TB_FILE.c.OPER_BNDL_SN == admin.bundle_sn)
     )
 
 
 def _summary(row: Any) -> AdminFileSummary:
-    kind = FileOwnerKind.COURSE if row.CORS_SN is not None else FileOwnerKind.REFUND
-    label = str(row.CORS_NM) if row.CORS_SN is not None else f"환불 {int(row.RFND_SN)}"
+    if row.CORS_SN is not None:
+        kind, label = FileOwnerKind.COURSE, str(row.CORS_NM)
+    elif row.PST_SN is not None:
+        kind, label = FileOwnerKind.POST, str(row.PST_TTL)
+    else:
+        kind, label = FileOwnerKind.REFUND, f"환불 {int(row.RFND_SN)}"
     return AdminFileSummary(
         file_id=str(int(row.FILE_SN)),
         file_name=str(row.FILE_NM),
@@ -349,6 +411,8 @@ def list_files(
         query = query.where(TB_FILE.c.CORS_SN.is_not(None))
     elif owner_kind is FileOwnerKind.REFUND:
         query = query.where(TB_FILE.c.RFND_SN.is_not(None))
+    elif owner_kind is FileOwnerKind.POST:
+        query = query.where(TB_FILE.c.PST_SN.is_not(None))
     elif owner_kind is not None:
         query = query.where(TB_FILE.c.FILE_SN == -1)  # 아직 구현되지 않은 소유 업무의 파일은 없다
     query = (
@@ -384,6 +448,8 @@ def _file_and_owner(db: Session, admin: Admin, now: datetime, file_id: str) -> t
         owner = _course_owner(db, admin, now, int(row.CORS_SN))
     elif row.RFND_SN is not None:
         owner = _refund_owner(db, admin, now, int(row.RFND_SN))
+    elif row.PST_SN is not None:
+        owner = _post_owner(db, admin, now, int(row.PST_SN))
     else:
         owner = None
     if owner is None or not owner.can_view:

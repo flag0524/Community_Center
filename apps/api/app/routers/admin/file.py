@@ -62,9 +62,9 @@ BINARY: dict[int | str, dict[str, Any]] = {
 
 
 @router.get("/posts/{post_id}/files", responses=error_responses(ErrorCode.NOT_FOUND))
-def list_post_files(post_id: Serial) -> OwnerFileList:
+def list_post_files(post_id: Serial, db: Db, admin: Me, clock: Now) -> OwnerFileList:
     """게시물 첨부. 게시물을 고칠 수 있는 담당자(AU.POST_W)만 본다."""
-    not_implemented()
+    return service.list_owner_files(db, admin, now=clock(), kind=FileOwnerKind.POST, sn=int(post_id))
 
 
 @router.post(
@@ -74,9 +74,25 @@ def upload_post_file(
     post_id: Serial,
     file: Annotated[UploadFile, File(description="파일 한 개")],
     idempotency_key: IdempotencyKey,
+    request: Request,
+    db: Db,
+    admin: MeWrite,
+    settings: Config,
+    clock: Now,
 ) -> OwnerFile:
     """업무를 먼저 저장한 뒤 파일을 한 개씩 올린다. 서버가 확장자·형식·크기·개수를 검사한다."""
-    not_implemented()
+    return service.upload_owner_file(
+        db,
+        settings,
+        admin,
+        now=clock(),
+        request_id=request_id_of(request),
+        kind=FileOwnerKind.POST,
+        sn=int(post_id),
+        filename=file.filename or "",
+        data=read_upload(file),
+        idem_key=idempotency_key,
+    )
 
 
 @router.get("/courses/{course_id}/files", responses=error_responses(ErrorCode.NOT_FOUND))
