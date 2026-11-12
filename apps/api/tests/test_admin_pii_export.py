@@ -14,7 +14,7 @@ from tests.test_admin_applications import member
 from tests.test_admin_refunds import call, staff, use
 from tests.test_applications_read import RESIDENT, application, payment
 from tests.test_applications_read import open_course as _open_course
-from tests.world import World, make_member
+from tests.world import START, World, make_member
 
 pytestmark = pytest.mark.db
 
@@ -29,13 +29,13 @@ def ask(w: World, key: str = "key-00000001", **body: Any) -> Any:
     return call(w, "POST", PATH, {"target": "APPLICATIONS", **body}, **{"Idempotency-Key": key})
 
 
-def opened(response: Any) -> list[list[str]]:
+def opened(response: Any, entry: str = "applicants.csv") -> list[list[str]]:
     """응답의 암호로만 열리는지 확인하고 CSV 표를 돌려준다."""
     assert response.status_code == 200, response.text
     password = response.headers["X-Export-Password"]
     with pyzipper.AESZipFile(io.BytesIO(response.content)) as z:
         z.setpassword(password.encode())
-        return list(csv.reader(io.StringIO(z.read("applicants.csv").decode("utf-8-sig"))))
+        return list(csv.reader(io.StringIO(z.read(entry).decode("utf-8-sig"))))
 
 
 def seeded(w: World) -> dict[str, Any]:
@@ -219,10 +219,80 @@ def test_만든_사실만_감사에_남기고_암호와_내용과_검색어는_�
     )
 
 
-def test_회원_명단은_아직_열지_않았다(world: World) -> None:
+def ask_members(w: World, key: str = "key-00000001", **body: Any) -> Any:
+    return call(w, "POST", PATH, {"target": "MEMBERS", **body}, **{"Idempotency-Key": key})
+
+
+def test_회원_명단은_가리지_않은_이름과_연락처를_담고_회원_목록과_같은_조건이다(world: World) -> None:
+    make_member(
+        world, "hong", MBR_NM="홍길동", MBL_TELNO="01011112222", EML_ADDR="hong@example.com", **RESIDENT
+    )
+    make_member(world, "gone", MBR_NM="이탈퇴", MBR_STTS_CD="MS.WITHDRAW", WHDWL_DT=START)
     use(world, staff(world, "boss", "AU.EXPORT", "AU.MBR_R"))
-    r = call(world, "POST", PATH, {"target": "MEMBERS"}, **{"Idempotency-Key": "key-00000001"})
-    assert r.status_code == 501
+    r = ask_members(world)
+    table = opened(r, "members.csv")
+    assert table[0] == [
+        "회원번호",
+        "아이디",
+        "이름",
+        "휴대전화",
+        "이메일",
+        "회원 상태",
+        "거주지 확인",
+        "가입일",
+    ]
+    by_login = {row[1]: row for row in table[1:]}
+    assert by_login["hong"][2:] == [
+        "홍길동",
+        "01011112222",
+        "hong@example.com",
+        "ACTIVE",
+        "VERIFIED",
+        by_login["hong"][7],
+    ]
+    assert by_login["gone"][5] == "WITHDRAWN" and by_login["gone"][6] == "UNVERIFIED"
+    assert 'filename="members.zip"' in r.headers["content-disposition"]
+    assert [
+        row[1] for row in opened(ask_members(world, "key-00000002", status="WITHDRAWN"), "members.csv")[1:]
+    ] == ["gone"]
+    assert [row[1] for row in opened(ask_members(world, "key-00000003", q="hon"), "members.csv")[1:]] == [
+        "hong"
+    ]
+    tables = (
+        world.db.execute(
+            text("SELECT TRGT_TBL_NM FROM TB_JOB_HSTRY WHERE JOB_CD='PII_EXPORT' ORDER BY JOB_HSTRY_SN")
+        )
+        .scalars()
+        .all()
+    )
+    assert tables == ["TB_MBR"] * 3
+
+
+def test_회원_명단은_AU_EXPORT와_회원_조회_권한이_함께_있어야_한다(world: World) -> None:
+    make_member(world, "hong", MBR_NM="홍길동")
+    use(world, staff(world, "a", "AU.MBR_R"))
+    assert ask_members(world).status_code == 403
+    use(world, staff(world, "b", "AU.EXPORT"))
+    assert ask_members(world).status_code == 403
+    use(world, staff(world, "c", "AU.EXPORT", "AU.APLY_R"))  # 수강신청 조회 권한으로는 회원 명단을 못 낸다
+    assert ask_members(world).status_code == 403
+
+
+def test_회원_명단의_범위는_내보내기와_회원_조회_권한이_함께_좁힌다(world: World) -> None:
+    mine, other = dong(world, "가동"), dong(world, "나동")
+    make_member(world, "in", MBR_NM="내동", DONG_SN=mine["DONG_SN"])
+    make_member(world, "out", MBR_NM="남동", DONG_SN=other["DONG_SN"])
+    make_member(world, "none", MBR_NM="무동")
+    use(world, staff(world, "d", "AU.EXPORT", "AU.MBR_R", kind="SK.DONG", dong_sn=mine["DONG_SN"]))
+    assert [row[1] for row in opened(ask_members(world), "members.csv")[1:]] == ["in"]
+
+
+def test_회원_명단도_한도를_넘으면_거절한다(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    for n in range(2):
+        make_member(world, f"m{n}")
+    use(world, staff(world, "boss", "AU.EXPORT", "AU.MBR_R"))
+    monkeypatch.setattr(pii_export, "MAX_ROWS", 1)
+    assert ask_members(world).status_code == 422
 
 
 def test_로그인과_멱등키와_CSRF_없이는_거절한다(world: World) -> None:

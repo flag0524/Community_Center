@@ -57,7 +57,7 @@ def export_pii(
         made.content,
         media_type="application/zip",
         headers={
-            "Content-Disposition": 'attachment; filename="applicants.zip"',
+            "Content-Disposition": f'attachment; filename="{made.filename}"',
             "X-Export-Password": made.password,
             "Cache-Control": "no-store",
         },
