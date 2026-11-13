@@ -146,14 +146,30 @@ describe('방문·외부 접수 등록', () => {
     await heading('방문·외부 접수 등록');
     expect(within(field('접수 경로')).getAllByRole('option').map((option) => option.textContent)).toEqual(['방문 접수', '외부 접수']);
     await userEvent.click(screen.getByRole('button', { name: '등록' }));
-    expect(screen.getAllByText('필수 항목입니다.').length).toBe(3);
+    expect(screen.getAllByText('필수 항목입니다.').length).toBe(5);
+  });
+
+  it('전화번호 형식과 공고 번호가 틀리면 보내지 않고 알려 준다', async () => {
+    await signInAs('group');
+    renderApp('/edu/instructors/new');
+    await heading('방문·외부 접수 등록');
+    await userEvent.type(field('모집 공고 번호'), 'abc');
+    await userEvent.type(field('지원자'), '한방문');
+    await userEvent.type(field('휴대전화'), '1234');
+    await userEvent.type(field('희망 강좌'), '서예 기초');
+    await userEvent.type(field('경력 및 강의소개'), '서예 지도 10년');
+    await userEvent.click(screen.getByRole('button', { name: '등록' }));
+    expect(screen.getByText('공고 번호는 숫자입니다.')).toBeInTheDocument();
+    expect(screen.getByText('휴대전화 번호를 숫자로 입력해 주세요.')).toBeInTheDocument();
   });
 
   it('등록하면 심사대기로 열리고 접수 경로가 보인다', async () => {
     await signInAs('group');
     renderApp('/edu/instructors/new');
     await heading('방문·외부 접수 등록');
+    await userEvent.type(field('모집 공고 번호'), '1');
     await userEvent.type(field('지원자'), '한방문');
+    await userEvent.type(field('휴대전화'), '010-1234-5678');
     await userEvent.type(field('희망 강좌'), '서예 기초');
     await userEvent.type(field('경력 및 강의소개'), '서예 지도 10년');
     await userEvent.click(screen.getByRole('button', { name: '등록' }));

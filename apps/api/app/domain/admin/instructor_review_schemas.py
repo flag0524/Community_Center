@@ -23,7 +23,17 @@ class InstructorReviewPage(Page[InstructorReviewSummary]):
 class InstructorReviewCreate(ApiModel):
     """방문·외부로 받은 지원서를 관리자가 대신 등록한다. 온라인 지원은 주민 화면에서 들어온다."""
 
+    recruitment_id: SerialId = Field(description="지원서가 속하는 모집 공고(스키마상 필수)")
     applicant_name: str = Field(min_length=1, max_length=50)
+    phone: str = Field(
+        pattern=r"^01[0-9]{8,9}$",
+        description="지원자 휴대전화(숫자만). 암호화해 저장하고 응답·목록·작업이력에 담지 않는다.",
+    )
+    member_login_id: str | None = Field(
+        default=None,
+        max_length=20,
+        description="이미 가입한 지원자의 아이디. 연결해야 승인할 수 있다(강사는 회원이어야 한다).",
+    )
     desired_course: str = Field(min_length=1, max_length=100)
     career: str = Field(min_length=1, max_length=2000)
     source: ApplicationSource

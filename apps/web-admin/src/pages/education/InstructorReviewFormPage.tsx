@@ -147,7 +147,7 @@ function ReceiveForm() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const key = useIdempotencyKey();
-  const [values, setValues] = useState({ applicantName: '', desiredCourse: '', career: '', source: 'VISIT' as InstructorReviewCreate['source'] });
+  const [values, setValues] = useState({ recruitmentId: '', applicantName: '', phone: '', memberLoginId: '', desiredCourse: '', career: '', source: 'VISIT' as InstructorReviewCreate['source'] });
   const [missing, setMissing] = useState<Partial<Record<keyof typeof values, string>>>({});
 
   const mutation = useMutation({
@@ -163,9 +163,21 @@ function ReceiveForm() {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const errors: Partial<Record<keyof typeof values, string>> = {};
-    for (const name of ['applicantName', 'desiredCourse', 'career'] as const) if (!values[name].trim()) errors[name] = '필수 항목입니다.';
+    for (const name of ['recruitmentId', 'applicantName', 'phone', 'desiredCourse', 'career'] as const) if (!values[name].trim()) errors[name] = '필수 항목입니다.';
+    const phone = values.phone.replace(/-/g, '').trim();
+    if (!errors.phone && !/^01[0-9]{8,9}$/.test(phone)) errors.phone = '휴대전화 번호를 숫자로 입력해 주세요.';
+    if (!errors.recruitmentId && !/^[0-9]{1,22}$/.test(values.recruitmentId.trim())) errors.recruitmentId = '공고 번호는 숫자입니다.';
     setMissing(errors);
-    if (Object.keys(errors).length === 0) mutation.mutate({ ...values, applicantName: values.applicantName.trim(), desiredCourse: values.desiredCourse.trim(), career: values.career.trim() });
+    if (Object.keys(errors).length === 0)
+      mutation.mutate({
+        ...values,
+        recruitmentId: values.recruitmentId.trim(),
+        applicantName: values.applicantName.trim(),
+        phone,
+        memberLoginId: values.memberLoginId.trim() || null,
+        desiredCourse: values.desiredCourse.trim(),
+        career: values.career.trim(),
+      });
   };
   const server = fieldErrors(mutation.error);
   const err = (name: keyof typeof values) => missing[name] ?? server[name];
@@ -186,6 +198,15 @@ function ReceiveForm() {
           </Field>
           <Field id="receive-name" label="지원자" required error={err('applicantName')}>
             <input {...describe('receive-name', err('applicantName'))} value={values.applicantName} maxLength={50} onChange={set('applicantName')} />
+          </Field>
+          <Field id="receive-recruitment" label="모집 공고 번호" required error={err('recruitmentId')}>
+            <input {...describe('receive-recruitment', err('recruitmentId'))} inputMode="numeric" value={values.recruitmentId} maxLength={22} onChange={set('recruitmentId')} />
+          </Field>
+          <Field id="receive-phone" label="휴대전화" required error={err('phone')} hint="저장할 때 암호화하며 화면에는 다시 보이지 않습니다.">
+            <input {...describe('receive-phone', err('phone'), '저장할 때 암호화하며 화면에는 다시 보이지 않습니다.')} inputMode="numeric" autoComplete="off" value={values.phone} maxLength={13} onChange={set('phone')} />
+          </Field>
+          <Field id="receive-member" label="회원 아이디" error={err('memberLoginId')} hint="이미 가입한 지원자만 입력합니다. 연결해야 승인할 수 있습니다.">
+            <input {...describe('receive-member', err('memberLoginId'), '이미 가입한 지원자만 입력합니다. 연결해야 승인할 수 있습니다.')} value={values.memberLoginId} maxLength={20} onChange={set('memberLoginId')} />
           </Field>
           <Field id="receive-course" label="희망 강좌" required error={err('desiredCourse')} full>
             <input {...describe('receive-course', err('desiredCourse'))} value={values.desiredCourse} maxLength={100} onChange={set('desiredCourse')} />
