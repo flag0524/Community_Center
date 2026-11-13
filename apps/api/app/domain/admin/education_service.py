@@ -638,12 +638,16 @@ def _course_values(db: Session, bundle_sn: int, body: CourseWrite, occupied: int
     if dong is None:
         fields["dongId"] = "운영 동을 선택해 주세요."
     category = db.execute(
-        select(TB_CORS_CLSF.c.CORS_CLSF_SN).where(
+        select(TB_CORS_CLSF.c.CORS_CLSF_SN)
+        .where(
             TB_CORS_CLSF.c.OPER_BNDL_SN == bundle_sn,
             TB_CORS_CLSF.c.CORS_CLSF_SN == int(body.class_id),
             TB_CORS_CLSF.c.USE_YN == "Y",
             TB_CORS_CLSF.c.DEL_YN == "N",
         )
+        .with_for_update(
+            read=True
+        )  # 분류 비활성·삭제가 연결 강좌 수를 세는 동안 새 연결이 끼어들지 못하게 한다(CLSF-02)
     ).first()
     if category is None:
         fields["classId"] = "분류를 선택해 주세요."

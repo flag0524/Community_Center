@@ -1,9 +1,14 @@
 # 관리자 강좌분류 라우터. 조회 AU.CORS_R, 변경 제안 권한 AU.CORS_W(PRD Q21). 삭제는 논리삭제다
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Response, Security
+from fastapi import APIRouter, Depends, Path, Query, Request, Response, Security
+from sqlalchemy.orm import Session
 
-from app.core.errors import ErrorCode, not_implemented
+from app.auth.admin_access import Admin, require_admin
+from app.auth.deps import Clock, get_clock, request_id_of
+from app.core.errors import ErrorCode
+from app.db.session import get_db
+from app.domain.admin import class_service as service
 from app.domain.admin.class_schemas import (
     ClassHistoryList,
     CourseClass,
@@ -22,12 +27,15 @@ Serial = Annotated[str, Path(pattern=r"^[0-9]{1,22}$", description="일련번호
 WRITE_ERRORS = error_responses(
     ErrorCode.NOT_FOUND, ErrorCode.CONFLICT_STATE, ErrorCode.VERSION_CONFLICT, ErrorCode.RULE_REJECTED
 )
+Db = Annotated[Session, Depends(get_db)]
+Me = Annotated[Admin, Depends(require_admin)]
+Now = Annotated[Clock, Depends(get_clock)]
 
 
 @router.get("/course-classes")
-def list_course_classes() -> CourseClassList:
+def list_course_classes(db: Db, admin: Me, clock: Now) -> CourseClassList:
     """삭제하지 않은 분류를 순서대로 준다. 연결 강좌 수를 확인하지 못하면 해당 분류의 수는 null이다."""
-    not_implemented()
+    return service.list_classes(db, admin, now=clock())
 
 
 @router.post(
@@ -36,29 +44,50 @@ def list_course_classes() -> CourseClassList:
     responses=error_responses(ErrorCode.RULE_REJECTED, ErrorCode.IDEMPOTENCY_CONFLICT),
     dependencies=[Depends(csrf_header)],
 )
-def create_course_class(body: CourseClassWrite, idempotency_key: IdempotencyKey) -> CourseClass:
+def create_course_class(
+    body: CourseClassWrite,
+    idempotency_key: IdempotencyKey,
+    request: Request,
+    db: Db,
+    admin: Me,
+    clock: Now,
+) -> CourseClass:
     """이름을 NFKC·공백 정리·대소문자 통일로 정규화해 삭제한 분류를 포함해 중복을 검사한다."""
-    not_implemented()
+    return service.create_class(
+        db, admin, now=clock(), request_id=request_id_of(request), body=body, idem_key=idempotency_key
+    )
 
 
 @router.put("/course-classes/{class_id}", responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)])
-def update_course_class(class_id: Serial, body: CourseClassUpdate) -> CourseClass:
-    not_implemented()
+def update_course_class(
+    class_id: Serial, body: CourseClassUpdate, request: Request, db: Db, admin: Me, clock: Now
+) -> CourseClass:
+    return service.update_class(
+        db, admin, now=clock(), request_id=request_id_of(request), class_id=class_id, body=body
+    )
 
 
 @router.post(
     "/course-classes/{class_id}/deactivate", responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)]
 )
-def deactivate_course_class(class_id: Serial, body: CourseClassAction) -> CourseClass:
+def deactivate_course_class(
+    class_id: Serial, body: CourseClassAction, request: Request, db: Db, admin: Me, clock: Now
+) -> CourseClass:
     """연결 강좌가 있거나 수를 확인하지 못하면 거절한다. 기존 연결은 그대로 둔다."""
-    not_implemented()
+    return service.deactivate_class(
+        db, admin, now=clock(), request_id=request_id_of(request), class_id=class_id, version=body.version
+    )
 
 
 @router.post(
     "/course-classes/{class_id}/activate", responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)]
 )
-def activate_course_class(class_id: Serial, body: CourseClassAction) -> CourseClass:
-    not_implemented()
+def activate_course_class(
+    class_id: Serial, body: CourseClassAction, request: Request, db: Db, admin: Me, clock: Now
+) -> CourseClass:
+    return service.activate_class(
+        db, admin, now=clock(), request_id=request_id_of(request), class_id=class_id, version=body.version
+    )
 
 
 @router.delete(
@@ -68,12 +97,21 @@ def activate_course_class(class_id: Serial, body: CourseClassAction) -> CourseCl
     responses=WRITE_ERRORS,
     dependencies=[Depends(csrf_header)],
 )
-def delete_course_class(class_id: Serial, version: Annotated[int, Query(ge=1)]) -> None:
+def delete_course_class(
+    class_id: Serial,
+    version: Annotated[int, Query(ge=1)],
+    request: Request,
+    db: Db,
+    admin: Me,
+    clock: Now,
+) -> None:
     """논리삭제한다. 연결 강좌가 있거나 수를 확인하지 못하면 거절하고 삭제한 이름은 다시 쓸 수 없다."""
-    not_implemented()
+    service.delete_class(
+        db, admin, now=clock(), request_id=request_id_of(request), class_id=class_id, version=version
+    )
 
 
 @router.get("/course-classes/{class_id}/history", responses=error_responses(ErrorCode.NOT_FOUND))
-def list_course_class_history(class_id: Serial) -> ClassHistoryList:
+def list_course_class_history(class_id: Serial, db: Db, admin: Me, clock: Now) -> ClassHistoryList:
     """등록·명칭·순서 변경·비활성·재활성·삭제의 전후 값과 처리자. 고치거나 지우지 않는다."""
-    not_implemented()
+    return service.history(db, admin, now=clock(), class_id=class_id)
