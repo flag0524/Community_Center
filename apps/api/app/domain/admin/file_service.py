@@ -21,8 +21,10 @@ from app.db.tables import (
     TB_CORS,
     TB_FILE,
     TB_JOB_HSTRY,
+    TB_MBR,
     TB_MNGR,
     TB_PST,
+    TB_RDCT_BFHD_SRNG,
     TB_RFND,
     TB_STLM,
 )
@@ -76,7 +78,13 @@ KINDS = {
     FileOwnerKind.COURSE: ("CORS_SN", "FP.PLAN", 1),  # 강의계획서는 한 개이고 바꾸려면 먼저 제거한다
     FileOwnerKind.REFUND: ("RFND_SN", "FP.PROOF", 5),
     FileOwnerKind.POST: ("PST_SN", "FP.ATTACH", 5),  # 갤러리 게시판은 이미지(FP.IMAGE) 열 장이다
+    FileOwnerKind.REDUCTION: (
+        "RDCT_BFHD_SRNG_SN",
+        "FP.PROOF",
+        5,
+    ),  # 주민이 올리고 관리자는 열람만 한다(R31과 같은 한도)
 }
+EVIDENCE_VIEW_JOB = "RDCT_EVIDENCE_VIEW"
 GALLERY_IMAGES = 10
 IMAGE_EXTENSIONS = ("jpg", "jpeg", "png")
 
@@ -163,6 +171,26 @@ def _post_owner(db: Session, admin: Admin, now: datetime, sn: int) -> Owner | No
     # 첨부를 끈 게시판과 회원이 쓴 글(내용을 고칠 수 없다)에는 파일을 더하거나 빼지 못한다
     editable = write and row.ATCH_USE_YN == "Y" and row.WRT_MBR_SN is None
     return Owner(FileOwnerKind.POST, column, sn, str(row.PST_TTL), write, write, editable, purpose, limit)
+
+
+def _reduction_owner(db: Session, admin: Admin, now: datetime, sn: int) -> Owner | None:
+    """감면 사전심사 증빙. 증빙 열람은 심사 권한(AU.APLY_W)이고 범위는 회원의 거주 동이다(R19). 올리기·제거는 주민만 한다."""
+    row = db.execute(
+        select(TB_MBR.c.DONG_SN)
+        .join(
+            TB_RDCT_BFHD_SRNG,
+            (TB_RDCT_BFHD_SRNG.c.OPER_BNDL_SN == TB_MBR.c.OPER_BNDL_SN)
+            & (TB_RDCT_BFHD_SRNG.c.MBR_SN == TB_MBR.c.MBR_SN),
+        )
+        .where(
+            TB_RDCT_BFHD_SRNG.c.OPER_BNDL_SN == admin.bundle_sn, TB_RDCT_BFHD_SRNG.c.RDCT_BFHD_SRNG_SN == sn
+        )
+    ).first()
+    if row is None:
+        return None
+    view = _covers(scope_for(db, admin, AU.APLY_W, now), row.DONG_SN)
+    column, purpose, limit = KINDS[FileOwnerKind.REDUCTION]
+    return Owner(FileOwnerKind.REDUCTION, column, sn, f"감면 심사 {sn}", view, False, False, purpose, limit)
 
 
 def owner_of(db: Session, admin: Admin, now: datetime, kind: FileOwnerKind, sn: int) -> Owner:
@@ -265,6 +293,12 @@ def lock_owner(db: Session, bundle_sn: int, owner: Owner) -> None:
         lock_course(db, bundle_sn, owner.sn)
     elif owner.kind is FileOwnerKind.POST:
         db.execute(select(TB_PST.c.PST_SN).where(TB_PST.c.PST_SN == owner.sn).with_for_update()).one()
+    elif owner.kind is FileOwnerKind.REDUCTION:
+        db.execute(
+            select(TB_RDCT_BFHD_SRNG.c.RDCT_BFHD_SRNG_SN)
+            .where(TB_RDCT_BFHD_SRNG.c.RDCT_BFHD_SRNG_SN == owner.sn)
+            .with_for_update()
+        ).one()
     else:
         db.execute(select(TB_RFND.c.RFND_SN).where(TB_RFND.c.RFND_SN == owner.sn).with_for_update()).one()
 
@@ -482,6 +516,8 @@ def _file_and_owner(db: Session, admin: Admin, now: datetime, file_id: str) -> t
         owner = _refund_owner(db, admin, now, int(row.RFND_SN))
     elif row.PST_SN is not None:
         owner = _post_owner(db, admin, now, int(row.PST_SN))
+    elif row.RDCT_BFHD_SRNG_SN is not None:
+        owner = _reduction_owner(db, admin, now, int(row.RDCT_BFHD_SRNG_SN))
     else:
         owner = None
     if owner is None or not owner.can_view:
@@ -563,11 +599,29 @@ def delete_file(db: Session, admin: Admin, *, now: datetime, request_id: str, fi
     )
 
 
+def record_evidence_view(
+    db: Session, admin: Admin, *, review_sn: int, file_sn: int, request_id: str, now: datetime
+) -> None:
+    """감면 증빙을 내려받을 때 누가 언제 어느 파일을 열었는지 남긴다. 파일 번호만 기록한다(ADR-063)."""
+    record_job(
+        db,
+        actor="AK.ADMIN",
+        job=EVIDENCE_VIEW_JOB,
+        table="TB_RDCT_BFHD_SRNG",
+        key=review_sn,
+        request_id=request_id,
+        now=now,
+        bundle_sn=admin.bundle_sn,
+        admin_sn=admin.admin_sn,
+        change=str(file_sn),
+    )
+
+
 def download_file(
     db: Session, settings: Settings, admin: Admin, *, now: datetime, request_id: str, file_id: str
 ) -> Response:
     """검사를 통과한 파일만 내려준다. 권한이 없으면 404다. 관리자 내려받기는 허용과 거절을 모두 기록한다."""
-    row, _ = _file_and_owner(db, admin, now, file_id)
+    row, owner = _file_and_owner(db, admin, now, file_id)
     if row.FILE_STTS_CD != "FS.SAFE":  # 검사 대기·차단·삭제는 내려주지 않는다
         _denied(db, admin, now, int(row.FILE_SN))
         raise ApiError(ErrorCode.NOT_FOUND)
@@ -575,6 +629,10 @@ def download_file(
         content = read_blob(settings.file_root, str(row.STRG_KEY))
     except StorageError:
         raise ApiError(ErrorCode.INTERNAL_ERROR) from None
+    if owner.kind is FileOwnerKind.REDUCTION:
+        record_evidence_view(
+            db, admin, review_sn=owner.sn, file_sn=int(row.FILE_SN), request_id=request_id, now=now
+        )
     record_job(
         db,
         actor="AK.ADMIN",

@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import text
 
 from app.auth.admin_access import Admin
-from app.domain.admin import reduction_service
+from app.domain.admin import file_service
 from app.domain.application.pricing import find_usable_approval
 from tests.test_admin_access import dong
 from tests.test_admin_refunds import call, staff, use
@@ -236,7 +236,7 @@ def test_상세는_증빙과_열람_기록과_거주_확인과_결정_값을_준
     f1, f2 = evidence(world, rev, "수급증명.pdf"), evidence(world, rev, "검사중.pdf", "FS.PENDING")
     evidence(world, rev, "지움.pdf", "FS.DELETE")
     boss = worker(world)
-    reduction_service.record_evidence_view(
+    file_service.record_evidence_view(
         world.db,
         _admin(world, boss),
         review_sn=int(rev["RDCT_BFHD_SRNG_SN"]),

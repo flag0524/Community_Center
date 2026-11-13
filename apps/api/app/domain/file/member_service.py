@@ -10,8 +10,9 @@ from sqlalchemy.orm import Session
 from app.audit import record_job
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
-from app.db.tables import TB_BBS, TB_FILE, TB_PST
+from app.db.tables import TB_BBS, TB_FILE, TB_PST, TB_RDCT_BFHD_SRNG
 from app.domain.admin.file_service import (
+    KINDS,
     Owner,
     _live,
     _owner_file,
@@ -59,12 +60,83 @@ def _owner(db: Session, member_sn: int, bundle_sn: int, post_id: int) -> Owner:
     )
 
 
+def _reduction_owner(db: Session, member_sn: int, bundle_sn: int, review_id: int) -> Owner:
+    """본인의 감면 사전심사만이다. 접수 상태일 때만 더하고 빼며 결정·철회된 뒤에는 잠긴다(RDCT-BFHD-01)."""
+    row = db.execute(
+        select(TB_RDCT_BFHD_SRNG.c.SRNG_STTS_CD).where(
+            TB_RDCT_BFHD_SRNG.c.OPER_BNDL_SN == bundle_sn,
+            TB_RDCT_BFHD_SRNG.c.RDCT_BFHD_SRNG_SN == review_id,
+            TB_RDCT_BFHD_SRNG.c.MBR_SN == member_sn,
+        )
+    ).first()
+    if row is None:
+        raise ApiError(ErrorCode.NOT_FOUND)
+    editable = row.SRNG_STTS_CD == "DS.RECEIVED"
+    column, purpose, limit = KINDS[FileOwnerKind.REDUCTION]
+    return Owner(
+        FileOwnerKind.REDUCTION,
+        column,
+        review_id,
+        f"감면 심사 {review_id}",
+        True,
+        True,
+        editable,
+        purpose,
+        limit,
+    )
+
+
 def _my_file(row: Any) -> MyFile:
     return MyFile(**_owner_file(row).model_dump())
 
 
+def list_reduction_files(db: Session, *, member_sn: int, bundle_sn: int, review_id: str) -> MyFileList:
+    return _list(db, bundle_sn, _reduction_owner(db, member_sn, bundle_sn, int(review_id)))
+
+
+def upload_reduction_file(
+    db: Session,
+    settings: Settings,
+    *,
+    member_sn: int,
+    bundle_sn: int,
+    review_id: str,
+    filename: str,
+    data: bytes,
+    idem_key: str,
+    now: datetime,
+    request_id: str,
+) -> MyFile:
+    """접수 상태일 때만 올린다. 심사 행을 잠근 뒤 다시 확인해 관리자 결정·철회와 겹쳐도 결정 뒤에는 올라가지 않는다."""
+    sn = int(review_id)
+    locked = "접수 상태인 심사에만 증빙을 올릴 수 있습니다."
+    if not _reduction_owner(db, member_sn, bundle_sn, sn).can_edit:
+        raise ApiError(ErrorCode.CONFLICT_STATE, locked)
+    upload = validate_upload(filename, data)
+    lock_owner(db, bundle_sn, _reduction_owner(db, member_sn, bundle_sn, sn))
+    owner = _reduction_owner(db, member_sn, bundle_sn, sn)  # 잠근 뒤 다시 읽는다
+    if not owner.can_edit:
+        raise ApiError(ErrorCode.CONFLICT_STATE, locked)
+    stored = store_upload(
+        db,
+        settings,
+        bundle_sn=bundle_sn,
+        owner=owner,
+        upload=upload,
+        idem_key=idem_key,
+        now=now,
+        request_id=request_id,
+        actor="AK.MEMBER",
+        member_sn=member_sn,
+    )
+    return MyFile(**stored.model_dump())
+
+
 def list_files(db: Session, *, member_sn: int, bundle_sn: int, post_id: str) -> MyFileList:
-    owner = _owner(db, member_sn, bundle_sn, int(post_id))
+    return _list(db, bundle_sn, _owner(db, member_sn, bundle_sn, int(post_id)))
+
+
+def _list(db: Session, bundle_sn: int, owner: Owner) -> MyFileList:
     rows = db.execute(
         select(TB_FILE)
         .where(TB_FILE.c.OPER_BNDL_SN == bundle_sn, _live(owner))
@@ -116,15 +188,24 @@ def upload_file(
     return MyFile(**stored.model_dump())
 
 
+def _owner_for(db: Session, member_sn: int, bundle_sn: int, row: Any) -> Owner:
+    """파일의 소유 업무. 문의 첨부와 감면 증빙만 주민이 다룬다."""
+    if row.PST_SN is not None:
+        return _owner(db, member_sn, bundle_sn, int(row.PST_SN))
+    if row.RDCT_BFHD_SRNG_SN is not None:
+        return _reduction_owner(db, member_sn, bundle_sn, int(row.RDCT_BFHD_SRNG_SN))
+    raise ApiError(ErrorCode.NOT_FOUND)
+
+
 def _mine(db: Session, member_sn: int, bundle_sn: int, file_id: str, now: datetime) -> tuple[Any, Owner]:
-    """파일과 그 소유 문의. 문의 첨부가 아니거나 남의 파일이면 404다. 있는 남의 파일을 열려 한 시도는 기록한다."""
+    """파일과 그 소유 업무(문의·감면 심사). 그 밖이거나 남의 파일이면 404다. 있는 남의 파일을 열려 한 시도는 기록한다."""
     row = db.execute(
         select(TB_FILE).where(TB_FILE.c.OPER_BNDL_SN == bundle_sn, TB_FILE.c.FILE_SN == int(file_id))
     ).first()
-    if row is None or row.PST_SN is None:
+    if row is None or (row.PST_SN is None and row.RDCT_BFHD_SRNG_SN is None):
         raise ApiError(ErrorCode.NOT_FOUND)
     try:
-        owner = _owner(db, member_sn, bundle_sn, int(row.PST_SN))
+        owner = _owner_for(db, member_sn, bundle_sn, row)
     except ApiError:
         _denied(db, member_sn, bundle_sn, int(row.FILE_SN), now)
         raise
@@ -157,9 +238,9 @@ def delete_file(
     if row.FILE_STTS_CD == "FS.DELETE":
         raise ApiError(ErrorCode.NOT_FOUND)
     lock_owner(db, bundle_sn, owner)
-    owner = _owner(db, member_sn, bundle_sn, owner.sn)  # 잠근 뒤 다시 읽는다
+    owner = _owner_for(db, member_sn, bundle_sn, row)  # 잠근 뒤 다시 읽는다
     if not owner.can_edit:
-        raise ApiError(ErrorCode.CONFLICT_STATE, "답변이 달렸거나 첨부를 받지 않는 문의입니다.")
+        raise ApiError(ErrorCode.CONFLICT_STATE, "답변이 달렸거나 접수 상태가 아니어서 고칠 수 없습니다.")
     current = db.execute(select(TB_FILE.c.FILE_STTS_CD).where(TB_FILE.c.FILE_SN == row.FILE_SN)).one()
     if current.FILE_STTS_CD == "FS.DELETE":
         raise ApiError(ErrorCode.NOT_FOUND)

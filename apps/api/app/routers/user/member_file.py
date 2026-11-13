@@ -95,9 +95,11 @@ def upload_my_inquiry_file(
 
 
 @member_router.get("/me/reduction-reviews/{review_id}/files", responses=NOT_FOUND)
-def list_my_reduction_files(review_id: Serial) -> MyFileList:
+def list_my_reduction_files(review_id: Serial, db: Db, me: Me) -> MyFileList:
     """내 사전심사의 증빙. 접수 상태일 때만 추가·제거할 수 있고 결정된 뒤에는 잠긴다(RDCT-BFHD-01)."""
-    not_implemented()
+    return service.list_reduction_files(
+        db, member_sn=me.member_sn, bundle_sn=me.bundle_sn, review_id=review_id
+    )
 
 
 @member_router.post(
@@ -110,8 +112,24 @@ def upload_my_reduction_file(
     review_id: Serial,
     file: Annotated[UploadFile, File(description="파일 한 개")],
     idempotency_key: IdempotencyKey,
+    request: Request,
+    db: Db,
+    me: MeWrite,
+    settings: Config,
+    clock: Now,
 ) -> MyFile:
-    not_implemented()
+    return service.upload_reduction_file(
+        db,
+        settings,
+        member_sn=me.member_sn,
+        bundle_sn=me.bundle_sn,
+        review_id=review_id,
+        filename=file.filename or "",
+        data=read_upload(file),
+        idem_key=idempotency_key,
+        now=clock(),
+        request_id=request_id_of(request),
+    )
 
 
 @member_router.delete(

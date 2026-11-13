@@ -25,6 +25,7 @@ from app.db.tables import (
     TB_RDCT_HSTRY_FILE,
 )
 from app.db.versioned import update_versioned
+from app.domain.admin.file_service import EVIDENCE_VIEW_JOB
 from app.domain.admin.file_service import STATUS as FILE_STATUS
 from app.domain.admin.reduction_schemas import (
     EvidenceView,
@@ -56,7 +57,6 @@ CODE_STATUS = {code: status for status, code in STATUS_CODE.items()}
 RESULT = {"DR.APPROVE": ReductionDecision.APPROVE, "DR.REJECT": ReductionDecision.REJECT}
 RESULT_CODE = {value: code for code, value in RESULT.items()}
 DECIDED = (ReductionStatus.APPROVED, ReductionStatus.REJECTED)
-EVIDENCE_VIEW_JOB = "RDCT_EVIDENCE_VIEW"
 
 
 def _fail(field: str, message: str) -> ApiError:
@@ -181,24 +181,6 @@ def _evidence(db: Session, bundle_sn: int, review_sn: int) -> list[ReductionEvid
         )
         for r in rows
     ]
-
-
-def record_evidence_view(
-    db: Session, admin: Admin, *, review_sn: int, file_sn: int, request_id: str, now: datetime
-) -> None:
-    """증빙을 내려받을 때 호출한다. 누가 언제 어느 파일을 열었는지만 남긴다(파일 번호만 기록)."""
-    record_job(
-        db,
-        actor="AK.ADMIN",
-        job=EVIDENCE_VIEW_JOB,
-        table="TB_RDCT_BFHD_SRNG",
-        key=review_sn,
-        request_id=request_id,
-        now=now,
-        bundle_sn=admin.bundle_sn,
-        admin_sn=admin.admin_sn,
-        change=str(file_sn),
-    )
 
 
 def _views(db: Session, bundle_sn: int, review_sn: int) -> list[EvidenceView]:
