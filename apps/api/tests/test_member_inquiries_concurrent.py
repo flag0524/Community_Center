@@ -1,12 +1,15 @@
 # 문의 올리기·삭제가 겹치고 답변이 수정 직전에 달려도 한 번만 반영되는지 서로 다른 DB 연결로 확인하는 시험
 import time
 from collections.abc import Callable, Iterator
+from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 import pytest
 from sqlalchemy import text
 
 from app.domain.board import inquiry
+from app.domain.file import member_service
 from tests.arena import Applicant, Arena, make_member, parallel
 from tests.factory import RowFactory
 
@@ -29,6 +32,10 @@ def code(arena: Arena) -> Iterator[None]:
         )
     yield
     with arena.migrated.begin() as connection:
+        connection.execute(
+            text("DELETE FROM TB_FILE WHERE PST_SN IN (SELECT PST_SN FROM TB_PST WHERE INQRY_CLSF_CD = :c)"),
+            {"c": CODE},
+        )
         for condition in ("UP_PST_SN IS NOT NULL", "UP_PST_SN IS NULL"):  # 답변을 먼저 지운다
             connection.execute(
                 text(f"DELETE FROM TB_PST WHERE INQRY_CLSF_CD = :c AND {condition}"), {"c": CODE}
@@ -130,3 +137,78 @@ def test_수정_직전에_답변이_달리면_수정을_거절한다(
     r = sender(who, "PUT", f"/me/inquiries/{sn}", json={**form(), "title": "고침"})()
     assert r.status_code == 422 and "답변" in r.json()["message"], r.text
     assert arena.query("SELECT PST_TTL t FROM TB_PST WHERE PST_SN=:s", s=sn)[0]["t"] == "문의"
+
+
+def test_업로드_직전에_답변이_달리면_파일을_받지_않는다(
+    arena: Arena, code: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    arena.settings = replace(arena.settings, file_root=str(tmp_path))
+    bundle, member = arena.build(build)
+    arena.serve(bundle)
+    admin = arena.staff(bundle, "answerer", "AU.POST_W")
+    [who] = sessions(arena, bundle, member, 1)
+    made = sender(who, "POST", "/me/inquiries", json=form(), headers={"Idempotency-Key": "conc-key-0001"})()
+    sn = int(made.json()["postId"])
+    real = member_service.lock_owner  # type: ignore[attr-defined]
+
+    def answer_arrives_first(db: Any, bundle_sn: int, owner: Any) -> None:
+        """읽은 뒤 잠그기 전에 다른 담당자의 답변이 확정된 상황을 만든다."""
+        with arena.migrated.begin() as connection:
+            row = connection.execute(text("SELECT BBS_SN FROM TB_PST WHERE PST_SN=:s"), {"s": sn}).one()
+            connection.execute(
+                text(
+                    "INSERT INTO TB_PST (OPER_BNDL_SN, BBS_SN, UP_PST_SN, PST_TYPE_CD, PST_TTL, PST_CN, "
+                    "WRT_MNGR_SN, PRVT_YN, NTC_YN, DEL_YN, INQRY_CLSF_CD, REG_DT, RCRD_VER) "
+                    "VALUES (:b, :bbs, :up, 'PT.REPLY', '답변', '답변', :m, 'N', 'N', 'N', :c, NOW(), 1)"
+                ),
+                {"b": bundle, "bbs": row.BBS_SN, "up": sn, "m": admin.admin_sn, "c": CODE},
+            )
+        real(db, bundle_sn, owner)
+
+    monkeypatch.setattr(member_service, "lock_owner", answer_arrives_first)
+    r = who.client.post(
+        f"{API}/me/inquiries/{sn}/files",
+        files={"file": ("a.pdf", b"%PDF-1.7\n", "application/octet-stream")},
+        headers={"X-CSRF-Token": who.csrf, "Idempotency-Key": "conc-file-0001"},
+    )
+    assert r.status_code == 409, r.text
+    assert arena.query("SELECT 1 FROM TB_FILE WHERE PST_SN=:s", s=sn) == []
+
+
+def test_삭제_직전에_답변이_달리면_파일을_지우지_못한다(
+    arena: Arena, code: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    arena.settings = replace(arena.settings, file_root=str(tmp_path))
+    bundle, member = arena.build(build)
+    arena.serve(bundle)
+    admin = arena.staff(bundle, "answerer", "AU.POST_W")
+    [who] = sessions(arena, bundle, member, 1)
+    made = sender(who, "POST", "/me/inquiries", json=form(), headers={"Idempotency-Key": "conc-key-0001"})()
+    sn = int(made.json()["postId"])
+    stored = who.client.post(
+        f"{API}/me/inquiries/{sn}/files",
+        files={"file": ("a.pdf", b"%PDF-1.7\n", "application/octet-stream")},
+        headers={"X-CSRF-Token": who.csrf, "Idempotency-Key": "conc-file-0001"},
+    )
+    file_sn = stored.json()["fileId"]
+    real = member_service.lock_owner  # type: ignore[attr-defined]
+
+    def answer_arrives_first(db: Any, bundle_sn: int, owner: Any) -> None:
+        with arena.migrated.begin() as connection:
+            row = connection.execute(text("SELECT BBS_SN FROM TB_PST WHERE PST_SN=:s"), {"s": sn}).one()
+            connection.execute(
+                text(
+                    "INSERT INTO TB_PST (OPER_BNDL_SN, BBS_SN, UP_PST_SN, PST_TYPE_CD, PST_TTL, PST_CN, "
+                    "WRT_MNGR_SN, PRVT_YN, NTC_YN, DEL_YN, INQRY_CLSF_CD, REG_DT, RCRD_VER) "
+                    "VALUES (:b, :bbs, :up, 'PT.REPLY', '답변', '답변', :m, 'N', 'N', 'N', :c, NOW(), 1)"
+                ),
+                {"b": bundle, "bbs": row.BBS_SN, "up": sn, "m": admin.admin_sn, "c": CODE},
+            )
+        real(db, bundle_sn, owner)
+
+    monkeypatch.setattr(member_service, "lock_owner", answer_arrives_first)
+    r = who.client.delete(f"{API}/me/files/{file_sn}", headers={"X-CSRF-Token": who.csrf})
+    assert r.status_code == 409, r.text
+    assert (
+        arena.query("SELECT FILE_STTS_CD s FROM TB_FILE WHERE FILE_SN=:f", f=file_sn)[0]["s"] != "FS.DELETE"
+    )

@@ -9,7 +9,7 @@ from fastapi import Response
 from sqlalchemy import and_, func, or_, select, true, update
 from sqlalchemy.orm import Session
 
-from app.audit import record_job
+from app.audit import Actor, record_job
 from app.auth.admin_access import Admin, Scope, scope_for
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
@@ -244,18 +244,51 @@ def upload_owner_file(
     if owner.purpose == "FP.IMAGE" and upload.extension not in IMAGE_EXTENSIONS:
         message = "갤러리에는 이미지(jpg·jpeg·png)만 올릴 수 있습니다."
         raise ApiError(ErrorCode.RULE_REJECTED, message, fields={"file": message})
-    # 같은 소유 업무의 올리기를 한 줄로 세워 멱등 표식 조회와 개수 검사와 삽입 사이의 틈을 막는다
+    lock_owner(db, admin.bundle_sn, owner)
+    return store_upload(
+        db,
+        settings,
+        bundle_sn=admin.bundle_sn,
+        owner=owner,
+        upload=upload,
+        idem_key=idem_key,
+        now=now,
+        request_id=request_id,
+        actor="AK.ADMIN",
+        admin_sn=admin.admin_sn,
+    )
+
+
+def lock_owner(db: Session, bundle_sn: int, owner: Owner) -> None:
+    """같은 소유 업무의 올리기를 한 줄로 세워 멱등 표식 조회와 개수 검사와 삽입 사이의 틈을 막는다."""
     if owner.kind is FileOwnerKind.COURSE:
-        lock_course(db, admin.bundle_sn, sn)
+        lock_course(db, bundle_sn, owner.sn)
     elif owner.kind is FileOwnerKind.POST:
-        db.execute(select(TB_PST.c.PST_SN).where(TB_PST.c.PST_SN == sn).with_for_update()).one()
+        db.execute(select(TB_PST.c.PST_SN).where(TB_PST.c.PST_SN == owner.sn).with_for_update()).one()
     else:
-        db.execute(select(TB_RFND.c.RFND_SN).where(TB_RFND.c.RFND_SN == sn).with_for_update()).one()
+        db.execute(select(TB_RFND.c.RFND_SN).where(TB_RFND.c.RFND_SN == owner.sn).with_for_update()).one()
+
+
+def store_upload(
+    db: Session,
+    settings: Settings,
+    *,
+    bundle_sn: int,
+    owner: Owner,
+    upload: Upload,
+    idem_key: str,
+    now: datetime,
+    request_id: str,
+    actor: Actor,
+    admin_sn: int | None = None,
+    member_sn: int | None = None,
+) -> OwnerFile:
+    """멱등 표식 확인·개수 검사·저장·기록. 호출하기 전에 소유 업무를 잠가야 한다(lock_owner). 관리자와 주민이 함께 쓴다."""
     mark = _idem_mark(idem_key, owner, upload)
     prefix = mark.split(":")[0] + ":"
     prior = db.execute(
         select(TB_JOB_HSTRY.c.TRGT_KEY_VL, TB_JOB_HSTRY.c.CHG_CN).where(
-            TB_JOB_HSTRY.c.OPER_BNDL_SN == admin.bundle_sn,
+            TB_JOB_HSTRY.c.OPER_BNDL_SN == bundle_sn,
             TB_JOB_HSTRY.c.JOB_CD == "FILE_UPLOAD",
             TB_JOB_HSTRY.c.CHG_CN.contains(prefix, autoescape=True),
         )
@@ -268,15 +301,13 @@ def upload_owner_file(
             return _owner_file(again)
     live = int(
         db.execute(
-            select(func.count())
-            .select_from(TB_FILE)
-            .where(TB_FILE.c.OPER_BNDL_SN == admin.bundle_sn, _live(owner))
+            select(func.count()).select_from(TB_FILE).where(TB_FILE.c.OPER_BNDL_SN == bundle_sn, _live(owner))
         ).scalar_one()
     )
     if live >= owner.max_files:
         message = f"파일은 {owner.max_files}개까지 올릴 수 있습니다. 먼저 기존 파일을 제거해 주세요."
         raise ApiError(ErrorCode.RULE_REJECTED, message, fields={"file": message})
-    key = new_key(admin.bundle_sn)
+    key = new_key(bundle_sn)
     try:
         write_blob(settings.file_root, key, upload.data)
     except StorageError:
@@ -286,7 +317,7 @@ def upload_owner_file(
             db.execute(
                 TB_FILE.insert()
                 .values(
-                    OPER_BNDL_SN=admin.bundle_sn,
+                    OPER_BNDL_SN=bundle_sn,
                     FILE_NM=upload.name,
                     STRG_KEY=key,
                     MIME_TYPE_NM=upload.mime,
@@ -306,14 +337,15 @@ def upload_owner_file(
         raise
     record_job(
         db,
-        actor="AK.ADMIN",
+        actor=actor,
         job="FILE_UPLOAD",
         table="TB_FILE",
         key=file_sn,
         request_id=request_id,
         now=now,
-        bundle_sn=admin.bundle_sn,
-        admin_sn=admin.admin_sn,
+        bundle_sn=bundle_sn,
+        admin_sn=admin_sn,
+        member_sn=member_sn,
         change=f"{owner.kind.value} {owner.sn} 첨부 {upload.size}바이트 {mark}",
     )
     row = db.execute(select(TB_FILE).where(TB_FILE.c.FILE_SN == file_sn)).one()
