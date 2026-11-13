@@ -11,6 +11,7 @@ import { useIdempotencyKey } from '../../lib/useIdempotencyKey';
 
 interface Values {
   classDate: string;
+  originalDate: string;
   kind: ScheduleChangeWrite['kind'];
   facilityId: string;
   startTime: string;
@@ -25,7 +26,7 @@ export function ScheduleChangeFormPage() {
   const key = useIdempotencyKey();
   const course = useQuery(adminCourseQuery(courseId));
   const options = useQuery(courseOptionsQuery);
-  const [values, setValues] = useState<Values>({ classDate: '', kind: 'CANCEL', facilityId: '', startTime: '', endTime: '', reason: '' });
+  const [values, setValues] = useState<Values>({ classDate: '', originalDate: '', kind: 'CANCEL', facilityId: '', startTime: '', endTime: '', reason: '' });
   const [missing, setMissing] = useState<Partial<Record<keyof Values, string>>>({});
   const makeup = values.kind === 'MAKEUP';
 
@@ -47,12 +48,13 @@ export function ScheduleChangeFormPage() {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const errors: Partial<Record<keyof Values, string>> = {};
-    const required: Array<keyof Values> = makeup ? ['classDate', 'reason', 'facilityId', 'startTime', 'endTime'] : ['classDate', 'reason'];
+    const required: Array<keyof Values> = makeup ? ['classDate', 'originalDate', 'reason', 'facilityId', 'startTime', 'endTime'] : ['classDate', 'reason'];
     for (const name of required) if (!values[name].trim()) errors[name] = '필수 항목입니다.';
     setMissing(errors);
     if (Object.keys(errors).length > 0) return;
     mutation.mutate({
       classDate: values.classDate,
+      originalDate: makeup ? values.originalDate : null,
       kind: values.kind,
       reason: values.reason.trim(),
       facilityId: makeup ? values.facilityId : null,
@@ -81,11 +83,14 @@ export function ScheduleChangeFormPage() {
               ))}
             </select>
           </Field>
-          <Field id="change-date" label="수업일" required error={err('classDate')}>
+          <Field id="change-date" label={makeup ? '보강일' : '휴강일'} required error={err('classDate')}>
             <input {...describe('change-date', err('classDate'))} type="date" value={values.classDate} onChange={set('classDate')} />
           </Field>
           {makeup && (
             <>
+              <Field id="change-original" label="원수업일" required error={err('originalDate')}>
+                <input {...describe('change-original', err('originalDate'))} type="date" value={values.originalDate} onChange={set('originalDate')} />
+              </Field>
               <Field id="change-facility" label="보강 시설" required error={err('facilityId')}>
                 <select {...describe('change-facility', err('facilityId'))} value={values.facilityId} onChange={set('facilityId')}>
                   <option value="">선택</option>

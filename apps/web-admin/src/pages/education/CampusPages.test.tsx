@@ -208,12 +208,12 @@ describe('일정', () => {
 });
 
 describe('휴강·보강', () => {
-  it('휴강은 수업일과 사유만 받아 목록에 보인다', async () => {
+  it('휴강은 휴강일과 사유만 받아 목록에 보인다', async () => {
     await signInAs('group');
     renderApp(`/edu/schedules/${COURSE_1}/changes/new`);
     await heading('휴보강 등록');
     expect(screen.queryByLabelText(/^보강 시설/)).not.toBeInTheDocument();
-    fireEvent.change(field('수업일'), { target: { value: '2026-11-03' } });
+    fireEvent.change(field('휴강일'), { target: { value: '2026-11-03' } });
     await userEvent.type(field('사유'), '강사 사정');
     await userEvent.click(screen.getByRole('button', { name: '저장' }));
     const row = await rowOf('2026-11-03');
@@ -225,10 +225,10 @@ describe('휴강·보강', () => {
     renderApp(`/edu/schedules/${COURSE_1}/changes/new`);
     await heading('휴보강 등록');
     await userEvent.selectOptions(field('구분'), '보강');
-    fireEvent.change(field('수업일'), { target: { value: '2026-11-04' } });
+    fireEvent.change(field('보강일'), { target: { value: '2026-11-04' } });
     await userEvent.type(field('사유'), '보강');
     await userEvent.click(screen.getByRole('button', { name: '저장' }));
-    expect(screen.getAllByText('필수 항목입니다.').length).toBe(3);
+    expect(screen.getAllByText('필수 항목입니다.').length).toBe(4); // 원수업일·시설·시작·종료
   });
 
   it('보강 시설이 그 시간에 다른 강좌로 차 있으면 서버 안내를 보인다', async () => {
@@ -236,7 +236,8 @@ describe('휴강·보강', () => {
     renderApp(`/edu/schedules/${COURSE_1}/changes/new`);
     await heading('휴보강 등록');
     await userEvent.selectOptions(field('구분'), '보강');
-    fireEvent.change(field('수업일'), { target: { value: '2026-11-03' } }); // 화요일
+    fireEvent.change(field('보강일'), { target: { value: '2026-11-03' } }); // 화요일
+    fireEvent.change(field('원수업일'), { target: { value: '2026-11-02' } });
     await userEvent.selectOptions(field('보강 시설'), '조리읍 주민자치센터 강의실 1');
     fireEvent.change(field('보강 시작 시각'), { target: { value: '19:30' } });
     fireEvent.change(field('보강 종료 시각'), { target: { value: '20:00' } });
@@ -249,7 +250,7 @@ describe('휴강·보강', () => {
     await signInAs('group');
     renderApp(`/edu/schedules/${COURSE_1}/changes/new`);
     await heading('휴보강 등록');
-    fireEvent.change(field('수업일'), { target: { value: '2026-11-03' } });
+    fireEvent.change(field('휴강일'), { target: { value: '2026-11-03' } });
     await userEvent.type(field('사유'), '강사 사정');
     await userEvent.click(screen.getByRole('button', { name: '저장' }));
     await userEvent.click(await screen.findByRole('button', { name: '삭제 (2026-11-03 휴강)' }));

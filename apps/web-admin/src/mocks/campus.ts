@@ -250,6 +250,7 @@ export const campusHandlers = [
     const makeup = body.kind === 'MAKEUP';
     const created: ScheduleChange = {
       ...body,
+      originalDate: makeup ? (body.originalDate ?? body.classDate) : body.classDate,
       facilityId: makeup ? body.facilityId : null,
       startTime: makeup ? body.startTime : null,
       endTime: makeup ? body.endTime : null,
@@ -293,6 +294,7 @@ function validateChange(body: ScheduleChangeWrite, course: CourseInfo, cid: stri
   const fields: Record<string, string> = {};
   if (body.classDate < course.educationStart || body.classDate > course.educationEnd) fields.classDate = '강좌 교육기간 안이어야 합니다.';
   if (body.kind === 'MAKEUP') {
+    if (!body.originalDate) fields.originalDate = '원수업일을 입력해 주세요.';
     const room = state.facilities.find((item) => item.facilityId === body.facilityId);
     if (!room || room.kind !== 'ROOM' || !room.inUse) fields.facilityId = '보강은 사용 중인 강의실을 선택해야 합니다.';
     if (!body.startTime) fields.startTime = '보강 시작 시각을 입력해 주세요.';

@@ -28,9 +28,17 @@ class Schedule(ScheduleWrite):
 
 
 class ScheduleChangeWrite(ApiModel):
-    """휴강은 수업일과 사유만, 보강은 시설과 시간도 함께 받는다."""
+    """휴강은 수업일과 사유만, 보강은 원수업일·시설·시간도 함께 받는다.
+
+    휴강이면 `classDate`가 휴강일(원수업일)이고, 보강이면 `classDate`가 보강일이며 `originalDate`가
+    대체되는 정규 수업일이다(스키마 SCH-01·SCH-02, 사용자 확정 2026-11-13).
+    """
 
     class_date: date
+    original_date: date | None = Field(
+        default=None,
+        description="보강에서 대체될 정규 수업일. 보강은 필수이고 휴강은 비우거나 수업일과 같다.",
+    )
     kind: ScheduleChangeKind
     facility_id: SerialId | None = None
     start_time: ClockTime | None = None
@@ -39,6 +47,7 @@ class ScheduleChangeWrite(ApiModel):
 
 
 class ScheduleChange(ScheduleChangeWrite):
+    original_date: date = Field(description="대체되는 정규 수업일. 휴강이면 수업일과 같다.")
     change_id: SerialId
     facility_name: str | None
 
