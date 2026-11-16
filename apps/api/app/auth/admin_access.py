@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import (
     BACKGROUND_HEADER,
+    SAFE_METHODS,
     Clock,
     active_admin,
     current_session,
@@ -123,22 +124,23 @@ def require_admin(
     db: Annotated[Session, Depends(get_db)],
     clock: Annotated[Clock, Depends(get_clock)],
     bundles: Annotated[BundleResolver, Depends(get_bundle_resolver)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> Admin:
-    """살아 있는 관리자 세션이 있어야 한다. 사용 중지된 계정은 세션이 있어도 인증되지 않는다."""
+    """살아 있는 관리자 세션이 있어야 한다. 사용 중지된 계정은 세션이 있어도 인증되지 않는다.
+
+    상태를 바꾸는 메서드는 CSRF 토큰도 맞아야 한다. 틀린 요청은 유휴 시간을 늘리지 않는다.
+    """
     now = clock()
     record = current_session(request, "admin", db, now)
     if record is None or record.admin_sn is None or not active_admin(db, record.admin_sn):
         raise ApiError(ErrorCode.UNAUTHENTICATED)
+    if request.method not in SAFE_METHODS:
+        verify_csrf(request, settings, "admin", record)
     if request.headers.get(BACKGROUND_HEADER) != "1":
         record = touch(db, record, "admin", now)
     return Admin(record.admin_sn or 0, bundles.resolve(db), record)
 
 
-def require_admin_write(
-    request: Request,
-    settings: Annotated[Settings, Depends(get_settings)],
-    admin: Annotated[Admin, Depends(require_admin)],
-) -> Admin:
-    """상태를 바꾸는 요청은 로그인에 더해 CSRF 토큰도 맞아야 한다(DV17)."""
-    verify_csrf(request, settings, "admin", admin.record)
+def require_admin_write(admin: Annotated[Admin, Depends(require_admin)]) -> Admin:
+    """쓰기 경로의 표시용이다. CSRF 검증은 require_admin이 메서드로 하므로 여기서 다시 하지 않는다(DV17)."""
     return admin

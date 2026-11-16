@@ -87,6 +87,10 @@ def verify_csrf(request: Request, settings: Settings, kind: Kind, record: Sessio
         raise ApiError(ErrorCode.FORBIDDEN)
 
 
+# 이 메서드가 아니면 상태를 바꾸는 요청이다. 메서드로 CSRF 검증을 정하므로 쓰기 경로가 빠뜨릴 수 없다(DV17)
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
 def current_session(request: Request, kind: Kind, db: Session, now: datetime) -> SessionRecord | None:
     return find_active(db, request.cookies.get(COOKIE_NAMES[kind]), kind, now)
 
@@ -120,8 +124,12 @@ def require_member(
     db: Annotated[Session, Depends(get_db)],
     clock: Annotated[Clock, Depends(get_clock)],
     bundles: Annotated[BundleResolver, Depends(get_bundle_resolver)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> Member:
-    """살아 있는 회원 세션이 있어야 한다. 활동으로 보는 요청은 유휴 시간을 처음부터 다시 센다(AUTH-05)."""
+    """살아 있는 회원 세션이 있어야 한다. 활동으로 보는 요청은 유휴 시간을 처음부터 다시 센다(AUTH-05).
+
+    상태를 바꾸는 메서드는 CSRF 토큰도 맞아야 한다. 틀린 요청은 유휴 시간을 늘리지 않는다.
+    """
     now = clock()
     record = current_session(request, "member", db, now)
     if record is None or record.member_sn is None or record.bundle_sn is None:
@@ -129,6 +137,8 @@ def require_member(
     member_sn, bundle_sn = record.member_sn, record.bundle_sn
     if bundle_sn != bundles.resolve(db) or not active_member(db, member_sn):
         raise ApiError(ErrorCode.UNAUTHENTICATED)
+    if request.method not in SAFE_METHODS:
+        verify_csrf(request, settings, "member", record)
     if request.headers.get(BACKGROUND_HEADER) != "1":
         record = touch(db, record, "member", now)
     return Member(member_sn, bundle_sn, record)
@@ -139,21 +149,17 @@ def optional_member(
     db: Annotated[Session, Depends(get_db)],
     clock: Annotated[Clock, Depends(get_clock)],
     bundles: Annotated[BundleResolver, Depends(get_bundle_resolver)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> Member | None:
     """공개 화면이 로그인한 회원에게만 보여 줄 값(내 글인지 등)을 위해 쓴다. 로그인이 없으면 None이다."""
     try:
-        return require_member(request, db, clock, bundles)
+        return require_member(request, db, clock, bundles, settings)
     except ApiError as error:
         if error.code is ErrorCode.UNAUTHENTICATED:
             return None
         raise
 
 
-def require_member_write(
-    request: Request,
-    settings: Annotated[Settings, Depends(get_settings)],
-    member: Annotated[Member, Depends(require_member)],
-) -> Member:
-    """상태를 바꾸는 요청은 로그인에 더해 CSRF 토큰도 맞아야 한다(DV17)."""
-    verify_csrf(request, settings, "member", member.record)
+def require_member_write(member: Annotated[Member, Depends(require_member)]) -> Member:
+    """쓰기 경로의 표시용이다. CSRF 검증은 require_member가 메서드로 하므로 여기서 다시 하지 않는다(DV17)."""
     return member

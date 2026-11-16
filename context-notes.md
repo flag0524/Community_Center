@@ -735,3 +735,9 @@
 - `_summary`가 환불을 마지막 분기로 가정해 감면 증빙·강사 지원서 파일의 전체 상세가 500이었다. 이 변경에서 소유 업무별 분기를 더해 고쳤다. 감면 증빙 분기는 시험하지 않았다(강사 지원서만 시험).
 - 아레나 시험이 파일을 쓰려면 `arena.settings = replace(arena.settings, file_root=…)`를 `serve` 전에 해야 한다. 기본값 `/data/files`에 쓰지 않는다.
 - 변이 검사 스크립트는 Windows Python이 쓰므로 `/tmp`가 아니라 scratchpad 경로에 둔다(bash의 `/tmp`는 보이지 않는다).
+
+## B4-9d 세션·CSRF 전역 적용 (2026-11-16)
+- 위 B4-8m 메모의 "관리자 쓰기 CSRF는 전역으로 강제하지 않는다"는 이 단계에서 풀렸다. 이제 관리자 시험의 쓰기 호출은 `X-CSRF-Token`을 보내야 한다(`call()` 도우미는 이미 보낸다). 토큰 없이 쓰기를 부르는 시험을 새로 만들면 403이다.
+- 검증은 `require_admin`·`require_member`가 요청 메서드로 한다. `require_admin_write`·`require_member_write`는 표시용 별칭이고 검증을 하지 않는다.
+- 요청은 하나의 트랜잭션이라 CSRF 실패(예외)는 활동 시각 갱신도 되돌린다. 그래서 검증을 갱신 앞에 두든 뒤에 두든 결과가 같고, 순서 변이는 동치다. 앞에 둔 것은 읽는 사람에게 의도가 분명해서다.
+- `tests/test_csrf_global.py`는 `app.routers.admin·user`의 모든 `router`·`member_router`에서 쓰기 경로를 모은다. 새 라우터 변수 이름을 쓰면 `ROUTER_NAMES`에 더해야 점검 대상이 된다. 수집이 비면 첫 시험이 실패한다.

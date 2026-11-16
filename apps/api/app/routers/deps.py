@@ -11,7 +11,7 @@ ADMIN_SESSION_COOKIE_NAME = "jori_admin_session"
 CSRF_HEADER_NAME = "X-CSRF-Token"
 IDEMPOTENCY_HEADER_NAME = "Idempotency-Key"
 
-# 서버 세션 + HttpOnly 쿠키(ADR-008). 골격 단계에서는 문서화만 하고 검증은 P3에서 붙인다.
+# 서버 세션 + HttpOnly 쿠키(ADR-008). 여기서는 계약에 드러내기만 하고 검증은 app.auth.deps가 한다.
 member_session = APIKeyCookie(
     name=SESSION_COOKIE_NAME,
     scheme_name="sessionCookie",
@@ -38,7 +38,7 @@ def csrf_header(
         ),
     ] = None,
 ) -> None:
-    """상태 변경 요청이 보내야 하는 CSRF 헤더를 계약에 드러낸다. 검증은 P3에서 구현한다."""
+    """상태 변경 요청이 보내야 하는 CSRF 헤더를 계약에 드러낸다. 검증은 세션 의존성이 한다."""
 
 
 IdempotencyKey = Annotated[
