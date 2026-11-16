@@ -4,10 +4,20 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, Query, Request, Response, Security
 from sqlalchemy.orm import Session
 
-from app.auth.deps import Clock, Member, get_clock, request_id_of, require_member, require_member_write
-from app.core.errors import ErrorCode, not_implemented
+from app.auth.deps import (
+    Clock,
+    Member,
+    get_bundle_resolver,
+    get_clock,
+    optional_member,
+    request_id_of,
+    require_member,
+    require_member_write,
+)
+from app.core.errors import ErrorCode
+from app.db.bundle import BundleResolver
 from app.db.session import get_db
-from app.domain.board import inquiry
+from app.domain.board import inquiry, review
 from app.domain.board.schemas import (
     InquiryCategoryList,
     InquiryDetail,
@@ -41,22 +51,37 @@ Db = Annotated[Session, Depends(get_db)]
 Me = Annotated[Member, Depends(require_member)]
 MeWrite = Annotated[Member, Depends(require_member_write)]
 Now = Annotated[Clock, Depends(get_clock)]
+Bundles = Annotated[BundleResolver, Depends(get_bundle_resolver)]
+MaybeMember = Annotated[Member | None, Depends(optional_member)]
 NOT_FOUND = error_responses(ErrorCode.NOT_FOUND)
 WRITE_ERRORS = error_responses(ErrorCode.NOT_FOUND, ErrorCode.RULE_REJECTED, ErrorCode.IDEMPOTENCY_CONFLICT)
 
 
 @router.get("/reviews")
 def list_reviews(
+    db: Db,
+    bundles: Bundles,
+    clock: Now,
+    me: MaybeMember,
     q: Annotated[str | None, Query(max_length=100, description="제목 검색어")] = None,
     page: Page_ = 1,
     size: Size = 10,
 ) -> ReviewPage:
-    not_implemented()
+    """작성자는 이름을 가려 보인다. 로그인한 회원에게는 내 글 표시를 함께 준다."""
+    return review.list_reviews(
+        db,
+        bundles.resolve(db),
+        None if me is None else me.member_sn,
+        clock(),
+        q=q,
+        page=page,
+        size=size,
+    )
 
 
 @router.get("/reviews/{post_id}", responses=NOT_FOUND)
-def get_review(post_id: PostId) -> ReviewDetail:
-    not_implemented()
+def get_review(post_id: PostId, db: Db, bundles: Bundles, me: MaybeMember) -> ReviewDetail:
+    return review.get_review(db, bundles.resolve(db), None if me is None else me.member_sn, post_id)
 
 
 @member_router.get("/inquiry-categories")
@@ -142,26 +167,52 @@ def delete_inquiry(post_id: PostId, request: Request, db: Db, me: MeWrite, clock
 
 
 @member_router.get("/me/reviews")
-def list_my_reviews(page: Page_ = 1, size: Size = 10) -> ReviewPage:
-    not_implemented()
+def list_my_reviews(db: Db, me: Me, clock: Now, page: Page_ = 1, size: Size = 10) -> ReviewPage:
+    return review.list_mine(db, me.bundle_sn, me.member_sn, clock(), page=page, size=size)
 
 
 @member_router.get("/me/reviewable-courses")
-def list_reviewable_courses() -> ReviewableCourseList:
-    not_implemented()
+def list_reviewable_courses(db: Db, me: Me) -> ReviewableCourseList:
+    """수강확정 이후이고 아직 후기를 쓰지 않은 내 강좌."""
+    return review.list_reviewable(db, me.bundle_sn, me.member_sn)
 
 
 @member_router.post(
     "/me/reviews", status_code=201, responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)]
 )
-def create_review(body: ReviewWrite, idempotency_key: IdempotencyKey) -> ReviewDetail:
+def create_review(
+    body: ReviewWrite,
+    idempotency_key: IdempotencyKey,
+    request: Request,
+    db: Db,
+    me: MeWrite,
+    clock: Now,
+) -> ReviewDetail:
     """수강확정인 강좌의 후기만 쓸 수 있다. 직접 요청도 같은 검사를 한다(FN-052)."""
-    not_implemented()
+    return review.create_review(
+        db,
+        member_sn=me.member_sn,
+        bundle_sn=me.bundle_sn,
+        body=body,
+        idem_key=idempotency_key,
+        request_id=request_id_of(request),
+        now=clock(),
+    )
 
 
 @member_router.put("/me/reviews/{post_id}", responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)])
-def update_review(post_id: PostId, body: ReviewWrite) -> ReviewDetail:
-    not_implemented()
+def update_review(
+    post_id: PostId, body: ReviewWrite, request: Request, db: Db, me: MeWrite, clock: Now
+) -> ReviewDetail:
+    return review.update_review(
+        db,
+        member_sn=me.member_sn,
+        bundle_sn=me.bundle_sn,
+        post_id=post_id,
+        body=body,
+        request_id=request_id_of(request),
+        now=clock(),
+    )
 
 
 @member_router.delete(
@@ -171,5 +222,12 @@ def update_review(post_id: PostId, body: ReviewWrite) -> ReviewDetail:
     responses=NOT_FOUND,
     dependencies=[Depends(csrf_header)],
 )
-def delete_review(post_id: PostId) -> None:
-    not_implemented()
+def delete_review(post_id: PostId, request: Request, db: Db, me: MeWrite, clock: Now) -> None:
+    review.delete_review(
+        db,
+        member_sn=me.member_sn,
+        bundle_sn=me.bundle_sn,
+        post_id=post_id,
+        request_id=request_id_of(request),
+        now=clock(),
+    )

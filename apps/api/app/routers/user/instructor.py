@@ -9,12 +9,13 @@ from app.auth.deps import (
     Member,
     get_bundle_resolver,
     get_clock,
+    optional_member,
     request_id_of,
     require_member,
     require_member_write,
 )
 from app.core.config import Settings, get_settings
-from app.core.errors import ApiError, ErrorCode
+from app.core.errors import ErrorCode
 from app.db.bundle import BundleResolver
 from app.db.session import get_db
 from app.domain.instructor import service
@@ -54,16 +55,6 @@ Now = Annotated[Clock, Depends(get_clock)]
 Me = Annotated[Member, Depends(require_member)]
 MeWrite = Annotated[Member, Depends(require_member_write)]
 Config = Annotated[Settings, Depends(get_settings)]
-
-
-def optional_member(request: Request, db: Db, clock: Now, bundles: Bundles) -> Member | None:
-    """공개 화면이 로그인한 회원에게만 보여 줄 값(이미 지원했는지)을 위해 쓴다. 로그인이 없으면 None이다."""
-    try:
-        return require_member(request, db, clock, bundles)
-    except ApiError as error:
-        if error.code is ErrorCode.UNAUTHENTICATED:
-            return None
-        raise
 
 
 MaybeMember = Annotated[Member | None, Depends(optional_member)]

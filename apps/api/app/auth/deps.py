@@ -134,6 +134,21 @@ def require_member(
     return Member(member_sn, bundle_sn, record)
 
 
+def optional_member(
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+    clock: Annotated[Clock, Depends(get_clock)],
+    bundles: Annotated[BundleResolver, Depends(get_bundle_resolver)],
+) -> Member | None:
+    """공개 화면이 로그인한 회원에게만 보여 줄 값(내 글인지 등)을 위해 쓴다. 로그인이 없으면 None이다."""
+    try:
+        return require_member(request, db, clock, bundles)
+    except ApiError as error:
+        if error.code is ErrorCode.UNAUTHENTICATED:
+            return None
+        raise
+
+
 def require_member_write(
     request: Request,
     settings: Annotated[Settings, Depends(get_settings)],

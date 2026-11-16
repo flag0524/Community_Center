@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings, get_settings
-from app.core.errors import ErrorCode
+from app.core.errors import ErrorCode, not_implemented
 from app.db.session import get_db
 from app.main import create_app
 
@@ -31,7 +31,9 @@ def assert_error_shape(body: dict[str, object], code: ErrorCode) -> None:
 
 
 def test_골격_엔드포인트는_501_NOT_IMPLEMENTED_형식으로_답한다(client: TestClient) -> None:
-    response = client.get("/api/v1/reviews")  # 공개 골격 엔드포인트. 관리자 골격은 로그인 전에 401이다
+    # 공개 골격 엔드포인트는 모두 구현되어 시험용 경로로 확인한다. 관리자 골격은 로그인 전에 401이다
+    client.app.add_api_route("/api/v1/_skeleton", lambda: not_implemented(), methods=["GET"])  # type: ignore[attr-defined]
+    response = client.get("/api/v1/_skeleton")
     assert response.status_code == 501
     assert_error_shape(response.json(), ErrorCode.NOT_IMPLEMENTED)
 
