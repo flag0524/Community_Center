@@ -14,7 +14,7 @@ from app.auth.deps import (
     require_member_write,
 )
 from app.core.config import Settings, get_settings
-from app.core.errors import ApiError, ErrorCode, not_implemented
+from app.core.errors import ApiError, ErrorCode
 from app.db.bundle import BundleResolver
 from app.db.session import get_db
 from app.domain.instructor import service
@@ -71,16 +71,20 @@ MaybeMember = Annotated[Member | None, Depends(optional_member)]
 
 @router.get("/instructors")
 def list_instructors(
+    db: Db,
+    bundles: Bundles,
+    clock: Now,
     q: Annotated[str | None, Query(max_length=100, description="강사명 또는 강좌명")] = None,
     page: Page_ = 1,
     size: Size = 10,
 ) -> InstructorPage:
-    not_implemented()
+    """승인되고 공개로 정한 강사만이다. 강좌는 공개 중인 강좌의 이름만 담는다."""
+    return service.list_instructors(db, bundles.resolve(db), clock(), q=q, page=page, size=size)
 
 
 @router.get("/instructors/{instructor_id}", responses=NOT_FOUND)
-def get_instructor(instructor_id: Serial) -> InstructorDetail:
-    not_implemented()
+def get_instructor(instructor_id: Serial, db: Db, bundles: Bundles) -> InstructorDetail:
+    return service.get_instructor(db, bundles.resolve(db), instructor_id)
 
 
 @router.get("/instructor-recruitments")

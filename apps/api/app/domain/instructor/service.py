@@ -3,7 +3,7 @@ import hashlib
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Select, and_, func, select
+from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.audit import record_job
@@ -14,7 +14,9 @@ from app.core.schema import PageCriteria
 from app.core.times import kst_today, utc
 from app.db.tables import (
     TB_BBS,
+    TB_CORS,
     TB_CORS_CLSF,
+    TB_INSTR,
     TB_INSTR_APLY,
     TB_INSTR_RCRT,
     TB_MBR,
@@ -26,6 +28,9 @@ from app.domain.instructor.schemas import (
     InstructorApplication,
     InstructorApplicationPage,
     InstructorApplyWrite,
+    InstructorDetail,
+    InstructorPage,
+    InstructorSummary,
     RecruitmentDetail,
     RecruitmentPage,
     RecruitmentSummary,
@@ -42,6 +47,114 @@ EDITABLE = ("IA.WAIT",)
 
 def _fail(field: str, message: str) -> ApiError:
     return ApiError(ErrorCode.RULE_REJECTED, message, fields={field: message})
+
+
+# --- 공개 강사 ----------------------------------------------------------------------------------
+
+VISIBLE_COURSES = ("CS.OPEN", "CS.RUN", "CS.CLOSE")  # 공개 강좌 목록과 같은 기준
+
+
+def _public_instructors(bundle_sn: int) -> Select[Any]:
+    """승인되고 공개로 정한 강사. 이름은 회원정보의 이름이며 심사 정보·증빙은 어디에도 없다(FN-018)."""
+    return (
+        select(TB_INSTR.c.INSTR_SN, TB_INSTR.c.CRR_CN, TB_INSTR.c.QLFC_CN, TB_MBR.c.MBR_NM)
+        .select_from(TB_INSTR)
+        .join(
+            TB_MBR,
+            (TB_MBR.c.OPER_BNDL_SN == TB_INSTR.c.OPER_BNDL_SN) & (TB_MBR.c.MBR_SN == TB_INSTR.c.MBR_SN),
+        )
+        .where(
+            TB_INSTR.c.OPER_BNDL_SN == bundle_sn,
+            TB_INSTR.c.INSTR_STTS_CD == "IS.APPROVE",
+            TB_INSTR.c.RLS_YN == "Y",
+        )
+    )
+
+
+def _teaching(
+    db: Session, bundle_sn: int, instructor_sns: list[int]
+) -> dict[int, tuple[list[str], str | None]]:
+    """강사별 공개 강좌 이름(중복 없이 가나다순)과 분야. 분야는 가장 최근 강좌의 분류 이름이다."""
+    if not instructor_sns:
+        return {}
+    rows = db.execute(
+        select(TB_CORS.c.INSTR_SN, TB_CORS.c.CORS_NM, TB_CORS_CLSF.c.CORS_CLSF_NM)
+        .select_from(TB_CORS)
+        .outerjoin(
+            TB_CORS_CLSF,
+            (TB_CORS_CLSF.c.OPER_BNDL_SN == TB_CORS.c.OPER_BNDL_SN)
+            & (TB_CORS_CLSF.c.CORS_CLSF_SN == TB_CORS.c.CORS_CLSF_SN)
+            & (TB_CORS_CLSF.c.DEL_YN == "N"),
+        )
+        .where(
+            TB_CORS.c.OPER_BNDL_SN == bundle_sn,
+            TB_CORS.c.INSTR_SN.in_(instructor_sns),
+            TB_CORS.c.CORS_STTS_CD.in_(VISIBLE_COURSES),
+        )
+        .order_by(TB_CORS.c.CORS_SN.desc())
+    ).all()
+    names: dict[int, set[str]] = {}
+    field: dict[int, str] = {}
+    for row in rows:
+        sn = int(row.INSTR_SN)
+        names.setdefault(sn, set()).add(str(row.CORS_NM))
+        if sn not in field and row.CORS_CLSF_NM is not None:
+            field[sn] = str(row.CORS_CLSF_NM)
+    return {sn: (sorted(names.get(sn, set())), field.get(sn)) for sn in instructor_sns}
+
+
+def list_instructors(
+    db: Session, bundle_sn: int, now: datetime, *, q: str | None, page: int, size: int
+) -> InstructorPage:
+    query = _public_instructors(bundle_sn)
+    if q and q.strip():
+        needle = q.strip()
+        taught = (
+            select(TB_CORS.c.CORS_SN)
+            .where(
+                TB_CORS.c.OPER_BNDL_SN == TB_INSTR.c.OPER_BNDL_SN,
+                TB_CORS.c.INSTR_SN == TB_INSTR.c.INSTR_SN,
+                TB_CORS.c.CORS_STTS_CD.in_(VISIBLE_COURSES),
+                TB_CORS.c.CORS_NM.contains(needle, autoescape=True),
+            )
+            .exists()
+        )
+        query = query.where(or_(TB_MBR.c.MBR_NM.contains(needle, autoescape=True), taught))
+    total = int(db.execute(select(func.count()).select_from(query.order_by(None).subquery())).scalar_one())
+    rows = db.execute(
+        query.order_by(TB_MBR.c.MBR_NM, TB_INSTR.c.INSTR_SN).limit(size).offset((page - 1) * size)
+    ).all()
+    teaching = _teaching(db, bundle_sn, [int(r.INSTR_SN) for r in rows])
+    return InstructorPage(
+        items=[
+            InstructorSummary(
+                instructor_id=str(int(r.INSTR_SN)),
+                name=str(r.MBR_NM),
+                category_name=teaching[int(r.INSTR_SN)][1],
+                course_names=teaching[int(r.INSTR_SN)][0],
+            )
+            for r in rows
+        ],
+        page=page,
+        size=size,
+        total=total,
+        criteria=PageCriteria(basis_at=utc(now)),
+    )
+
+
+def get_instructor(db: Session, bundle_sn: int, instructor_id: str) -> InstructorDetail:
+    row = db.execute(_public_instructors(bundle_sn).where(TB_INSTR.c.INSTR_SN == int(instructor_id))).first()
+    if row is None:
+        raise ApiError(ErrorCode.NOT_FOUND)
+    courses, field = _teaching(db, bundle_sn, [int(row.INSTR_SN)])[int(row.INSTR_SN)]
+    career = "\n".join(str(v).strip() for v in (row.CRR_CN, row.QLFC_CN) if v is not None and str(v).strip())
+    return InstructorDetail(
+        instructor_id=str(int(row.INSTR_SN)),
+        name=str(row.MBR_NM),
+        category_name=field,
+        course_names=courses,
+        career=career or None,
+    )
 
 
 # --- 모집공고 -----------------------------------------------------------------------------------
