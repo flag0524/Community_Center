@@ -27,8 +27,10 @@ from app.db.tables import (
     TB_PST,
     TB_RDCT_BFHD_SRNG,
     TB_RFND,
+    TB_SITE_CONTS,
     TB_STLM,
 )
+from app.domain.admin.content_service import CODE_TYPE
 from app.domain.admin.file_schemas import (
     AdminFile,
     AdminFilePage,
@@ -73,6 +75,7 @@ class Owner:
     can_edit: bool  # 권한이 있고 소유 업무가 잠기지 않았다
     purpose: str
     max_files: int
+    accepts_files: bool = True  # 이 소유 업무의 유형이 파일을 쓰는가(이미지를 쓰지 않는 콘텐츠 유형은 false)
 
 
 KINDS = {
@@ -83,7 +86,10 @@ KINDS = {
     FileOwnerKind.REDUCTION: ("RDCT_BFHD_SRNG_SN", "FP.PROOF", 5),
     # 지원자와 묶음 전체 담당자가 서류 검토중일 때 더한다
     FileOwnerKind.INSTRUCTOR_APPLICATION: ("INSTR_APLY_SN", "FP.PROOF", 5),
+    # 홈 배너·팝업의 이미지 한 장(jpg·png). 다른 유형은 이미지를 쓰지 않는다
+    FileOwnerKind.CONTENT: ("SITE_CONTS_SN", "FP.IMAGE", 1),
 }
+IMAGE_CONTENT_TYPES = ("CT.BANNER", "CT.POPUP")
 INSTRUCTOR_EDITABLE = ("IA.WAIT",)  # 서류 검토중에만 증빙을 더하고 뺀다
 EVIDENCE_VIEW_JOB = "RDCT_EVIDENCE_VIEW"
 GALLERY_IMAGES = 10
@@ -115,6 +121,34 @@ def _course_owner(db: Session, admin: Admin, now: datetime, sn: int) -> Owner | 
         write and row.CORS_STTS_CD in COURSE_EDITABLE,
         purpose,
         limit,
+    )
+
+
+def _content_owner(db: Session, admin: Admin, now: datetime, sn: int) -> Owner | None:
+    """홈·센터 콘텐츠의 이미지. 콘텐츠의 범위는 콘텐츠의 동이고, 이미지를 쓰지 않는 유형은 올릴 수 있는 개수가 0이다."""
+    row = db.execute(
+        select(TB_SITE_CONTS.c.CONTS_TTL, TB_SITE_CONTS.c.DONG_SN, TB_SITE_CONTS.c.CONTS_TYPE_CD).where(
+            TB_SITE_CONTS.c.OPER_BNDL_SN == admin.bundle_sn,
+            TB_SITE_CONTS.c.SITE_CONTS_SN == sn,
+            TB_SITE_CONTS.c.CONTS_TYPE_CD.in_(list(CODE_TYPE)),
+        )
+    ).first()
+    if row is None:
+        return None
+    write = _covers(scope_for(db, admin, AU.SITE_W, now), row.DONG_SN)
+    column, purpose, limit = KINDS[FileOwnerKind.CONTENT]
+    uses_image = str(row.CONTS_TYPE_CD).strip() in IMAGE_CONTENT_TYPES
+    return Owner(
+        FileOwnerKind.CONTENT,
+        column,
+        sn,
+        str(row.CONTS_TTL),
+        write,
+        write,
+        write and uses_image,
+        purpose,
+        limit,
+        uses_image,
     )
 
 
@@ -227,6 +261,8 @@ def owner_of(db: Session, admin: Admin, now: datetime, kind: FileOwnerKind, sn: 
         if kind is FileOwnerKind.POST
         else _instructor_owner(db, admin, now, sn)
         if kind is FileOwnerKind.INSTRUCTOR_APPLICATION
+        else _content_owner(db, admin, now, sn)
+        if kind is FileOwnerKind.CONTENT
         else _refund_owner(db, admin, now, sn)
     )
     if found is None or not found.can_view:
@@ -293,6 +329,9 @@ def upload_owner_file(
     owner = owner_of(db, admin, now, kind, sn)
     if not owner.can_write:
         raise ApiError(ErrorCode.FORBIDDEN)  # 볼 수는 있지만 파일을 더할 권한이 없다
+    if not owner.accepts_files:
+        message = "이 유형의 콘텐츠는 이미지를 쓰지 않습니다."
+        raise ApiError(ErrorCode.RULE_REJECTED, message, fields={"file": message})
     if not owner.can_edit:
         raise ApiError(ErrorCode.CONFLICT_STATE)  # 소유 업무가 잠겼다(폐강·종료, 환불 승인 이후)
     upload = validate_upload(filename, data)
@@ -320,6 +359,12 @@ def lock_owner(db: Session, bundle_sn: int, owner: Owner) -> None:
         lock_course(db, bundle_sn, owner.sn)
     elif owner.kind is FileOwnerKind.POST:
         db.execute(select(TB_PST.c.PST_SN).where(TB_PST.c.PST_SN == owner.sn).with_for_update()).one()
+    elif owner.kind is FileOwnerKind.CONTENT:
+        db.execute(
+            select(TB_SITE_CONTS.c.SITE_CONTS_SN)
+            .where(TB_SITE_CONTS.c.SITE_CONTS_SN == owner.sn)
+            .with_for_update()
+        ).one()
     elif owner.kind is FileOwnerKind.REDUCTION:
         db.execute(
             select(TB_RDCT_BFHD_SRNG.c.RDCT_BFHD_SRNG_SN)
@@ -428,7 +473,8 @@ def _visible_files(db: Session, admin: Admin, now: datetime) -> Any:
     refund_a, refund_x = scope_for(db, admin, AU.RFND_A, now), scope_for(db, admin, AU.RFND_X, now)
     refund_scope = Scope(refund_a.whole or refund_x.whole, refund_a.dongs | refund_x.dongs)
     post_scope = scope_for(db, admin, AU.POST_W, now)
-    if course_scope.empty() and refund_scope.empty() and post_scope.empty():
+    content_scope = scope_for(db, admin, AU.SITE_W, now)
+    if course_scope.empty() and refund_scope.empty() and post_scope.empty() and content_scope.empty():
         raise ApiError(ErrorCode.FORBIDDEN)
     pieces = []
     if not course_scope.empty():
@@ -453,6 +499,14 @@ def _visible_files(db: Session, admin: Admin, now: datetime) -> Any:
                 true() if post_scope.whole else TB_PST.c.DONG_SN.in_(post_scope.dongs),
             )
         )
+    if not content_scope.empty():
+        pieces.append(
+            and_(
+                TB_FILE.c.SITE_CONTS_SN.is_not(None),
+                TB_SITE_CONTS.c.CONTS_TYPE_CD.in_(list(CODE_TYPE)),
+                true() if content_scope.whole else TB_SITE_CONTS.c.DONG_SN.in_(content_scope.dongs),
+            )
+        )
     return or_(*pieces)
 
 
@@ -467,9 +521,10 @@ def _query(admin: Admin) -> Any:
         .outerjoin(TB_ATNLC_APLY, TB_ATNLC_APLY.c.ATNLC_APLY_SN == TB_STLM.c.ATNLC_APLY_SN)
         .outerjoin(RFND_CORS, RFND_CORS.c.CORS_SN == TB_ATNLC_APLY.c.CORS_SN)
         .outerjoin(TB_PST, TB_PST.c.PST_SN == TB_FILE.c.PST_SN)
+        .outerjoin(TB_SITE_CONTS, TB_SITE_CONTS.c.SITE_CONTS_SN == TB_FILE.c.SITE_CONTS_SN)
     )
     return (
-        select(TB_FILE, TB_CORS.c.CORS_NM, TB_PST.c.PST_TTL)
+        select(TB_FILE, TB_CORS.c.CORS_NM, TB_PST.c.PST_TTL, TB_SITE_CONTS.c.CONTS_TTL)
         .select_from(source)
         .where(TB_FILE.c.OPER_BNDL_SN == admin.bundle_sn)
     )
@@ -480,6 +535,12 @@ def _summary(row: Any) -> AdminFileSummary:
         kind, label = FileOwnerKind.COURSE, str(row.CORS_NM)
     elif row.PST_SN is not None:
         kind, label = FileOwnerKind.POST, str(row.PST_TTL)
+    elif row.SITE_CONTS_SN is not None:
+        kind, label = FileOwnerKind.CONTENT, str(row.CONTS_TTL)
+    elif row.RDCT_BFHD_SRNG_SN is not None:
+        kind, label = FileOwnerKind.REDUCTION, f"감면 심사 {int(row.RDCT_BFHD_SRNG_SN)}"
+    elif row.INSTR_APLY_SN is not None:
+        kind, label = FileOwnerKind.INSTRUCTOR_APPLICATION, f"강사 지원 {int(row.INSTR_APLY_SN)}"
     else:
         kind, label = FileOwnerKind.REFUND, f"환불 {int(row.RFND_SN)}"
     return AdminFileSummary(
@@ -512,6 +573,8 @@ def list_files(
         query = query.where(TB_FILE.c.RFND_SN.is_not(None))
     elif owner_kind is FileOwnerKind.POST:
         query = query.where(TB_FILE.c.PST_SN.is_not(None))
+    elif owner_kind is FileOwnerKind.CONTENT:
+        query = query.where(TB_FILE.c.SITE_CONTS_SN.is_not(None))
     elif owner_kind is not None:
         query = query.where(TB_FILE.c.FILE_SN == -1)  # 아직 구현되지 않은 소유 업무의 파일은 없다
     query = (
@@ -553,6 +616,8 @@ def _file_and_owner(db: Session, admin: Admin, now: datetime, file_id: str) -> t
         owner = _reduction_owner(db, admin, now, int(row.RDCT_BFHD_SRNG_SN))
     elif row.INSTR_APLY_SN is not None:
         owner = _instructor_owner(db, admin, now, int(row.INSTR_APLY_SN))
+    elif row.SITE_CONTS_SN is not None:
+        owner = _content_owner(db, admin, now, int(row.SITE_CONTS_SN))
     else:
         owner = None
     if owner is None or not owner.can_view:

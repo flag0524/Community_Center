@@ -728,3 +728,10 @@
 - 비밀번호 변경은 다른 세션을 끊어야 해서 같은 위험이 남는다(서로 다른 세션이 동시에 비밀번호를 바꿀 때만). 드물어 그대로 둔다.
 - 에러 응답 본문은 최상위 `code`·`fields`다(`error` 래퍼 없음).
 - 시험 팩토리에서 `RS.HOLD`는 `HLDOF_RSN`, `RS.REJECT`는 `RJCT_RSN`이 있어야 삽입된다. 한 회원·강좌에 유효 신청은 하나뿐이라(`UQ_FILTER_ATNLC_APLY_01`) 신청을 여러 개 만들 때 강좌를 나눈다.
+
+## B4-9c 관리자 콘텐츠 이미지 (2026-11-16)
+- 소유 업무 종류 `CONTENT`를 `file_service`에 붙였다. 콘텐츠 유형은 `content_service.CODE_TYPE`(배너·팝업·연혁·소개)만 대상이고 이미지는 배너·팝업만 쓴다.
+- 계약의 `maxFiles`가 1 이상이라 이미지를 안 쓰는 유형은 0 대신 `canEdit=false`로 알리고, 올리기는 `Owner.accepts_files`로 422를 준다.
+- `_summary`가 환불을 마지막 분기로 가정해 감면 증빙·강사 지원서 파일의 전체 상세가 500이었다. 이 변경에서 소유 업무별 분기를 더해 고쳤다. 감면 증빙 분기는 시험하지 않았다(강사 지원서만 시험).
+- 아레나 시험이 파일을 쓰려면 `arena.settings = replace(arena.settings, file_root=…)`를 `serve` 전에 해야 한다. 기본값 `/data/files`에 쓰지 않는다.
+- 변이 검사 스크립트는 Windows Python이 쓰므로 `/tmp`가 아니라 scratchpad 경로에 둔다(bash의 `/tmp`는 보이지 않는다).

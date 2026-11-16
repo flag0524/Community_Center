@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.auth.admin_access import Admin, require_admin, require_admin_write
 from app.auth.deps import Clock, get_clock, request_id_of
 from app.core.config import Settings, get_settings
-from app.core.errors import ErrorCode, not_implemented
+from app.core.errors import ErrorCode
 from app.db.session import get_db
 from app.domain.admin import file_service as service
 from app.domain.admin.file_schemas import AdminFile, AdminFilePage, OwnerFile, OwnerFileList
@@ -206,9 +206,9 @@ def upload_instructor_application_file(
 
 
 @router.get("/contents/{content_id}/files", responses=error_responses(ErrorCode.NOT_FOUND))
-def list_content_files(content_id: Serial) -> OwnerFileList:
-    """비주얼·배너·팝업의 이미지. 담당자(AU.SITE_W)만 보고 jpg·png 한 장만 둔다."""
-    not_implemented()
+def list_content_files(content_id: Serial, db: Db, admin: Me, clock: Now) -> OwnerFileList:
+    """홈 배너·팝업의 이미지. 담당자(AU.SITE_W)만 보고 jpg·png 한 장만 둔다."""
+    return service.list_owner_files(db, admin, now=clock(), kind=FileOwnerKind.CONTENT, sn=int(content_id))
 
 
 @router.post(
@@ -219,11 +219,27 @@ def list_content_files(content_id: Serial) -> OwnerFileList:
 )
 def upload_content_file(
     content_id: Serial,
+    request: Request,
+    db: Db,
+    settings: Config,
+    admin: MeWrite,
+    clock: Now,
     file: Annotated[UploadFile, File(description="이미지 한 장")],
     idempotency_key: IdempotencyKey,
 ) -> OwnerFile:
     """이미지를 쓰지 않는 유형이거나 이미 한 장이 있으면 RULE_REJECTED다. 한 장을 바꾸려면 먼저 제거한다."""
-    not_implemented()
+    return service.upload_owner_file(
+        db,
+        settings,
+        admin,
+        now=clock(),
+        request_id=request_id_of(request),
+        kind=FileOwnerKind.CONTENT,
+        sn=int(content_id),
+        filename=file.filename or "",
+        data=read_upload(file),
+        idem_key=idempotency_key,
+    )
 
 
 @router.delete(
