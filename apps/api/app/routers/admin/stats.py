@@ -1,10 +1,15 @@
-# 관리자 대시보드·통계 라우터. 모두 AU.STAT_R이고 조회 전용이며 CSV 내보내기는 첨부 설계 뒤에 더한다
+# 관리자 대시보드·통계 라우터. 모두 AU.STAT_R이고 조회 전용이며 CSV는 수요·정산·연령성별만 내보낸다
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Response, Security
+from fastapi import APIRouter, Depends, Query, Request, Response, Security
+from sqlalchemy.orm import Session
 
+from app.auth.admin_access import Admin, require_admin
+from app.auth.deps import Clock, get_clock, request_id_of
 from app.core.errors import ErrorCode, not_implemented
+from app.db.session import get_db
+from app.domain.admin import stats_service as service
 from app.domain.admin.stats_schemas import (
     AgeGenderStats,
     AttendanceStatsReport,
@@ -20,37 +25,66 @@ router = APIRouter(tags=["admin-stats"], responses=MEMBER_ERRORS, dependencies=[
 CycleParam = Annotated[str | None, Query(alias="cycleId", pattern=r"^[0-9]{1,22}$")]
 FromParam = Annotated[date | None, Query(alias="from")]
 ToParam = Annotated[date | None, Query(alias="to")]
+CategoryParam = Annotated[str | None, Query(alias="categoryId", pattern=r"^[0-9]{1,22}$")]
+Db = Annotated[Session, Depends(get_db)]
+Me = Annotated[Admin, Depends(require_admin)]
+Now = Annotated[Clock, Depends(get_clock)]
 
 
 @router.get("/dashboard")
-def get_dashboard(cycle_id: CycleParam = None) -> Dashboard:
+def get_dashboard(db: Db, admin: Me, clock: Now, cycle_id: CycleParam = None) -> Dashboard:
     """기수 하나의 접수 현황, 확인할 업무, 강좌별 수요, 최근 작업. 확인할 업무는 권한이 있는 종류만 나온다."""
-    not_implemented()
+    return service.get_dashboard(db, admin, now=clock(), cycle_id=cycle_id)
 
 
-@router.get("/stats/demand")
+@router.get("/stats/demand", responses=error_responses(ErrorCode.RULE_REJECTED))
 def get_demand_stats(
+    db: Db,
+    admin: Me,
+    clock: Now,
     cycle_id: CycleParam = None,
     from_date: FromParam = None,
     to_date: ToParam = None,
-    category_id: Annotated[str | None, Query(alias="categoryId", pattern=r"^[0-9]{1,22}$")] = None,
+    category_id: CategoryParam = None,
 ) -> DemandStats:
-    not_implemented()
+    return service.get_demand(
+        db,
+        admin,
+        now=clock(),
+        cycle_id=cycle_id,
+        from_date=from_date,
+        to_date=to_date,
+        category_id=category_id,
+    )
 
 
-@router.get("/stats/settlement")
+@router.get("/stats/settlement", responses=error_responses(ErrorCode.RULE_REJECTED))
 def get_settlement_stats(
-    cycle_id: CycleParam = None, from_date: FromParam = None, to_date: ToParam = None
+    db: Db,
+    admin: Me,
+    clock: Now,
+    cycle_id: CycleParam = None,
+    from_date: FromParam = None,
+    to_date: ToParam = None,
 ) -> SettlementStats:
-    not_implemented()
+    return service.get_settlement(
+        db, admin, now=clock(), cycle_id=cycle_id, from_date=from_date, to_date=to_date
+    )
 
 
-@router.get("/stats/attendance")
+@router.get("/stats/attendance", responses=error_responses(ErrorCode.RULE_REJECTED))
 def get_attendance_stats(
-    cycle_id: CycleParam = None, from_date: FromParam = None, to_date: ToParam = None
+    db: Db,
+    admin: Me,
+    clock: Now,
+    cycle_id: CycleParam = None,
+    from_date: FromParam = None,
+    to_date: ToParam = None,
 ) -> AttendanceStatsReport:
     """출석 통계는 CSV로 내보내지 않는다 (FN-068)."""
-    not_implemented()
+    return service.get_attendance(
+        db, admin, now=clock(), cycle_id=cycle_id, from_date=from_date, to_date=to_date
+    )
 
 
 @router.get("/stats/age-gender")
@@ -70,21 +104,48 @@ CSV_ERRORS = {**error_responses(ErrorCode.RULE_REJECTED), **CSV_RESPONSE}
 
 @router.get("/stats/demand/export.csv", response_class=Response, responses=CSV_ERRORS)
 def export_demand_stats_csv(
+    request: Request,
+    db: Db,
+    admin: Me,
+    clock: Now,
     cycle_id: CycleParam = None,
     from_date: FromParam = None,
     to_date: ToParam = None,
-    category_id: Annotated[str | None, Query(alias="categoryId", pattern=r"^[0-9]{1,22}$")] = None,
+    category_id: CategoryParam = None,
 ) -> Response:
     """첫 줄에 집계 조건(기간·기수·분야·집계 기준·생성 시각)을 주석 행으로 넣는다."""
-    not_implemented()
+    return service.export_demand_csv(
+        db,
+        admin,
+        now=clock(),
+        request_id=request_id_of(request),
+        cycle_id=cycle_id,
+        from_date=from_date,
+        to_date=to_date,
+        category_id=category_id,
+    )
 
 
 @router.get("/stats/settlement/export.csv", response_class=Response, responses=CSV_ERRORS)
 def export_settlement_stats_csv(
-    cycle_id: CycleParam = None, from_date: FromParam = None, to_date: ToParam = None
+    request: Request,
+    db: Db,
+    admin: Me,
+    clock: Now,
+    cycle_id: CycleParam = None,
+    from_date: FromParam = None,
+    to_date: ToParam = None,
 ) -> Response:
     """결제수단별 정산. 확인 중 금액은 순수납과 따로 열을 둔다."""
-    not_implemented()
+    return service.export_settlement_csv(
+        db,
+        admin,
+        now=clock(),
+        request_id=request_id_of(request),
+        cycle_id=cycle_id,
+        from_date=from_date,
+        to_date=to_date,
+    )
 
 
 @router.get("/stats/age-gender/export.csv", response_class=Response, responses=CSV_ERRORS)
