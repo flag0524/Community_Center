@@ -10,6 +10,7 @@ type Status = Schemas['RecruitmentStatus'];
 type Application = Schemas['InstructorApplication'];
 
 const categoryName = (id: string) => CATEGORY_SEEDS.find((item) => item.categoryId === id)?.name ?? null;
+const knownCategory = (name: string) => CATEGORY_SEEDS.find((item) => item.name === name.trim())?.name ?? null;
 
 // 시간표에 처음 나오는 순서대로 번호를 준다(시안의 강사 번호와 같다).
 const INSTRUCTORS = (() => {
@@ -111,7 +112,7 @@ function validate(body: Schemas['InstructorApplyWrite']) {
   const fields: Record<string, string> = {};
   if (!body.desiredCourse?.trim()) fields.desiredCourse = '희망 강좌명을 입력해 주세요.';
   if (!body.career?.trim()) fields.career = '경력 및 강의소개를 입력해 주세요.';
-  if (!categoryName(body.categoryId)) fields.categoryId = '희망 분야를 확인해 주세요.';
+  if (!knownCategory(body.categoryName ?? '')) fields.categoryName = '희망 분야를 확인해 주세요.';
   return fields;
 }
 
@@ -199,8 +200,7 @@ export const instructorHandlers = [
       recruitmentId: recruitment.recruitmentId,
       recruitmentTitle: recruitment.title,
       desiredCourse: body.desiredCourse.trim(),
-      categoryId: body.categoryId,
-      categoryName: categoryName(body.categoryId)!,
+      categoryName: knownCategory(body.categoryName)!,
       career: body.career.trim(),
       status: 'REVIEWING',
       appliedAt: mockNow().toISOString(),
@@ -224,8 +224,7 @@ export const instructorHandlers = [
     found.application = {
       ...found.application,
       desiredCourse: body.desiredCourse.trim(),
-      categoryId: body.categoryId,
-      categoryName: categoryName(body.categoryId)!,
+      categoryName: knownCategory(body.categoryName)!,
       career: body.career.trim(),
     };
     return HttpResponse.json(found.application);

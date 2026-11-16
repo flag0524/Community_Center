@@ -1,4 +1,5 @@
 # 주민 쪽 첨부파일(문의 첨부). 본인 문의에만 올리고 지우며 본인 파일만 내려받는다(RQ-SER-NF-002, DV179, ADR-059)
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 from urllib.parse import quote
@@ -10,8 +11,9 @@ from sqlalchemy.orm import Session
 from app.audit import record_job
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
-from app.db.tables import TB_BBS, TB_FILE, TB_PST, TB_RDCT_BFHD_SRNG
+from app.db.tables import TB_BBS, TB_FILE, TB_INSTR_APLY, TB_PST, TB_RDCT_BFHD_SRNG
 from app.domain.admin.file_service import (
+    INSTRUCTOR_EDITABLE,
     KINDS,
     Owner,
     _live,
@@ -86,12 +88,71 @@ def _reduction_owner(db: Session, member_sn: int, bundle_sn: int, review_id: int
     )
 
 
+def _instructor_owner(db: Session, member_sn: int, bundle_sn: int, application_id: int) -> Owner:
+    """본인의 강사 지원서만이다. 서류 검토중일 때만 더하고 빼며 심사가 끝나면 잠긴다."""
+    row = db.execute(
+        select(TB_INSTR_APLY.c.SRNG_STTS_CD).where(
+            TB_INSTR_APLY.c.OPER_BNDL_SN == bundle_sn,
+            TB_INSTR_APLY.c.INSTR_APLY_SN == application_id,
+            TB_INSTR_APLY.c.MBR_SN == member_sn,
+        )
+    ).first()
+    if row is None:
+        raise ApiError(ErrorCode.NOT_FOUND)
+    column, purpose, limit = KINDS[FileOwnerKind.INSTRUCTOR_APPLICATION]
+    return Owner(
+        FileOwnerKind.INSTRUCTOR_APPLICATION,
+        column,
+        application_id,
+        f"강사 지원 {application_id}",
+        True,
+        True,
+        row.SRNG_STTS_CD in INSTRUCTOR_EDITABLE,
+        purpose,
+        limit,
+    )
+
+
 def _my_file(row: Any) -> MyFile:
     return MyFile(**_owner_file(row).model_dump())
 
 
 def list_reduction_files(db: Session, *, member_sn: int, bundle_sn: int, review_id: str) -> MyFileList:
     return _list(db, bundle_sn, _reduction_owner(db, member_sn, bundle_sn, int(review_id)))
+
+
+def list_instructor_files(db: Session, *, member_sn: int, bundle_sn: int, application_id: str) -> MyFileList:
+    return _list(db, bundle_sn, _instructor_owner(db, member_sn, bundle_sn, int(application_id)))
+
+
+def upload_instructor_file(
+    db: Session,
+    settings: Settings,
+    *,
+    member_sn: int,
+    bundle_sn: int,
+    application_id: str,
+    filename: str,
+    data: bytes,
+    idem_key: str,
+    now: datetime,
+    request_id: str,
+) -> MyFile:
+    """서류 검토중인 내 지원서에만 올린다. 지원서 행을 잠근 뒤 다시 확인해 심사와 겹쳐도 결정 뒤에는 올라가지 않는다."""
+    sn = int(application_id)
+    return _upload(
+        db,
+        settings,
+        member_sn,
+        bundle_sn,
+        lambda: _instructor_owner(db, member_sn, bundle_sn, sn),
+        "서류 검토중인 지원서에만 증빙을 올릴 수 있습니다.",
+        filename,
+        data,
+        idem_key,
+        now,
+        request_id,
+    )
 
 
 def upload_reduction_file(
@@ -109,12 +170,39 @@ def upload_reduction_file(
 ) -> MyFile:
     """접수 상태일 때만 올린다. 심사 행을 잠근 뒤 다시 확인해 관리자 결정·철회와 겹쳐도 결정 뒤에는 올라가지 않는다."""
     sn = int(review_id)
-    locked = "접수 상태인 심사에만 증빙을 올릴 수 있습니다."
-    if not _reduction_owner(db, member_sn, bundle_sn, sn).can_edit:
+    return _upload(
+        db,
+        settings,
+        member_sn,
+        bundle_sn,
+        lambda: _reduction_owner(db, member_sn, bundle_sn, sn),
+        "접수 상태인 심사에만 증빙을 올릴 수 있습니다.",
+        filename,
+        data,
+        idem_key,
+        now,
+        request_id,
+    )
+
+
+def _upload(
+    db: Session,
+    settings: Settings,
+    member_sn: int,
+    bundle_sn: int,
+    read_owner: Callable[[], Owner],
+    locked: str,
+    filename: str,
+    data: bytes,
+    idem_key: str,
+    now: datetime,
+    request_id: str,
+) -> MyFile:
+    if not read_owner().can_edit:
         raise ApiError(ErrorCode.CONFLICT_STATE, locked)
     upload = validate_upload(filename, data)
-    lock_owner(db, bundle_sn, _reduction_owner(db, member_sn, bundle_sn, sn))
-    owner = _reduction_owner(db, member_sn, bundle_sn, sn)  # 잠근 뒤 다시 읽는다
+    lock_owner(db, bundle_sn, read_owner())
+    owner = read_owner()  # 잠근 뒤 다시 읽는다
     if not owner.can_edit:
         raise ApiError(ErrorCode.CONFLICT_STATE, locked)
     stored = store_upload(
@@ -194,6 +282,8 @@ def _owner_for(db: Session, member_sn: int, bundle_sn: int, row: Any) -> Owner:
         return _owner(db, member_sn, bundle_sn, int(row.PST_SN))
     if row.RDCT_BFHD_SRNG_SN is not None:
         return _reduction_owner(db, member_sn, bundle_sn, int(row.RDCT_BFHD_SRNG_SN))
+    if row.INSTR_APLY_SN is not None:
+        return _instructor_owner(db, member_sn, bundle_sn, int(row.INSTR_APLY_SN))
     raise ApiError(ErrorCode.NOT_FOUND)
 
 
@@ -202,7 +292,7 @@ def _mine(db: Session, member_sn: int, bundle_sn: int, file_id: str, now: dateti
     row = db.execute(
         select(TB_FILE).where(TB_FILE.c.OPER_BNDL_SN == bundle_sn, TB_FILE.c.FILE_SN == int(file_id))
     ).first()
-    if row is None or (row.PST_SN is None and row.RDCT_BFHD_SRNG_SN is None):
+    if row is None or (row.PST_SN is None and row.RDCT_BFHD_SRNG_SN is None and row.INSTR_APLY_SN is None):
         raise ApiError(ErrorCode.NOT_FOUND)
     try:
         owner = _owner_for(db, member_sn, bundle_sn, row)

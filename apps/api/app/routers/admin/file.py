@@ -168,9 +168,11 @@ def upload_refund_file(
 
 
 @router.get("/instructor-applications/{application_id}/files", responses=error_responses(ErrorCode.NOT_FOUND))
-def list_instructor_application_files(application_id: Serial) -> OwnerFileList:
+def list_instructor_application_files(application_id: Serial, db: Db, admin: Me, clock: Now) -> OwnerFileList:
     """강사 지원 증빙. 심사 대기 상태에서만 담당자(AU.INSTR_W)가 추가·제거한다."""
-    not_implemented()
+    return service.list_owner_files(
+        db, admin, now=clock(), kind=FileOwnerKind.INSTRUCTOR_APPLICATION, sn=int(application_id)
+    )
 
 
 @router.post(
@@ -183,8 +185,24 @@ def upload_instructor_application_file(
     application_id: Serial,
     file: Annotated[UploadFile, File(description="파일 한 개")],
     idempotency_key: IdempotencyKey,
+    request: Request,
+    db: Db,
+    admin: MeWrite,
+    settings: Config,
+    clock: Now,
 ) -> OwnerFile:
-    not_implemented()
+    return service.upload_owner_file(
+        db,
+        settings,
+        admin,
+        now=clock(),
+        request_id=request_id_of(request),
+        kind=FileOwnerKind.INSTRUCTOR_APPLICATION,
+        sn=int(application_id),
+        filename=file.filename or "",
+        data=read_upload(file),
+        idem_key=idempotency_key,
+    )
 
 
 @router.get("/contents/{content_id}/files", responses=error_responses(ErrorCode.NOT_FOUND))

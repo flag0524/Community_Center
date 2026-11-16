@@ -32,7 +32,7 @@ function ApplyForm({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [course, setCourse] = useState(initial?.desiredCourse ?? '');
-  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? categories[0]?.categoryId ?? '');
+  const [categoryName, setCategoryName] = useState(initial?.categoryName ?? categories[0]?.name ?? '');
   const [career, setCareer] = useState(initial?.career ?? '');
   const [confirmed, setConfirmed] = useState(false);
   const [errors, setErrors] = useState<{ course?: string; career?: string; confirmed?: string }>({});
@@ -41,7 +41,7 @@ function ApplyForm({
 
   const save = useMutation({
     mutationFn: () => {
-      const body = { recruitmentId, desiredCourse: course.trim(), categoryId, career: career.trim() };
+      const body = { recruitmentId, desiredCourse: course.trim(), categoryName, career: career.trim() };
       return applicationId ? updateInstructorApplication(applicationId, body) : createInstructorApplication(body, idempotencyKey.current);
     },
     onSuccess: () => {
@@ -95,9 +95,9 @@ function ApplyForm({
       />
       <label className="field">
         희망 분야
-        <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+        <select value={categoryName} onChange={(event) => setCategoryName(event.target.value)}>
           {categories.map((item) => (
-            <option key={item.categoryId} value={item.categoryId}>
+            <option key={item.categoryId} value={item.name}>
               {item.name}
             </option>
           ))}

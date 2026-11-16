@@ -284,7 +284,6 @@ describe('내 지원내역', () => {
               recruitmentId: '2',
               recruitmentTitle: '요가 강사 모집',
               desiredCourse: '요가 심화반',
-              categoryId: '3',
               categoryName: '생활체육/건강',
               career: '경력',
               status: 'SELECTED',

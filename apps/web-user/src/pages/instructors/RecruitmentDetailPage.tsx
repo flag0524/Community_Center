@@ -47,7 +47,7 @@ export function RecruitmentDetailPage() {
         </div>
         <div>
           <dt>모집분야</dt>
-          <dd>{post.field}</dd>
+          <dd>{post.field ?? '-'}</dd>
         </div>
       </dl>
       <section className="article-text">

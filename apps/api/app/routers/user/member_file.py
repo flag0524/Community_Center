@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import Clock, Member, get_clock, request_id_of, require_member, require_member_write
 from app.core.config import Settings, get_settings
-from app.core.errors import ErrorCode, not_implemented
+from app.core.errors import ErrorCode
 from app.db.session import get_db
 from app.domain.file import member_service as service
 from app.domain.file.schemas import MyFile, MyFileList
@@ -38,9 +38,11 @@ def read_upload(file: UploadFile) -> bytes:
 
 
 @member_router.get("/me/instructor-applications/{application_id}/files", responses=NOT_FOUND)
-def list_my_instructor_application_files(application_id: Serial) -> MyFileList:
+def list_my_instructor_application_files(application_id: Serial, db: Db, me: Me) -> MyFileList:
     """내 지원서의 증빙. 서류 검토중·보완요청일 때만 추가·제거할 수 있다."""
-    not_implemented()
+    return service.list_instructor_files(
+        db, member_sn=me.member_sn, bundle_sn=me.bundle_sn, application_id=application_id
+    )
 
 
 @member_router.post(
@@ -53,9 +55,25 @@ def upload_my_instructor_application_file(
     application_id: Serial,
     file: Annotated[UploadFile, File(description="파일 한 개")],
     idempotency_key: IdempotencyKey,
+    request: Request,
+    db: Db,
+    me: MeWrite,
+    settings: Config,
+    clock: Now,
 ) -> MyFile:
     """지원서를 먼저 저장한 뒤 파일을 한 개씩 올린다. 서버가 확장자·형식·크기·개수를 검사한다."""
-    not_implemented()
+    return service.upload_instructor_file(
+        db,
+        settings,
+        member_sn=me.member_sn,
+        bundle_sn=me.bundle_sn,
+        application_id=application_id,
+        filename=file.filename or "",
+        data=read_upload(file),
+        idem_key=idempotency_key,
+        now=clock(),
+        request_id=request_id_of(request),
+    )
 
 
 @member_router.get("/me/inquiries/{post_id}/files", responses=NOT_FOUND)

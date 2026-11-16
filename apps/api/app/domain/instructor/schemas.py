@@ -49,19 +49,25 @@ class RecruitmentDetail(ApiModel):
     period_start: date
     period_end: date
     headcount: int | None = Field(ge=1)
-    field: str
-    guide: str | None = Field(description="지원 안내. 공고 원본에 없으면 null이다.")
+    field: str | None = Field(
+        description="모집 분야. 공고에 따로 저장하지 않아 지금은 항상 null이다(개정 요청 R37)."
+    )
+    guide: str | None = Field(description="지원 안내. 공고 본문의 글자만이고 없으면 null이다.")
     can_apply: bool = Field(
         description="모집중이고 온라인 접수가 켜져 있고 아직 지원하지 않았을 때만 true다."
     )
 
 
 class InstructorApplyWrite(ApiModel):
-    """지원서는 텍스트 항목만 받는다. 증빙 파일은 첨부 설계 뒤에 더한다."""
+    """지원서는 텍스트 항목만 받고 증빙은 지원서를 저장한 뒤 올린다. 이름·휴대전화는 회원정보를 쓴다."""
 
     recruitment_id: SerialId
     desired_course: str = Field(min_length=1, max_length=100)
-    category_id: SerialId
+    category_name: str = Field(
+        min_length=1,
+        max_length=100,
+        description="희망 분야. 사용 중인 강좌 분류의 이름이어야 하며 저장소에는 이름으로 담는다.",
+    )
     career: str = Field(min_length=1, max_length=2000)
 
 
@@ -70,7 +76,6 @@ class InstructorApplication(ApiModel):
     recruitment_id: SerialId
     recruitment_title: str
     desired_course: str
-    category_id: SerialId
     category_name: str
     career: str
     status: InstructorApplyStatus

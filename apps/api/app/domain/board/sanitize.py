@@ -76,9 +76,14 @@ class _Text(HTMLParser):
         self.parts.append(data)
 
 
-def has_text(cleaned: str) -> bool:
-    """정리한 본문에 사람이 읽을 글자가 있는가. 태그만 남은 본문은 비어 있는 것이다."""
+def plain_text(cleaned: str) -> str:
+    """정리한 본문에서 태그를 걷어 낸 글자. 화면이 HTML을 그리지 않는 곳에 쓴다."""
     reader = _Text()
     reader.feed(cleaned)
     reader.close()
-    return bool("".join(reader.parts).strip())
+    return "".join(reader.parts).strip()
+
+
+def has_text(cleaned: str) -> bool:
+    """정리한 본문에 사람이 읽을 글자가 있는가. 태그만 남은 본문은 비어 있는 것이다."""
+    return bool(plain_text(cleaned))

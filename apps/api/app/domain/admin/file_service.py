@@ -20,6 +20,7 @@ from app.db.tables import (
     TB_BBS,
     TB_CORS,
     TB_FILE,
+    TB_INSTR_APLY,
     TB_JOB_HSTRY,
     TB_MBR,
     TB_MNGR,
@@ -78,12 +79,12 @@ KINDS = {
     FileOwnerKind.COURSE: ("CORS_SN", "FP.PLAN", 1),  # 강의계획서는 한 개이고 바꾸려면 먼저 제거한다
     FileOwnerKind.REFUND: ("RFND_SN", "FP.PROOF", 5),
     FileOwnerKind.POST: ("PST_SN", "FP.ATTACH", 5),  # 갤러리 게시판은 이미지(FP.IMAGE) 열 장이다
-    FileOwnerKind.REDUCTION: (
-        "RDCT_BFHD_SRNG_SN",
-        "FP.PROOF",
-        5,
-    ),  # 주민이 올리고 관리자는 열람만 한다(R31과 같은 한도)
+    # 주민이 올리고 관리자는 열람만 한다(R31과 같은 한도)
+    FileOwnerKind.REDUCTION: ("RDCT_BFHD_SRNG_SN", "FP.PROOF", 5),
+    # 지원자와 묶음 전체 담당자가 서류 검토중일 때 더한다
+    FileOwnerKind.INSTRUCTOR_APPLICATION: ("INSTR_APLY_SN", "FP.PROOF", 5),
 }
+INSTRUCTOR_EDITABLE = ("IA.WAIT",)  # 서류 검토중에만 증빙을 더하고 뺀다
 EVIDENCE_VIEW_JOB = "RDCT_EVIDENCE_VIEW"
 GALLERY_IMAGES = 10
 IMAGE_EXTENSIONS = ("jpg", "jpeg", "png")
@@ -193,6 +194,30 @@ def _reduction_owner(db: Session, admin: Admin, now: datetime, sn: int) -> Owner
     return Owner(FileOwnerKind.REDUCTION, column, sn, f"감면 심사 {sn}", view, False, False, purpose, limit)
 
 
+def _instructor_owner(db: Session, admin: Admin, now: datetime, sn: int) -> Owner | None:
+    """강사 지원서 증빙. 강사 심사는 묶음 전체 담당자(AU.INSTR_W)의 일이라 범위가 묶음 전체일 때만 본다(R28)."""
+    row = db.execute(
+        select(TB_INSTR_APLY.c.SRNG_STTS_CD, TB_INSTR_APLY.c.APLCT_NM).where(
+            TB_INSTR_APLY.c.OPER_BNDL_SN == admin.bundle_sn, TB_INSTR_APLY.c.INSTR_APLY_SN == sn
+        )
+    ).first()
+    if row is None:
+        return None
+    write = scope_for(db, admin, AU.INSTR_W, now).whole
+    column, purpose, limit = KINDS[FileOwnerKind.INSTRUCTOR_APPLICATION]
+    return Owner(
+        FileOwnerKind.INSTRUCTOR_APPLICATION,
+        column,
+        sn,
+        f"강사 지원 {sn}",
+        write,
+        write,
+        write and row.SRNG_STTS_CD in INSTRUCTOR_EDITABLE,
+        purpose,
+        limit,
+    )
+
+
 def owner_of(db: Session, admin: Admin, now: datetime, kind: FileOwnerKind, sn: int) -> Owner:
     """권한이 없거나 없는 소유 업무는 같은 404다."""
     found = (
@@ -200,6 +225,8 @@ def owner_of(db: Session, admin: Admin, now: datetime, kind: FileOwnerKind, sn: 
         if kind is FileOwnerKind.COURSE
         else _post_owner(db, admin, now, sn)
         if kind is FileOwnerKind.POST
+        else _instructor_owner(db, admin, now, sn)
+        if kind is FileOwnerKind.INSTRUCTOR_APPLICATION
         else _refund_owner(db, admin, now, sn)
     )
     if found is None or not found.can_view:
@@ -297,6 +324,12 @@ def lock_owner(db: Session, bundle_sn: int, owner: Owner) -> None:
         db.execute(
             select(TB_RDCT_BFHD_SRNG.c.RDCT_BFHD_SRNG_SN)
             .where(TB_RDCT_BFHD_SRNG.c.RDCT_BFHD_SRNG_SN == owner.sn)
+            .with_for_update()
+        ).one()
+    elif owner.kind is FileOwnerKind.INSTRUCTOR_APPLICATION:
+        db.execute(
+            select(TB_INSTR_APLY.c.INSTR_APLY_SN)
+            .where(TB_INSTR_APLY.c.INSTR_APLY_SN == owner.sn)
             .with_for_update()
         ).one()
     else:
@@ -518,6 +551,8 @@ def _file_and_owner(db: Session, admin: Admin, now: datetime, file_id: str) -> t
         owner = _post_owner(db, admin, now, int(row.PST_SN))
     elif row.RDCT_BFHD_SRNG_SN is not None:
         owner = _reduction_owner(db, admin, now, int(row.RDCT_BFHD_SRNG_SN))
+    elif row.INSTR_APLY_SN is not None:
+        owner = _instructor_owner(db, admin, now, int(row.INSTR_APLY_SN))
     else:
         owner = None
     if owner is None or not owner.can_view:

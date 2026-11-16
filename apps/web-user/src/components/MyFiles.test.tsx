@@ -38,7 +38,7 @@ const list = async (label: string) => within(await screen.findByRole('list', { n
 
 async function createApplication(): Promise<string> {
   setMockNow(DURING);
-  const created = await createInstructorApplication({ recruitmentId: '2', categoryId: '1', desiredCourse: '요가 심화반', career: '경력 5년' }, `key-${Math.random()}`);
+  const created = await createInstructorApplication({ recruitmentId: '2', categoryName: '컴퓨터', desiredCourse: '요가 심화반', career: '경력 5년' }, `key-${Math.random()}`);
   return created.applicationId;
 }
 

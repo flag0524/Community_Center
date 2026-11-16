@@ -612,7 +612,7 @@ def test_모집공고는_지원_가능_여부를_서버가_정한다(spec: Schem
 def test_강사_지원서는_텍스트_항목만_받고_심사_상태를_서버가_정한다(spec: Schema) -> None:
     schemas = spec["components"]["schemas"]
     create = schemas["InstructorApplyWrite"]["properties"]
-    assert set(create) == {"recruitmentId", "desiredCourse", "categoryId", "career"}
+    assert set(create) == {"recruitmentId", "desiredCourse", "categoryName", "career"}
     assert create["desiredCourse"]["maxLength"] == 100 and create["career"]["maxLength"] == 2000
     assert schemas["InstructorApplyStatus"]["enum"] == [
         "REVIEWING",
