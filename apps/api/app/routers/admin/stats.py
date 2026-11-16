@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 
 from app.auth.admin_access import Admin, require_admin
 from app.auth.deps import Clock, get_clock, request_id_of
-from app.core.errors import ErrorCode, not_implemented
+from app.core.errors import ErrorCode
 from app.db.session import get_db
 from app.domain.admin import stats_service as service
+from app.domain.admin import stats_source_service as source_service
 from app.domain.admin.stats_schemas import (
     AgeGenderStats,
     AttendanceStatsReport,
@@ -88,15 +89,15 @@ def get_attendance_stats(
 
 
 @router.get("/stats/age-gender")
-def get_age_gender_stats() -> AgeGenderStats:
+def get_age_gender_stats(db: Db, admin: Me, clock: Now) -> AgeGenderStats:
     """기관이 제공해 승인된 집계자료의 최신 버전만 보인다."""
-    not_implemented()
+    return source_service.get_age_gender(db, admin, now=clock())
 
 
 @router.get("/stats/satisfaction")
-def get_satisfaction_stats() -> SatisfactionStats:
+def get_satisfaction_stats(db: Db, admin: Me, clock: Now) -> SatisfactionStats:
     """주민 응답은 받지 않고 내보내기도 없다."""
-    not_implemented()
+    return source_service.get_satisfaction(db, admin, now=clock())
 
 
 CSV_ERRORS = {**error_responses(ErrorCode.RULE_REJECTED), **CSV_RESPONSE}
@@ -149,6 +150,6 @@ def export_settlement_stats_csv(
 
 
 @router.get("/stats/age-gender/export.csv", response_class=Response, responses=CSV_ERRORS)
-def export_age_gender_stats_csv() -> Response:
+def export_age_gender_stats_csv(request: Request, db: Db, admin: Me, clock: Now) -> Response:
     """승인된 집계자료의 자료 버전·기준일을 주석 행에 넣고 구간·성별을 그대로 담는다."""
-    not_implemented()
+    return source_service.export_age_gender_csv(db, admin, now=clock(), request_id=request_id_of(request))

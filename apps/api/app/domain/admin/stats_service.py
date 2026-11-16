@@ -582,7 +582,7 @@ def _note(now: datetime, flt: Filter, extra: str = "") -> str:
     return f"# 집계 조건: 기간 {period}, 기수 {cycle}{extra}, 집계 기준 원자료, 생성 {stamp}"
 
 
-def _with_note(note: str, data: bytes) -> bytes:
+def with_note(note: str, data: bytes) -> bytes:
     """첫 줄에 집계 조건 주석 행을 넣는다. BOM 바로 뒤에 둔다."""
     line = io.StringIO()
     csv.writer(line, lineterminator="\r\n").writerow([cell(note)])
@@ -636,7 +636,7 @@ def export_demand_csv(
         ]
         for r in rows
     ]
-    data = _with_note(_note(now, flt, f", 분야 {flt.category or '전체'}"), build_csv(header, body))
+    data = with_note(_note(now, flt, f", 분야 {flt.category or '전체'}"), build_csv(header, body))
     audit_export(
         db,
         admin,
@@ -667,7 +667,7 @@ def export_settlement_csv(
     body.append(
         ["합계", stats.approved_amount, stats.refunded_amount, stats.net_revenue, stats.unknown_amount]
     )
-    data = _with_note(_note(now, flt), build_csv(header, body))
+    data = with_note(_note(now, flt), build_csv(header, body))
     audit_export(
         db,
         admin,
