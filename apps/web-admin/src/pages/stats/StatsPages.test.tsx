@@ -55,6 +55,7 @@ describe('대시보드', () => {
       ['문자 발송 실패 4건', '/sys/sms'],
       ['환불 처리 지연(24시간 이상) 1건', '/pay/refunds?status=PENDING'],
       ['문자 결과 불명(1시간 이상) 2건', '/sys/sms'],
+      ['파일 검사 지연(1시간 이상) 1건', '/mbr/files?status=PENDING'],
     ]);
   });
 

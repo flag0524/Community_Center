@@ -174,6 +174,7 @@ export const DASHBOARD_TASK: Record<Schemas['DashboardTaskKind'], string> = {
   SMS_FAILED: '문자 발송 실패',
   REFUND_STUCK: '환불 처리 지연(24시간 이상)',
   SMS_UNKNOWN: '문자 결과 불명(1시간 이상)',
+  FILE_SCAN_DELAYED: '파일 검사 지연(1시간 이상)',
 };
 // 확인할 업무를 누르면 해당 목록에 조건을 걸어 연다
 export const DASHBOARD_TASK_LINK: Record<Schemas['DashboardTaskKind'], string> = {
@@ -184,6 +185,7 @@ export const DASHBOARD_TASK_LINK: Record<Schemas['DashboardTaskKind'], string> =
   SMS_FAILED: '/sys/sms',
   REFUND_STUCK: '/pay/refunds?status=PENDING',
   SMS_UNKNOWN: '/sys/sms',
+  FILE_SCAN_DELAYED: '/mbr/files?status=PENDING',
 };
 
 export const SMS_KIND: Record<Schemas['SmsKind'], string> = { AUTO: '자동 알림', MANUAL: '관리자 발송' };

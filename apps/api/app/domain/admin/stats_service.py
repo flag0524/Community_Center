@@ -49,7 +49,7 @@ from app.domain.admin.stats_schemas import (
 from app.domain.admin.stats_types import DashboardTaskKind
 from app.domain.admin.types import AdminAuthority as AU
 from app.domain.payment.types import PaymentMethod
-from app.worker.consistency import refund_stale_where, sms_stale_where
+from app.worker.consistency import file_stale_where, refund_stale_where, sms_stale_where
 
 UNCATEGORIZED = "미분류"
 METHOD_CODE = {PaymentMethod.CARD: "PM.CARD", PaymentMethod.TRANSFER: "PM.TRANSFER"}
@@ -552,6 +552,10 @@ def _tasks(db: Session, admin: Admin, now: datetime) -> list[DashboardTask]:
             select(func.count()).where(*sms_stale_where(admin.bundle_sn, now))
         ).scalar_one()
         out.append(DashboardTask(kind=DashboardTaskKind.SMS_UNKNOWN, count=int(unknown_sms)))
+    # 파일 검사는 소유 업무가 여러 개라 시스템 성격으로 보고 묶음 전체 시스템 담당자만 본다(PRD Q21 후보)
+    if scope_for(db, admin, AU.GRANT_W, now).whole:
+        delayed = db.execute(select(func.count()).where(*file_stale_where(admin.bundle_sn, now))).scalar_one()
+        out.append(DashboardTask(kind=DashboardTaskKind.FILE_SCAN_DELAYED, count=int(delayed)))
     return out
 
 

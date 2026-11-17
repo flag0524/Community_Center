@@ -42,6 +42,7 @@ const TASKS: Array<{ kind: Schemas['DashboardTaskKind']; count: number; need: Sc
   { kind: 'SMS_FAILED', count: 4, need: 'AU.SMS_SEND' },
   { kind: 'REFUND_STUCK', count: 1, need: 'AU.RFND_X' },
   { kind: 'SMS_UNKNOWN', count: 2, need: 'AU.SMS_SEND' },
+  { kind: 'FILE_SCAN_DELAYED', count: 1, need: 'AU.GRANT_W' },
 ];
 
 const basis = (params: URLSearchParams): Schemas['StatsBasis'] => ({ basisAt: new Date().toISOString(), cycleId: params.get('cycleId'), fromDate: params.get('from'), toDate: params.get('to') });

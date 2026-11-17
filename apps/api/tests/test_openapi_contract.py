@@ -925,6 +925,7 @@ def test_통계는_조회_전용이고_집계_기준과_자료_없음을_구분�
         "SMS_FAILED",
         "REFUND_STUCK",  # 환불 처리 중이 24시간 넘게 확정되지 않음(ADR-081)
         "SMS_UNKNOWN",  # 문자 결과 불명이 1시간 넘음(ADR-081)
+        "FILE_SCAN_DELAYED",  # 첨부 파일 검사가 1시간 넘게 끝나지 않음(ADR-083)
     }
 
 

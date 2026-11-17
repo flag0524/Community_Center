@@ -75,6 +75,15 @@ def sms_stale_where(bundle_sn: int, now: datetime) -> tuple[Any, ...]:
     )
 
 
+def file_stale_where(bundle_sn: int, now: datetime) -> tuple[Any, ...]:
+    """검사 대기(FS.PENDING)가 오래 끝나지 않은 첨부 파일의 조건. 대시보드의 확인할 업무와 같은 기준이다."""
+    return (
+        TB_FILE.c.OPER_BNDL_SN == bundle_sn,
+        TB_FILE.c.FILE_STTS_CD == "FS.PENDING",
+        TB_FILE.c.REG_DT <= now - FILE_AGE,
+    )
+
+
 def find_stale(db: Session, bundle_sn: int, now: datetime) -> StaleReport:
     """오래 확정되지 않은 항목. 대시보드의 확인할 업무와 일일 점검이 같은 기준을 쓴다. 조회만 하고 바꾸지 않는다."""
     since_payment = func.coalesce(TB_STLM.c.MDFCN_DT, TB_STLM.c.STLM_DMND_DT)
@@ -105,11 +114,7 @@ def find_stale(db: Session, bundle_sn: int, now: datetime) -> StaleReport:
             "FILE_PENDING",
             TB_FILE.c.FILE_SN,
             TB_FILE.c.REG_DT,
-            (
-                TB_FILE.c.OPER_BNDL_SN == bundle_sn,
-                TB_FILE.c.FILE_STTS_CD == "FS.PENDING",
-                TB_FILE.c.REG_DT <= now - FILE_AGE,
-            ),
+            file_stale_where(bundle_sn, now),
         ),
     ]
     items: list[StaleItem] = []

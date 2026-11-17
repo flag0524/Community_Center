@@ -12,3 +12,4 @@ class DashboardTaskKind(StrEnum):
     SMS_FAILED = "SMS_FAILED"  # 문자 발송 실패
     REFUND_STUCK = "REFUND_STUCK"  # 환불 처리 중이 오래 확정되지 않음
     SMS_UNKNOWN = "SMS_UNKNOWN"  # 문자 결과 불명이 오래감
+    FILE_SCAN_DELAYED = "FILE_SCAN_DELAYED"  # 첨부 파일 검사가 오래 끝나지 않음

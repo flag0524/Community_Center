@@ -16,6 +16,7 @@ from tests.test_board_public import board
 from tests.test_courses_public import cycle as new_cycle
 from tests.test_instructor_member import category
 from tests.test_member_inquiries import answered, asked
+from tests.test_worker_health import file_row
 from tests.test_worker_sms import outbox
 from tests.world import START, World, make_member
 
@@ -412,6 +413,37 @@ def test_환불_처리_장기_지연과_문자_결과_불명은_기준_시간이
     tasks = {t["kind"]: t["count"] for t in call(world, "GET", "/dashboard").json()["tasks"]}
     assert "REFUND_STUCK" not in tasks  # 집행 권한이 없으면 장기 지연을 보지 않는다
     assert tasks == {"REFUND_REVIEW": 1}  # 검토 대기에는 처리 중인 환불이 섞이지 않는다
+
+
+def test_파일_검사_지연은_기준_시간이_지난_검사_대기만_묶음_전체_시스템_담당자에게_센다(world: World) -> None:
+    file_row(world, "FS.PENDING", timedelta(hours=1))  # 기준 시각 정각부터 센다
+    file_row(world, "FS.PENDING", timedelta(hours=1) - timedelta(seconds=1))  # 1초 모자라면 세지 않는다
+    file_row(world, "FS.PENDING", timedelta(days=3))
+    file_row(world, "FS.SAFE", timedelta(days=3))  # 검사가 끝난 파일은 세지 않는다
+    file_row(world, "FS.BLOCK", timedelta(days=3))  # 차단된 파일도 검사는 끝난 것이라 세지 않는다
+    other = world.factory.make("TB_OPER_BNDL")
+    world.factory.make(
+        "TB_FILE",
+        OPER_BNDL_SN=other["OPER_BNDL_SN"],
+        STRG_KEY=f"b{other['OPER_BNDL_SN']}/x-object",
+        FILE_NM="a.pdf",
+        FILE_SZ=1,
+        MIME_TYPE_NM="application/pdf",
+        FILE_USE_CD="FP.ATTACH",
+        FILE_STTS_CD="FS.PENDING",
+        REG_DT=START - timedelta(days=3),
+    )  # 다른 묶음은 세지 않는다
+    a = dong(world, "가동")
+    viewer(world, "AU.SMS_SEND", "AU.STLM_W", kind="SK.GROUP")
+    kinds = {t["kind"] for t in call(world, "GET", "/dashboard").json()["tasks"]}
+    assert "FILE_SCAN_DELAYED" not in kinds  # 시스템 권한이 없으면 파일 검사 지연을 보지 않는다
+    viewer(world, "AU.GRANT_W", kind="SK.DONG", dong_sn=a["DONG_SN"])
+    assert (
+        call(world, "GET", "/dashboard").json()["tasks"] == []
+    )  # 동 담당자는 묶음 공통인 파일 검사를 보지 않는다
+    viewer(world, "AU.GRANT_W", kind="SK.GROUP")
+    tasks = {t["kind"]: t["count"] for t in call(world, "GET", "/dashboard").json()["tasks"]}
+    assert tasks == {"FILE_SCAN_DELAYED": 2}
 
 
 def test_최근_작업은_작업이력_조회_권한이_있을_때만_최근_순으로_나온다(world: World) -> None:
