@@ -1,12 +1,12 @@
-# 관리자 보존·파기 검토 라우터. 조회 AU.LOG_R, 실행(되돌릴 수 없음)은 아직 구현하지 않는다(ADR-074)
+# 관리자 보존·파기 검토 라우터. 조회 AU.LOG_R, 실행(되돌릴 수 없음)은 AU.GRANT_W 묶음 전체 범위(ADR-074·078)
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Security
+from fastapi import APIRouter, Depends, Path, Request, Security
 from sqlalchemy.orm import Session
 
 from app.auth.admin_access import Admin, require_admin
-from app.auth.deps import Clock, get_clock
-from app.core.errors import ErrorCode, not_implemented
+from app.auth.deps import Clock, get_clock, request_id_of
+from app.core.errors import ErrorCode
 from app.db.session import get_db
 from app.domain.admin import retention_service as service
 from app.domain.admin.retention_schemas import RetentionDetail, RetentionExecute, RetentionList
@@ -39,7 +39,21 @@ def get_retention(item_id: Serial, db: Db, admin: Me, clock: Now) -> RetentionDe
     dependencies=[Depends(csrf_header)],
 )
 def execute_retention(
-    item_id: Serial, body: RetentionExecute, idempotency_key: IdempotencyKey
+    item_id: Serial,
+    body: RetentionExecute,
+    request: Request,
+    db: Db,
+    admin: Me,
+    clock: Now,
+    idempotency_key: IdempotencyKey,
 ) -> RetentionDetail:
     """대상을 다시 세어 확인한 건수와 같을 때만 파기·비식별 처리하고 실행 결과를 감사기록에 남긴다."""
-    not_implemented()
+    return service.execute_retention(
+        db,
+        admin,
+        now=clock(),
+        request_id=request_id_of(request),
+        item_id=item_id,
+        expected_count=body.expected_count,
+        idem_key=idempotency_key,
+    )

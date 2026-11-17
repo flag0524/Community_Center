@@ -741,3 +741,11 @@
 - 검증은 `require_admin`·`require_member`가 요청 메서드로 한다. `require_admin_write`·`require_member_write`는 표시용 별칭이고 검증을 하지 않는다.
 - 요청은 하나의 트랜잭션이라 CSRF 실패(예외)는 활동 시각 갱신도 되돌린다. 그래서 검증을 갱신 앞에 두든 뒤에 두든 결과가 같고, 순서 변이는 동치다. 앞에 둔 것은 읽는 사람에게 의도가 분명해서다.
 - `tests/test_csrf_global.py`는 `app.routers.admin·user`의 모든 `router`·`member_router`에서 쓰기 경로를 모은다. 새 라우터 변수 이름을 쓰면 `ROUTER_NAMES`에 더해야 점검 대상이 된다. 수집이 비면 첫 시험이 실패한다.
+
+## B4-9e 보존·파기 실행 (2026-11-17)
+- 사용자 확정: 이름·전화·이메일을 지우고 아이디는 번호로 대체, 관리자 실행만, 권한은 `AU.GRANT_W` 묶음 전체.
+- 처리한 회원의 표식은 컬럼이 아니라 "이름 `탈퇴회원` + 전화번호 NULL"이다. 목록 건수·실행 대상·재실행 제외가 모두 `_member_conditions` 한 곳을 쓴다. 표식 규칙을 바꾸면 이 함수만 고친다.
+- 인증번호 요청 중 `TB_SMS_TRGT`가 가리키는 것(가입 OTP 문자)은 FK RESTRICT라 지우지 않고 건수에서도 뺀다. 이 둘이 어긋나면 확인 건수가 영원히 맞지 않는다(`_otp_conditions`).
+- 시험에서 `TB_SMS_TRGT`는 회원과 인증 요청 중 하나만 가리켜야 한다(`CK_SMS_03_ONE`). 팩토리가 `MBR_SN`을 채우므로 `MBR_SN=None`을 준다.
+- 개발 DB가 꺼져 있으면 pytest가 전부 skipped로 끝난다(`scripts/db/mariadb-dev.ps1 start`). 이번 세션에서 한 번 있었다.
+- 변이 검사 한 건이 1시간 넘게 걸렸다(시스템 일시정지로 보인다). 결과는 정상이었고 원본은 복원됐다.
