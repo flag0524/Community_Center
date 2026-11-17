@@ -49,6 +49,7 @@ from app.domain.admin.stats_schemas import (
 from app.domain.admin.stats_types import DashboardTaskKind
 from app.domain.admin.types import AdminAuthority as AU
 from app.domain.payment.types import PaymentMethod
+from app.worker.consistency import refund_stale_where, sms_stale_where
 
 UNCATEGORIZED = "미분류"
 METHOD_CODE = {PaymentMethod.CARD: "PM.CARD", PaymentMethod.TRANSFER: "PM.TRANSFER"}
@@ -469,31 +470,42 @@ def _tasks(db: Session, admin: Admin, now: datetime) -> list[DashboardTask]:
         out.append(
             DashboardTask(kind=DashboardTaskKind.PAYMENT_UNKNOWN, count=int(db.execute(unknown).scalar_one()))
         )
-    refunds = scoped_course(
-        select(func.count())
-        .select_from(TB_RFND)
-        .join(
-            TB_STLM,
-            (TB_STLM.c.OPER_BNDL_SN == TB_RFND.c.OPER_BNDL_SN) & (TB_STLM.c.STLM_SN == TB_RFND.c.STLM_SN),
+
+    def refund_count(authority: AU, *where: Any) -> Select[Any] | None:
+        return scoped_course(
+            select(func.count())
+            .select_from(TB_RFND)
+            .join(
+                TB_STLM,
+                (TB_STLM.c.OPER_BNDL_SN == TB_RFND.c.OPER_BNDL_SN) & (TB_STLM.c.STLM_SN == TB_RFND.c.STLM_SN),
+            )
+            .join(
+                TB_ATNLC_APLY,
+                (TB_ATNLC_APLY.c.OPER_BNDL_SN == TB_STLM.c.OPER_BNDL_SN)
+                & (TB_ATNLC_APLY.c.ATNLC_APLY_SN == TB_STLM.c.ATNLC_APLY_SN),
+            )
+            .join(
+                TB_CORS,
+                (TB_CORS.c.OPER_BNDL_SN == TB_ATNLC_APLY.c.OPER_BNDL_SN)
+                & (TB_CORS.c.CORS_SN == TB_ATNLC_APLY.c.CORS_SN),
+            )
+            .where(*where),
+            authority,
         )
-        .join(
-            TB_ATNLC_APLY,
-            (TB_ATNLC_APLY.c.OPER_BNDL_SN == TB_STLM.c.OPER_BNDL_SN)
-            & (TB_ATNLC_APLY.c.ATNLC_APLY_SN == TB_STLM.c.ATNLC_APLY_SN),
-        )
-        .join(
-            TB_CORS,
-            (TB_CORS.c.OPER_BNDL_SN == TB_ATNLC_APLY.c.OPER_BNDL_SN)
-            & (TB_CORS.c.CORS_SN == TB_ATNLC_APLY.c.CORS_SN),
-        )
-        .where(
-            TB_RFND.c.OPER_BNDL_SN == admin.bundle_sn, TB_RFND.c.RFND_STTS_CD.in_(("RS.REQUEST", "RS.HOLD"))
-        ),
+
+    refunds = refund_count(
         AU.RFND_A,
+        TB_RFND.c.OPER_BNDL_SN == admin.bundle_sn,
+        TB_RFND.c.RFND_STTS_CD.in_(("RS.REQUEST", "RS.HOLD")),
     )
     if refunds is not None:
         out.append(
             DashboardTask(kind=DashboardTaskKind.REFUND_REVIEW, count=int(db.execute(refunds).scalar_one()))
+        )
+    stuck = refund_count(AU.RFND_X, *refund_stale_where(admin.bundle_sn, now))
+    if stuck is not None:
+        out.append(
+            DashboardTask(kind=DashboardTaskKind.REFUND_STUCK, count=int(db.execute(stuck).scalar_one()))
         )
     if scope_for(db, admin, AU.INSTR_W, now).whole:
         waiting = db.execute(
@@ -536,6 +548,10 @@ def _tasks(db: Session, admin: Admin, now: datetime) -> list[DashboardTask]:
             )
         ).scalar_one()
         out.append(DashboardTask(kind=DashboardTaskKind.SMS_FAILED, count=int(failed)))
+        unknown_sms = db.execute(
+            select(func.count()).where(*sms_stale_where(admin.bundle_sn, now))
+        ).scalar_one()
+        out.append(DashboardTask(kind=DashboardTaskKind.SMS_UNKNOWN, count=int(unknown_sms)))
     return out
 
 

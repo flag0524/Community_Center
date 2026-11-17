@@ -16,6 +16,7 @@ from tests.test_board_public import board
 from tests.test_courses_public import cycle as new_cycle
 from tests.test_instructor_member import category
 from tests.test_member_inquiries import answered, asked
+from tests.test_worker_sms import outbox
 from tests.world import START, World, make_member
 
 pytestmark = pytest.mark.db
@@ -363,6 +364,54 @@ def test_확인할_업무는_권한이_있는_종류만_그_범위의_개수로_
     viewer(world, "AU.STLM_W", "AU.POST_W", kind="SK.DONG", dong_sn=a["DONG_SN"])
     tasks = {t["kind"]: t["count"] for t in call(world, "GET", "/dashboard").json()["tasks"]}
     assert tasks == {"PAYMENT_UNKNOWN": 2, "INQUIRY_ANSWER": 1}
+
+
+def stuck_refund(w: World, row: dict[str, Any], age: timedelta) -> dict[str, Any]:
+    """PG에 취소를 요청한 지 age가 된 환불 처리 중 건."""
+    n = next(_n)
+    approver = staff(w, f"ap{n}", "AU.RFND_A")
+    executor = staff(w, f"ex{n}", "AU.RFND_X")
+    return refund(
+        w, status="RS.PENDING", approver=approver, IMPL_MNGR_SN=executor.sn, IMPL_DMND_DT=START - age, row=row
+    )
+
+
+def unknown_sms(w: World, age: timedelta, event: str | None = None) -> int:
+    """결과를 모르는 채 age가 지난 문자 수신자."""
+    trgt = outbox(w, event=event)
+    w.db.execute(
+        text("UPDATE TB_SMS_TRGT SET TRGT_STTS_CD='SS.UNKNOWN', MDFCN_DT=:t WHERE SMS_TRGT_SN=:s"),
+        {"t": START - age, "s": trgt},
+    )
+    return trgt
+
+
+def test_환불_처리_장기_지연과_문자_결과_불명은_기준_시간이_지난_것만_권한_범위로_센다(world: World) -> None:
+    a, b = dong(world, "가동"), dong(world, "나동")
+    mine = open_course(world, CORS_NM="가동", DONG_SN=a["DONG_SN"])
+    elsewhere = open_course(world, CORS_NM="나동", DONG_SN=b["DONG_SN"])
+    stuck_refund(world, mine, timedelta(hours=24))  # 기준 시각 정각부터 센다
+    stuck_refund(world, mine, timedelta(hours=24) - timedelta(seconds=1))  # 1초 모자라면 세지 않는다
+    stuck_refund(world, elsewhere, timedelta(days=3))
+    refund(
+        world, status="RS.REQUEST", row=mine, IMPL_DMND_DT=START - timedelta(days=9)
+    )  # 처리 중이 아니면 오래돼도 세지 않는다
+    unknown_sms(world, timedelta(hours=1))
+    unknown_sms(world, timedelta(hours=1) - timedelta(seconds=1))
+    unknown_sms(world, timedelta(days=1), event="CERT:9")  # OTP 문자는 사용자가 다시 요청하므로 세지 않는다
+    outbox(world)  # 아직 대기 중인 문자
+    viewer(world)
+    assert call(world, "GET", "/dashboard").json()["tasks"] == []
+    viewer(world, "AU.RFND_X", "AU.SMS_SEND", kind="SK.GROUP")
+    tasks = {t["kind"]: t["count"] for t in call(world, "GET", "/dashboard").json()["tasks"]}
+    assert tasks["REFUND_STUCK"] == 2 and tasks["SMS_UNKNOWN"] == 1
+    viewer(world, "AU.RFND_X", kind="SK.DONG", dong_sn=a["DONG_SN"])
+    tasks = {t["kind"]: t["count"] for t in call(world, "GET", "/dashboard").json()["tasks"]}
+    assert tasks == {"REFUND_STUCK": 1}  # 동 담당자는 자기 동 환불만 보고, 문자는 묶음 전체 담당자만 본다
+    viewer(world, "AU.RFND_A", kind="SK.GROUP")
+    tasks = {t["kind"]: t["count"] for t in call(world, "GET", "/dashboard").json()["tasks"]}
+    assert "REFUND_STUCK" not in tasks  # 집행 권한이 없으면 장기 지연을 보지 않는다
+    assert tasks == {"REFUND_REVIEW": 1}  # 검토 대기에는 처리 중인 환불이 섞이지 않는다
 
 
 def test_최근_작업은_작업이력_조회_권한이_있을_때만_최근_순으로_나온다(world: World) -> None:

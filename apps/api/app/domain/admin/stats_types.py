@@ -10,3 +10,5 @@ class DashboardTaskKind(StrEnum):
     INSTRUCTOR_REVIEW = "INSTRUCTOR_REVIEW"  # 강사 심사 대기
     INQUIRY_ANSWER = "INQUIRY_ANSWER"  # 문의 답변 대기
     SMS_FAILED = "SMS_FAILED"  # 문자 발송 실패
+    REFUND_STUCK = "REFUND_STUCK"  # 환불 처리 중이 오래 확정되지 않음
+    SMS_UNKNOWN = "SMS_UNKNOWN"  # 문자 결과 불명이 오래감

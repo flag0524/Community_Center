@@ -172,6 +172,8 @@ export const DASHBOARD_TASK: Record<Schemas['DashboardTaskKind'], string> = {
   INSTRUCTOR_REVIEW: '강사 심사 대기',
   INQUIRY_ANSWER: '문의 답변 대기',
   SMS_FAILED: '문자 발송 실패',
+  REFUND_STUCK: '환불 처리 지연(24시간 이상)',
+  SMS_UNKNOWN: '문자 결과 불명(1시간 이상)',
 };
 // 확인할 업무를 누르면 해당 목록에 조건을 걸어 연다
 export const DASHBOARD_TASK_LINK: Record<Schemas['DashboardTaskKind'], string> = {
@@ -180,6 +182,8 @@ export const DASHBOARD_TASK_LINK: Record<Schemas['DashboardTaskKind'], string> =
   INSTRUCTOR_REVIEW: '/edu/instructors?status=PENDING',
   INQUIRY_ANSWER: '/mbr/inquiries?status=RECEIVED',
   SMS_FAILED: '/sys/sms',
+  REFUND_STUCK: '/pay/refunds?status=PENDING',
+  SMS_UNKNOWN: '/sys/sms',
 };
 
 export const SMS_KIND: Record<Schemas['SmsKind'], string> = { AUTO: '자동 알림', MANUAL: '관리자 발송' };

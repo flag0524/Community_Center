@@ -50,6 +50,31 @@ def _collect(
     return [StaleItem(kind, int(r[0]), r[1]) for r in rows], count
 
 
+def refund_stale_where(bundle_sn: int, now: datetime) -> tuple[Any, ...]:
+    """PG에 취소를 요청했지만 오래 확정되지 않은 환불의 조건. 대시보드의 확인할 업무와 같은 기준이다."""
+    return (
+        TB_RFND.c.OPER_BNDL_SN == bundle_sn,
+        TB_RFND.c.RFND_STTS_CD == "RS.PENDING",
+        TB_RFND.c.IMPL_DMND_DT <= now - REFUND_AGE,
+    )
+
+
+def sms_stale_where(bundle_sn: int, now: datetime) -> tuple[Any, ...]:
+    """결과를 알 수 없는 채 오래된 문자 수신자의 조건. OTP 문자는 사용자가 다시 요청하므로 뺀다."""
+    since = func.coalesce(TB_SMS_TRGT.c.MDFCN_DT, TB_SMS_TRGT.c.REG_DT)
+    return (
+        TB_SMS_TRGT.c.OPER_BNDL_SN == bundle_sn,
+        TB_SMS_TRGT.c.TRGT_STTS_CD == "SS.UNKNOWN",
+        since <= now - SMS_AGE,
+        TB_SMS_TRGT.c.SMS_DMND_SN.in_(
+            select(TB_SMS_DMND.c.SMS_DMND_SN).where(
+                TB_SMS_DMND.c.OPER_BNDL_SN == bundle_sn,
+                or_(TB_SMS_DMND.c.SRC_EVENT_ID.is_(None), ~TB_SMS_DMND.c.SRC_EVENT_ID.like("CERT:%")),
+            )
+        ),
+    )
+
+
 def find_stale(db: Session, bundle_sn: int, now: datetime) -> StaleReport:
     """오래 확정되지 않은 항목. 대시보드의 확인할 업무와 일일 점검이 같은 기준을 쓴다. 조회만 하고 바꾸지 않는다."""
     since_payment = func.coalesce(TB_STLM.c.MDFCN_DT, TB_STLM.c.STLM_DMND_DT)
@@ -68,28 +93,13 @@ def find_stale(db: Session, bundle_sn: int, now: datetime) -> StaleReport:
             "REFUND_PENDING",
             TB_RFND.c.RFND_SN,
             TB_RFND.c.IMPL_DMND_DT,
-            (
-                TB_RFND.c.OPER_BNDL_SN == bundle_sn,
-                TB_RFND.c.RFND_STTS_CD == "RS.PENDING",
-                TB_RFND.c.IMPL_DMND_DT <= now - REFUND_AGE,
-            ),
+            refund_stale_where(bundle_sn, now),
         ),
         (
             "SMS_UNKNOWN",
             TB_SMS_TRGT.c.SMS_TRGT_SN,
             func.coalesce(TB_SMS_TRGT.c.MDFCN_DT, TB_SMS_TRGT.c.REG_DT),
-            (
-                TB_SMS_TRGT.c.OPER_BNDL_SN == bundle_sn,
-                TB_SMS_TRGT.c.TRGT_STTS_CD == "SS.UNKNOWN",
-                func.coalesce(TB_SMS_TRGT.c.MDFCN_DT, TB_SMS_TRGT.c.REG_DT) <= now - SMS_AGE,
-                # OTP 문자는 사용자가 다시 요청하므로 점검 대상이 아니다
-                TB_SMS_TRGT.c.SMS_DMND_SN.in_(
-                    select(TB_SMS_DMND.c.SMS_DMND_SN).where(
-                        TB_SMS_DMND.c.OPER_BNDL_SN == bundle_sn,
-                        or_(TB_SMS_DMND.c.SRC_EVENT_ID.is_(None), ~TB_SMS_DMND.c.SRC_EVENT_ID.like("CERT:%")),
-                    )
-                ),
-            ),
+            sms_stale_where(bundle_sn, now),
         ),
         (
             "FILE_PENDING",

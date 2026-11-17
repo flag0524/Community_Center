@@ -761,3 +761,8 @@
 - 사건의 `RTRY_NMTM`이 "재시도 대상"과 "대사 필요"를 가른다. 1 이상이면 재시도 대상이고 0이면 사람이 본다. 재시도 결과가 확정·불일치면 0으로 되돌리는 것이 이 규칙을 지킨다.
 - 변이 검사 스크립트가 원본을 복원할 때 `Path.write_text`를 쓰면 Windows에서 CRLF로 저장된다. 이번에 20개 파일이 이 때문에 CRLF로 커밋돼 있어 별도 커밋으로 LF로 되돌렸다. 스크립트는 `read_bytes`/`write_bytes`로 복원한다. 새 변이 스크립트도 그렇게 쓴다.
 - `git ls-files --eol apps/api`로 `i/crlf`가 있는지 확인할 수 있다.
+
+## B5c-2d 대시보드 확인할 업무 (2026-11-17)
+- 대시보드는 원래 find_stale을 읽지 않고 같은 원자료를 권한 범위로 세고 있었다. 연결 대신 두 곳이 같은 조건 함수(`refund_stale_where`, `sms_stale_where`)를 쓰게 했다. 기준 시간을 바꿀 때는 `worker/consistency.py`의 상수만 고친다.
+- `packages/api-client/openapi.json`과 `src/generated/`는 git 무시 대상이다. 계약을 바꾼 뒤에는 `uv run --directory ../../apps/api python -m app.tools.export_openapi <절대경로>/openapi.json` 다음 `./node_modules/.bin/openapi-typescript openapi.json -o src/generated/schema.d.ts`로 다시 만든다(pnpm 래퍼가 깨져 있다).
+- 새 `DashboardTaskKind` 값은 `labels.ts`의 두 `Record`가 모두 가져야 `tsc`가 통과한다.

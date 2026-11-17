@@ -53,6 +53,8 @@ describe('대시보드', () => {
       ['강사 심사 대기 1건', '/edu/instructors?status=PENDING'],
       ['문의 답변 대기 3건', '/mbr/inquiries?status=RECEIVED'],
       ['문자 발송 실패 4건', '/sys/sms'],
+      ['환불 처리 지연(24시간 이상) 1건', '/pay/refunds?status=PENDING'],
+      ['문자 결과 불명(1시간 이상) 2건', '/sys/sms'],
     ]);
   });
 
