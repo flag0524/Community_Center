@@ -1,4 +1,4 @@
-# 워커 작업: 결제기한 만료, 결제 결과 재조회, 환불 결과 조회. 대상을 DB 상태로 찾고 항목마다 커밋한다(TDD 7, ADR-048)
+# 워커 작업: 결제기한 만료, 결제 결과 재조회, 웹훅 재시도, 환불 결과 조회. 대상을 DB 상태로 찾고 항목마다 커밋한다(TDD 7, ADR-048)
 import hashlib
 import logging
 from collections.abc import Callable
@@ -204,6 +204,112 @@ def recheck_payments(
         db.commit()
         checked += 1
     return checked
+
+
+# --- 웹훅 재시도 --------------------------------------------------------------------------------
+
+
+def _due_webhook_events(db: Session, bundle_sn: int, now: datetime) -> list[Any]:
+    """PG 조회가 실패해 다시 볼 차례인 통보. 불일치·보상환불로 대사가 필요한 사건(재시도 0회)은 사람이 보므로 뺀다."""
+    return list(
+        db.execute(
+            select(
+                TB_STLM_EVENT.c.STLM_SN,
+                TB_STLM_EVENT.c.EVENT_ID,
+                TB_STLM_EVENT.c.RTRY_NMTM,
+                TB_STLM.c.ATNLC_APLY_SN,
+                TB_STLM.c.STLM_NO,
+            )
+            .join(
+                TB_STLM,
+                (TB_STLM.c.OPER_BNDL_SN == TB_STLM_EVENT.c.OPER_BNDL_SN)
+                & (TB_STLM.c.STLM_SN == TB_STLM_EVENT.c.STLM_SN),
+            )
+            .where(
+                TB_STLM_EVENT.c.OPER_BNDL_SN == bundle_sn,
+                TB_STLM_EVENT.c.EVENT_TYPE_CD == "ET.WEBHOOK",
+                TB_STLM_EVENT.c.PRCS_STTS_CD == "EP.FAIL",
+                TB_STLM_EVENT.c.RTRY_NMTM >= 1,
+                TB_STLM_EVENT.c.RTRY_NMTM < RECHECK_MAX,
+                TB_STLM_EVENT.c.PRCS_DT <= now - RECHECK_INTERVAL,
+            )
+            .order_by(TB_STLM_EVENT.c.PRCS_DT, TB_STLM_EVENT.c.STLM_SN)
+            .limit(BATCH)
+        ).all()
+    )
+
+
+def retry_webhooks(
+    db: Session, settings: Settings, gateway: PaymentGateway, bundle_sn: int, clock: Clock
+) -> int:
+    """조회가 실패해 남은 PG 통보를 1분 간격으로 다시 조회해 반영한다(TDD 5.4.2, FN-041). 한도(3회)까지만 한다.
+
+    결제가 결제창 발급(PS.READY) 상태로 남아 있으면 결제 재조회 작업은 보지 않으므로 이 작업만이 해결한다.
+    다시 조회해도 모르면 횟수만 늘리고 한도에 닿으면 사건을 EP.FAIL로 남겨 담당자가 대사한다. 처리한 수를 돌려준다.
+    """
+    due = _due_webhook_events(db, bundle_sn, clock())
+    db.rollback()
+    done = 0
+    for event in due:
+        stlm_sn = int(event.STLM_SN)
+        db.rollback()  # PG를 부르는 동안 트랜잭션을 쥐지 않는다
+        try:
+            approval = gateway.lookup(order_no=str(event.STLM_NO))
+        except Exception:  # 조회 실패는 결과 불명이다
+            approval = ApproveResult(ApproveOutcome.UNKNOWN, failure_code="GATEWAY_ERROR")
+        now = clock()
+        owned = db.execute(
+            select(TB_ATNLC_APLY.c.CORS_SN).where(TB_ATNLC_APLY.c.ATNLC_APLY_SN == event.ATNLC_APLY_SN)
+        ).one()
+        course = lock_course(db, bundle_sn, int(owned.CORS_SN))
+        application = lock_application(db, bundle_sn, int(event.ATNLC_APLY_SN))
+        locked = lock_payment(db, stlm_sn)
+        request_id = _request_id()
+        settled = settle_payment(
+            db,
+            settings,
+            merchant_id=gateway.merchant_id,
+            course=course,
+            application=application,
+            payment=locked,
+            approval=approval,
+            now=now,
+            request_id=request_id,
+        )
+        retry = approval.outcome is ApproveOutcome.UNKNOWN
+        claimed = db.execute(
+            update(TB_STLM_EVENT)
+            .where(
+                TB_STLM_EVENT.c.OPER_BNDL_SN == bundle_sn,
+                TB_STLM_EVENT.c.STLM_SN == stlm_sn,
+                TB_STLM_EVENT.c.EVENT_ID == event.EVENT_ID,
+                TB_STLM_EVENT.c.PRCS_STTS_CD == "EP.FAIL",
+                TB_STLM_EVENT.c.RTRY_NMTM == event.RTRY_NMTM,
+            )
+            .values(
+                PRCS_STTS_CD="EP.FAIL" if retry else settled.event_status,
+                PRCS_DT=now,
+                RTRY_NMTM=int(event.RTRY_NMTM) + 1 if retry else 0,
+                FAIL_RSN=settled.fail_reason,
+            )
+        )
+        if claimed.rowcount != 1:  # type: ignore[attr-defined]
+            db.rollback()  # 그 사이 다른 처리가 이 사건을 끝냈다. 결제 반영도 함께 되돌린다
+            continue
+        record_job(
+            db,
+            actor="AK.SYSTEM",
+            job="PAY_WEBHOOK_RETRY",
+            table="TB_STLM",
+            key=stlm_sn,
+            request_id=request_id,
+            now=now,
+            bundle_sn=bundle_sn,
+            change=settled.audit,
+        )
+        db.commit()
+        done += 1
+    return done
 
 
 # --- 환불 결과 조회 -----------------------------------------------------------------------------

@@ -50,6 +50,7 @@ def build_jobs(
         Job(
             "recheck_payments", 30, lambda db: jobs.recheck_payments(db, settings, gateway, bundle_sn, clock)
         ),
+        Job("retry_webhooks", 30, lambda db: jobs.retry_webhooks(db, settings, gateway, bundle_sn, clock)),
         Job("recheck_refunds", 30, lambda db: jobs.recheck_refunds(db, gateway, bundle_sn, clock)),
         Job(
             "consistency_check",

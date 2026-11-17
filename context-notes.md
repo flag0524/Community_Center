@@ -755,3 +755,9 @@
 - 가짜 clamd 서버(`tests/test_scan_clamd.py::FakeClamd`)는 INSTREAM 덩어리를 그대로 받아 기록한다. 실제 ClamAV 동작(탐지 문구, 크기 한도)은 배포 환경에서 따로 확인해야 한다.
 - `ClamdScanner`는 `FileScanner` 포트가 쓰기 가능한 `provider_name`을 요구해서 `frozen`이 아니다.
 - 시험에서 로컬 소켓 서버를 쓰므로 방화벽이 127.0.0.1 접속을 막는 환경에서는 실패할 수 있다.
+
+## B5c-2c 웹훅 재시도 (2026-11-17)
+- 조회가 실패한 통보는 결제를 `PS.READY`로 남긴다. 기존 결제 재조회(`PS.PENDING`)가 못 보는 결제를 이 작업이 맡는다.
+- 사건의 `RTRY_NMTM`이 "재시도 대상"과 "대사 필요"를 가른다. 1 이상이면 재시도 대상이고 0이면 사람이 본다. 재시도 결과가 확정·불일치면 0으로 되돌리는 것이 이 규칙을 지킨다.
+- 변이 검사 스크립트가 원본을 복원할 때 `Path.write_text`를 쓰면 Windows에서 CRLF로 저장된다. 이번에 20개 파일이 이 때문에 CRLF로 커밋돼 있어 별도 커밋으로 LF로 되돌렸다. 스크립트는 `read_bytes`/`write_bytes`로 복원한다. 새 변이 스크립트도 그렇게 쓴다.
+- `git ls-files --eol apps/api`로 `i/crlf`가 있는지 확인할 수 있다.

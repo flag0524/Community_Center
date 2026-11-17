@@ -173,5 +173,6 @@
   - [x] B5b 문자 발송(sms_dispatch, 접수·결과 불명 조회, 재발송 금지) ADR-049
   - [x] B5c-1 일일 정합성 점검(consistency_check)·/api/health 연결 ADR-050
   - [x] B5c-2a 실제 clamd 검사 어댑터(INSTREAM, 닿지 못하면 검사 대기) ADR-079. 실제 ClamAV 연동은 배포 때 확인
-  - [ ] B5c-2b 남음: 대시보드 확인할 업무가 find_stale 읽기, 웹훅 재시도 사건(EP.FAIL) 재조회, systemd 배포, retention 워커·첨부 물리 삭제(보존기간 Q30 확정 뒤)
+  - [x] B5c-2c 웹훅 재시도 사건(EP.FAIL) 재조회 워커(1분 간격 최대 3회) ADR-080
+  - [ ] B5c-2b 남음: 대시보드 확인할 업무가 find_stale 읽기(범위 결정 필요), systemd 배포, retention 워커·첨부 물리 삭제(보존기간 Q30 확정 뒤)
 - [x] B1b 서술형 DB 검사 규칙 33건 + R27 81건을 CHECK로 옮김(배포 전이라 0001에 포함). 위반 사례 시험 50여 건, 변이 검사로 경계 공백 4곳을 메움
