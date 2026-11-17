@@ -749,3 +749,9 @@
 - 시험에서 `TB_SMS_TRGT`는 회원과 인증 요청 중 하나만 가리켜야 한다(`CK_SMS_03_ONE`). 팩토리가 `MBR_SN`을 채우므로 `MBR_SN=None`을 준다.
 - 개발 DB가 꺼져 있으면 pytest가 전부 skipped로 끝난다(`scripts/db/mariadb-dev.ps1 start`). 이번 세션에서 한 번 있었다.
 - 변이 검사 한 건이 1시간 넘게 걸렸다(시스템 일시정지로 보인다). 결과는 정상이었고 원본은 복원됐다.
+
+## B5c-2a clamd 검사 어댑터 (2026-11-17)
+- 사용자 확정: B5c-2 중 clamd 어댑터만. 대시보드 find_stale 연결·웹훅 재시도·systemd는 이번에 하지 않았다(checklist B5c-2b에 남김). 첨부 물리 삭제는 보존기간(Q30) 때문에 계속 보류다.
+- 가짜 clamd 서버(`tests/test_scan_clamd.py::FakeClamd`)는 INSTREAM 덩어리를 그대로 받아 기록한다. 실제 ClamAV 동작(탐지 문구, 크기 한도)은 배포 환경에서 따로 확인해야 한다.
+- `ClamdScanner`는 `FileScanner` 포트가 쓰기 가능한 `provider_name`을 요구해서 `frozen`이 아니다.
+- 시험에서 로컬 소켓 서버를 쓰므로 방화벽이 127.0.0.1 접속을 막는 환경에서는 실패할 수 있다.
