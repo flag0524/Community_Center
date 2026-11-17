@@ -413,6 +413,13 @@ export const applicationHandlers = [
     const key = request.headers.get('Idempotency-Key');
     if (!key) return apiError('VALIDATION_FAILED', { 'Idempotency-Key': '멱등키가 필요합니다.' });
     const body = (await request.json()) as Schemas['RefundCreate'];
+    const given = [body.bankCode, body.accountHolder, body.accountNumber].map((value) => value !== undefined && value !== null);
+    if (given.some(Boolean) && !given.every(Boolean)) {
+      return apiError('VALIDATION_FAILED', { bankCode: '은행, 예금주, 계좌번호는 함께 입력해야 합니다.' });
+    }
+    if (body.accountNumber && !/^[0-9-]{6,20}$/.test(body.accountNumber)) {
+      return apiError('VALIDATION_FAILED', { accountNumber: '계좌번호 형식이 맞지 않습니다.' });
+    }
     const found = state.items.get(body.applicationId);
     if (!found || found.memberId !== member.memberId) return apiError('NOT_FOUND');
     const now = mockNow();

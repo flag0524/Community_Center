@@ -1,20 +1,38 @@
-// 환불 신청. 서버가 산정한 반환 기준액과 근거를 보이고 사유만 받아 접수한다. 금액은 회원이 입력하지 않는다
+// 환불 신청. 서버가 산정한 반환 기준액과 근거를 보이고 사유를 받아 접수한다. 금액은 회원이 입력하지 않는다. 계좌는 '계좌로 환불받기'를 고른 때만 받는다
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiRequestError } from '../../api/http';
-import { createRefund } from '../../api/refunds';
+import { createRefund, type RefundAccount } from '../../api/refunds';
 import { applicationQuery, refundPreviewQuery, type RefundPreview } from '../../api/queries';
 import { FormMessage } from '../../components/FormMessage';
 import { QueryFallback } from '../../components/QueryFallback';
+import { TextField } from '../../components/TextField';
 import { ServicePage } from '../../layout/SubLayout';
 import { formatFee } from '../../lib/course';
-import { errorMessage } from '../../lib/errors';
+import { errorMessage, fieldErrors } from '../../lib/errors';
 import { usePageTitle } from '../../lib/usePageTitle';
 import { ApplicationFacts } from '../payment/ApplicationFacts';
 
 const TITLE = '환불 신청';
 const REASONS = ['수강 일정 변경', '건강상 사유', '거주지 이전', '기타'];
+const ACCOUNT_NUMBER = /^[0-9-]{6,20}$/;
+
+type AccountForm = { bank: string; holder: string; number: string };
+type AccountErrors = Partial<Record<keyof AccountForm, string>>;
+
+/** 계좌로 환불받기를 고르면 세 칸 모두 필요하다. 서버 규칙(함께 입력, 계좌번호는 숫자와 -)을 먼저 알려 준다. */
+function validateAccount(form: AccountForm): AccountErrors {
+  const errors: AccountErrors = {};
+  if (!form.bank.trim()) errors.bank = '은행명을 입력해 주세요.';
+  if (!form.holder.trim()) errors.holder = '예금주를 입력해 주세요.';
+  if (!ACCOUNT_NUMBER.test(form.number.trim())) errors.number = '계좌번호는 숫자와 -로 6~20자까지 입력해 주세요.';
+  return errors;
+}
+
+function toAccount(form: AccountForm): RefundAccount {
+  return { bankCode: form.bank.trim(), accountHolder: form.holder.trim(), accountNumber: form.number.trim() };
+}
 
 function basisText(basis: RefundPreview['basis']): string {
   if (basis.rule === 'BEFORE_START') return '개강 전이므로 결제한 수강료 전액을 반환합니다.';
@@ -30,11 +48,20 @@ export function RefundApplyPage() {
   usePageTitle(TITLE);
   const [reason, setReason] = useState(REASONS[0]!);
   const [detail, setDetail] = useState('');
+  const [manual, setManual] = useState(false);
+  const [account, setAccount] = useState<AccountForm>({ bank: '', holder: '', number: '' });
+  const [accountErrors, setAccountErrors] = useState<AccountErrors>({});
   const idempotencyKey = useRef(crypto.randomUUID());
   const sending = useRef(false);
 
   const submit = useMutation({
-    mutationFn: () => createRefund(applicationId, detail.trim() ? `${reason} · ${detail.trim()}` : reason, idempotencyKey.current),
+    mutationFn: () =>
+      createRefund(
+        applicationId,
+        detail.trim() ? `${reason} · ${detail.trim()}` : reason,
+        idempotencyKey.current,
+        manual ? toAccount(account) : undefined,
+      ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['me'] });
       navigate('/me/refunds', { state: { created: true } });
@@ -61,12 +88,18 @@ export function RefundApplyPage() {
   if (!preview.data) return <QueryFallback query={preview} what="환불 정보" />;
   if (!application.data) return <QueryFallback query={application} what="신청 정보" />;
 
+  const serverFields = fieldErrors(submit.error);
   const info = preview.data;
   const available = info.refundableAmount - info.reservedAmount;
 
   function send(event: FormEvent) {
     event.preventDefault();
     if (sending.current) return;
+    if (manual) {
+      const found = validateAccount(account);
+      setAccountErrors(found);
+      if (Object.keys(found).length > 0) return;
+    }
     sending.current = true;
     submit.mutate();
   }
@@ -114,6 +147,45 @@ export function RefundApplyPage() {
               상세 사유
               <textarea rows={4} maxLength={400} value={detail} onChange={(event) => setDetail(event.target.value)} />
             </label>
+            <label className="proto-check">
+              <input type="checkbox" checked={manual} onChange={(event) => setManual(event.target.checked)} /> 계좌로 환불받기
+            </label>
+            {manual ? (
+              <fieldset>
+                <legend>환불 받을 계좌</legend>
+                <p className="proto-hint">
+                  계좌로 이체받을 때만 입력해 주세요. 입력하신 계좌 정보는 환불 처리에만 사용하며 암호화해 보관합니다.
+                </p>
+                <TextField
+                  label="은행명"
+                  name="bankCode"
+                  autoComplete="off"
+                  maxLength={20}
+                  value={account.bank}
+                  error={accountErrors.bank ?? serverFields.bankCode}
+                  onChange={(event) => setAccount({ ...account, bank: event.target.value })}
+                />
+                <TextField
+                  label="예금주"
+                  name="accountHolder"
+                  autoComplete="off"
+                  maxLength={50}
+                  value={account.holder}
+                  error={accountErrors.holder ?? serverFields.accountHolder}
+                  onChange={(event) => setAccount({ ...account, holder: event.target.value })}
+                />
+                <TextField
+                  label="계좌번호"
+                  name="accountNumber"
+                  autoComplete="off"
+                  inputMode="numeric"
+                  maxLength={20}
+                  value={account.number}
+                  error={accountErrors.number ?? serverFields.accountNumber}
+                  onChange={(event) => setAccount({ ...account, number: event.target.value })}
+                />
+              </fieldset>
+            ) : null}
             <div className="proto-form-actions">
               <button className="button" type="submit" disabled={submit.isPending}>
                 환불신청

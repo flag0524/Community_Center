@@ -766,3 +766,9 @@
 - 대시보드는 원래 find_stale을 읽지 않고 같은 원자료를 권한 범위로 세고 있었다. 연결 대신 두 곳이 같은 조건 함수(`refund_stale_where`, `sms_stale_where`)를 쓰게 했다. 기준 시간을 바꿀 때는 `worker/consistency.py`의 상수만 고친다.
 - `packages/api-client/openapi.json`과 `src/generated/`는 git 무시 대상이다. 계약을 바꾼 뒤에는 `uv run --directory ../../apps/api python -m app.tools.export_openapi <절대경로>/openapi.json` 다음 `./node_modules/.bin/openapi-typescript openapi.json -o src/generated/schema.d.ts`로 다시 만든다(pnpm 래퍼가 깨져 있다).
 - 새 `DashboardTaskKind` 값은 `labels.ts`의 두 `Record`가 모두 가져야 `tsc`가 통과한다.
+
+## 환불 신청 화면의 계좌 입력 (2026-11-17)
+- 사용자 확정: 체크했을 때만 펼침, 은행명 직접 입력. 서버는 이미 완성돼 있어 변경하지 않았다(ADR-044).
+- `bankCode`에 은행 이름을 보낸다. 이름이 곧 관리자 화면 표시이기 때문이다. 코드 표가 정해지면 화면은 목록 선택으로, 저장 값은 코드로 바뀌어야 하고 기존 이름 값과의 정리가 필요하다.
+- 모의 서버(`mocks/applications.ts`)가 서버의 "세 값은 함께" 규칙과 계좌번호 형식을 따라 400을 준다. 서버 규칙이 바뀌면 같이 바꾼다.
+- 변이 검사 스크립트가 Windows에서 vitest를 호출할 때는 `.bin/vitest`가 셸 스크립트라 실행되지 않는다. `node node_modules/vitest/vitest.mjs run <파일>`을 쓴다.

@@ -272,6 +272,8 @@ describe('환불 신청', () => {
       '기타',
     ]);
     expect(screen.queryByLabelText('증빙서류')).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: '계좌로 환불받기' })).not.toBeChecked();
+    expect(screen.queryByLabelText('은행명')).not.toBeInTheDocument(); // 체크하기 전에는 계좌를 묻지 않는다
     expect(document.title).toBe('환불 신청 | 조리읍주민자치센터');
   });
 
@@ -310,6 +312,130 @@ describe('환불 신청', () => {
     expect(seen).toHaveLength(1);
     expect(seen[0]!.key).toMatch(/^[0-9a-f-]{36}$/);
     expect(seen[0]!.body).toEqual({ applicationId: paid.applicationId, reason: '건강상 사유 · 무릎 수술' });
+  });
+
+  /** 환불 접수 요청의 본문을 모아 둔다. 시험이 끝나면 되돌리는 함수를 함께 준다. */
+  function recordRefundBodies() {
+    const bodies: unknown[] = [];
+    const listener = async ({ request }: { request: Request }) => {
+      if (request.method === 'POST' && new URL(request.url).pathname === '/api/v1/me/refunds') {
+        bodies.push(await request.clone().json());
+      }
+    };
+    server.events.on('request:start', listener);
+    return { bodies, stop: () => server.events.removeListener('request:start', listener) };
+  }
+
+  it('계좌로 환불받기를 체크하면 은행명·예금주·계좌번호를 받아 함께 보낸다', async () => {
+    await signInAsDemo();
+    const paid = await paidApplication();
+    const { bodies, stop } = recordRefundBodies();
+    try {
+      renderApp(`/me/applications/${paid.applicationId}/refund`);
+      const u = user();
+      await u.click(await screen.findByRole('checkbox', { name: '계좌로 환불받기' }));
+      expect(screen.getByText(/환불 처리에만 사용하며 암호화해 보관합니다/)).toBeInTheDocument();
+      for (const label of ['은행명', '예금주', '계좌번호']) {
+        expect(screen.getByLabelText(label)).toHaveAttribute('autocomplete', 'off'); // 브라우저가 계좌 정보를 기억하지 않게 한다
+      }
+      await u.type(screen.getByLabelText('은행명'), ' 국민은행 ');
+      await u.type(screen.getByLabelText('예금주'), '홍길동');
+      await u.type(screen.getByLabelText('계좌번호'), '123-456-789012');
+      await u.click(screen.getByRole('button', { name: '환불신청' }));
+      await screen.findByRole('heading', { level: 1, name: '환불신청 내역' });
+    } finally {
+      stop();
+    }
+    expect(bodies).toEqual([
+      {
+        applicationId: paid.applicationId,
+        reason: '수강 일정 변경',
+        bankCode: '국민은행',
+        accountHolder: '홍길동',
+        accountNumber: '123-456-789012',
+      },
+    ]);
+  });
+
+  it('계좌로 환불받기를 체크하고 비우거나 형식이 틀리면 보내지 않고 칸마다 알린다', async () => {
+    await signInAsDemo();
+    const paid = await paidApplication();
+    const { bodies, stop } = recordRefundBodies();
+    try {
+      renderApp(`/me/applications/${paid.applicationId}/refund`);
+      const u = user();
+      await u.click(await screen.findByRole('checkbox', { name: '계좌로 환불받기' }));
+      await u.click(screen.getByRole('button', { name: '환불신청' }));
+      expect(screen.getByText('은행명을 입력해 주세요.')).toBeInTheDocument();
+      expect(screen.getByText('예금주를 입력해 주세요.')).toBeInTheDocument();
+      expect(screen.getByText('계좌번호는 숫자와 -로 6~20자까지 입력해 주세요.')).toBeInTheDocument();
+      expect(screen.getByLabelText('은행명')).toHaveAttribute('aria-invalid', 'true');
+
+      await u.type(screen.getByLabelText('은행명'), '국민은행');
+      await u.type(screen.getByLabelText('예금주'), '홍길동');
+      await u.type(screen.getByLabelText('계좌번호'), '12ab34');
+      await u.click(screen.getByRole('button', { name: '환불신청' }));
+      expect(screen.getByText('계좌번호는 숫자와 -로 6~20자까지 입력해 주세요.')).toBeInTheDocument();
+      expect(screen.queryByText('은행명을 입력해 주세요.')).not.toBeInTheDocument();
+      await u.clear(screen.getByLabelText('계좌번호'));
+      await u.type(screen.getByLabelText('계좌번호'), '12345'); // 6자 미만
+      await u.click(screen.getByRole('button', { name: '환불신청' }));
+      expect(screen.getByText('계좌번호는 숫자와 -로 6~20자까지 입력해 주세요.')).toBeInTheDocument();
+    } finally {
+      stop();
+    }
+    expect(bodies).toEqual([]); // 틀린 입력은 서버에 보내지 않는다
+  });
+
+  it('체크를 풀면 입력해 둔 계좌는 보내지 않는다', async () => {
+    await signInAsDemo();
+    const paid = await paidApplication();
+    const { bodies, stop } = recordRefundBodies();
+    try {
+      renderApp(`/me/applications/${paid.applicationId}/refund`);
+      const u = user();
+      const check = await screen.findByRole('checkbox', { name: '계좌로 환불받기' });
+      await u.click(check);
+      await u.type(screen.getByLabelText('은행명'), '국민은행');
+      await u.type(screen.getByLabelText('예금주'), '홍길동');
+      await u.type(screen.getByLabelText('계좌번호'), '123456789');
+      await u.click(check);
+      expect(screen.queryByLabelText('은행명')).not.toBeInTheDocument();
+      await u.click(screen.getByRole('button', { name: '환불신청' }));
+      await screen.findByRole('heading', { level: 1, name: '환불신청 내역' });
+    } finally {
+      stop();
+    }
+    expect(bodies).toEqual([{ applicationId: paid.applicationId, reason: '수강 일정 변경' }]);
+  });
+
+  it('서버가 계좌 입력을 거절하면 해당 칸에 서버 문구를 보인다', async () => {
+    await signInAsDemo();
+    const paid = await paidApplication();
+    server.use(
+      http.post('/api/v1/me/refunds', () =>
+        HttpResponse.json(
+          {
+            code: 'VALIDATION_FAILED',
+            message: '입력값을 확인해 주세요.',
+            fields: { bankCode: '지원하지 않는 은행입니다.', accountHolder: '예금주를 확인해 주세요.', accountNumber: '계좌번호 형식이 맞지 않습니다.' },
+            requestId: 'r1',
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+    renderApp(`/me/applications/${paid.applicationId}/refund`);
+    const u = user();
+    await u.click(await screen.findByRole('checkbox', { name: '계좌로 환불받기' }));
+    await u.type(screen.getByLabelText('은행명'), '국민은행');
+    await u.type(screen.getByLabelText('예금주'), '홍길동');
+    await u.type(screen.getByLabelText('계좌번호'), '123456');
+    await u.click(screen.getByRole('button', { name: '환불신청' }));
+    expect(await screen.findByText('계좌번호 형식이 맞지 않습니다.')).toBeInTheDocument();
+    expect(screen.getByText('지원하지 않는 은행입니다.')).toBeInTheDocument();
+    expect(screen.getByText('예금주를 확인해 주세요.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '환불신청' })).toBeEnabled();
   });
 
   it('접수하면 환불신청 내역에 접수 단계로 나타나고 같은 신청은 다시 신청할 수 없다', async () => {
