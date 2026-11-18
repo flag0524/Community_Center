@@ -33,6 +33,11 @@ def published_window(now: datetime) -> ColumnElement[bool]:
     )
 
 
+def banner_window(now: datetime) -> ColumnElement[bool]:
+    """홈 배너는 게시 기간과 상관없이 게시 여부(Y)만 본다(기관 확정 2026-11-17, ADR-088). 다른 콘텐츠는 published_window를 쓴다."""
+    return TB_SITE_CONTS.c.PSTG_YN == "Y"
+
+
 def _latest_published(
     db: Session,
     bundle_sn: int,

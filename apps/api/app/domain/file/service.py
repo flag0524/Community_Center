@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import exists, select
+from sqlalchemy import case, exists, select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -10,7 +10,7 @@ from app.core.errors import ApiError, ErrorCode
 from app.db.tables import TB_BBS, TB_CORS, TB_FILE, TB_PST, TB_SITE_CONTS
 from app.domain.board.service import ATTACH, IMAGE, SAFE, public_post_conditions
 from app.domain.course.service import VISIBLE_STATUSES
-from app.domain.site.service import published_window
+from app.domain.site.service import banner_window, published_window
 from app.files.storage import StorageError, read_blob
 
 HOME_CONTENT_TYPES = ("CT.BANNER", "CT.POPUP")  # 이미지를 올릴 수 있는 홈 콘텐츠
@@ -46,7 +46,10 @@ def public_file(db: Session, bundle_sn: int, file_id: str, now: datetime) -> Any
             TB_SITE_CONTS.c.OPER_BNDL_SN == bundle_sn,
             TB_SITE_CONTS.c.SITE_CONTS_SN == file.SITE_CONTS_SN,
             TB_SITE_CONTS.c.CONTS_TYPE_CD.in_(HOME_CONTENT_TYPES),
-            published_window(now),
+            case(
+                (TB_SITE_CONTS.c.CONTS_TYPE_CD == "CT.BANNER", banner_window(now)),
+                else_=published_window(now),
+            ),
         )
         allowed = file.FILE_USE_CD == IMAGE
     elif file.CORS_SN is not None:

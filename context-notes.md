@@ -791,3 +791,4 @@
 - 변이 검사 중 세션이 끊기면 개발 DB도 함께 꺼져 기준 시험이 전부 skipped가 되고 결과는 `BASELINE-FAIL`로 나온다. 소스가 원래대로인지(`git status`와 원본 줄 확인)를 먼저 보고, `scripts/db/mariadb-dev.ps1 start` 뒤에 다시 돌린다. 이번에 한 번 있었다.
 - 자동 파기는 되돌릴 수 없다. 배포 전에 관리자 화면의 보존·파기 목록으로 대상 건수를 확인한다.
 - 문자 즉시 파기는 사용자가 방식을 골랐다(행 유지, 확정되는 순간, 모든 문자). 문안·수신번호는 NOT NULL이라 `(파기됨)`·`PURGED` 표식으로 덮는다. 확정은 SENT·FAIL·SKIP이고 SENDING·UNKNOWN은 조회로 확정될 때까지 남긴다. 인증 문자는 워커가 확인하지 않으므로 보낸 직후 파기한다. 구현은 `app/domain/admin/sms_purge.py`, 설계는 ADR-087이다.
+- 홈 이미지 「게시기간과 상관없이」는 사용자가 「이미지 유형만 예외」로 정했다. 배너(`CT.BANNER`)만 `banner_window`(게시 여부만)를 쓰고 팝업은 기존 `published_window`를 지킨다. 홈 선택(`home._contents`)과 파일 소유자 판정(`file/service.py`) 두 곳에 같은 구분이 있어야 이미지 내려받기가 맞는다. 설계는 ADR-088이다.

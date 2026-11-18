@@ -161,16 +161,12 @@ def test_공지는_공지사항_게시판의_공개_글만_상단공지부터_�
 # --- 배너와 팝업 -----------------------------------------------------------------------
 
 
-def test_배너는_게시_중인_것만_정렬_순서대로_이미지와_함께_준다(world: World) -> None:
+def test_배너는_게시_여부가_Y인_것만_정렬_순서대로_이미지와_함께_준다(world: World) -> None:
     second = publish_content(world, "CT.BANNER", "b2", "", CONTS_TTL="둘째", SORT_SEQ=2, URL_ADDR="/courses")
     first = publish_content(
         world, "CT.BANNER", "b1", "", CONTS_TTL="첫째", SORT_SEQ=1, URL_ADDR="https://www.paju.go.kr"
     )
-    publish_content(world, "CT.BANNER", "b3", "", CONTS_TTL="종료", PSTG_END_DT=START)
     publish_content(world, "CT.BANNER", "b4", "", CONTS_TTL="미게시", PSTG_YN="N")
-    publish_content(
-        world, "CT.BANNER", "b5", "", CONTS_TTL="시작전", PSTG_BGNG_DT=START + timedelta(seconds=1)
-    )
     image = banner_image(world, first)
     banners = home(world)["banners"]
     assert [b["title"] for b in banners] == ["첫째", "둘째"]
@@ -180,6 +176,36 @@ def test_배너는_게시_중인_것만_정렬_순서대로_이미지와_함께_
     assert banners[0]["linkUrl"] == "https://www.paju.go.kr" and banners[1]["linkUrl"] == "/courses"
     assert banners[0]["image"] == {"url": f"/api/v1/files/{image['FILE_SN']}", "alt": "첫째"}
     assert banners[1]["image"] is None
+
+
+def test_배너는_게시_기간과_상관없이_보이고_이미지도_내려받을_수_있다(world: World, tmp_path: Any) -> None:
+    from dataclasses import replace
+
+    from app.core.config import get_settings
+
+    settings = replace(world.settings, file_root=str(tmp_path))
+    world.client.app.dependency_overrides[get_settings] = lambda: settings  # type: ignore[attr-defined]
+    ended = publish_content(world, "CT.BANNER", "b3", "", CONTS_TTL="종료", PSTG_END_DT=START)
+    publish_content(world, "CT.BANNER", "b5", "", CONTS_TTL="시작전", PSTG_BGNG_DT=START + timedelta(days=9))
+    (tmp_path / "k").write_bytes(b"IMG")
+    banner_image(world, ended, STRG_KEY="k")
+    banners = home(world)["banners"]
+    assert sorted(b["title"] for b in banners) == ["시작전", "종료"]  # 기간이 지났거나 전이어도 보인다
+    response = world.client.get(next(b["image"]["url"] for b in banners if b["title"] == "종료"))
+    assert response.status_code == 200 and response.content == b"IMG"
+
+
+def test_팝업_이미지는_종료하면_내려받을_수_없다(world: World, tmp_path: Any) -> None:
+    from dataclasses import replace
+
+    from app.core.config import get_settings
+
+    settings = replace(world.settings, file_root=str(tmp_path))
+    world.client.app.dependency_overrides[get_settings] = lambda: settings  # type: ignore[attr-defined]
+    popup = publish_content(world, "CT.POPUP", "p9", "x", CONTS_TTL="지난팝업", PSTG_END_DT=START - DAY)
+    (tmp_path / "k").write_bytes(b"IMG")
+    image = banner_image(world, popup, STRG_KEY="k")
+    assert world.client.get(f"/api/v1/files/{image['FILE_SN']}").status_code == 404
 
 
 def test_홈이_알려_준_이미지_주소로_실제로_내려받을_수_있다(world: World, tmp_path: Any) -> None:

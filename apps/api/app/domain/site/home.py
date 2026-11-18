@@ -25,7 +25,7 @@ from app.domain.site.schemas import (
     HomePopup,
     HomeResponse,
 )
-from app.domain.site.service import published_window
+from app.domain.site.service import banner_window, published_window
 
 NOTICE_COUNT = 5
 COURSE_NAME_COUNT = 3
@@ -99,13 +99,13 @@ def _categories(db: Session, bundle_sn: int, cycle: Any, now: datetime) -> list[
 
 
 def _contents(db: Session, bundle_sn: int, content_type: str, now: datetime) -> list[Any]:
-    """게시 중인 홈 콘텐츠. 같은 콘텐츠 아이디가 여러 버전이면 가장 늦게 만든 것만 쓴다."""
+    """게시 중인 홈 콘텐츠. 같은 콘텐츠 아이디가 여러 버전이면 가장 늦게 만든 것만 쓴다. 배너는 게시 기간을 보지 않는다(ADR-088)."""
     rows = db.execute(
         select(TB_SITE_CONTS)
         .where(
             TB_SITE_CONTS.c.OPER_BNDL_SN == bundle_sn,
             TB_SITE_CONTS.c.CONTS_TYPE_CD == content_type,
-            published_window(now),
+            banner_window(now) if content_type == "CT.BANNER" else published_window(now),
         )
         .order_by(TB_SITE_CONTS.c.SITE_CONTS_SN.desc())
     ).all()
