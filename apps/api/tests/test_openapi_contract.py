@@ -167,6 +167,11 @@ ADMIN_OPERATIONS = {
     ("get", "/api/admin/v1/stats/settlement"),
     ("get", "/api/admin/v1/stats/attendance"),
     ("get", "/api/admin/v1/stats/age-gender"),
+    ("get", "/api/admin/v1/stats/age-gender/sources"),
+    ("post", "/api/admin/v1/stats/age-gender/sources"),
+    ("get", "/api/admin/v1/stats/age-gender/sources/{source_id}"),
+    ("post", "/api/admin/v1/stats/age-gender/sources/{source_id}/approve"),
+    ("post", "/api/admin/v1/stats/age-gender/sources/{source_id}/reject"),
     ("get", "/api/admin/v1/stats/satisfaction"),
     ("get", "/api/admin/v1/sms"),
     ("get", "/api/admin/v1/sms/{sms_id}"),
@@ -902,6 +907,7 @@ def test_통계는_조회_전용이고_집계_기준과_자료_없음을_구분�
         key
         for key in operations(spec)
         if key[1].startswith(("/api/admin/v1/stats", "/api/admin/v1/dashboard"))
+        and "/age-gender/sources" not in key[1]  # 집계자료 등록·승인(ADR-089)은 별도 쓰기 경로다
     }
     assert {method for method, _ in stat_ops} == {"get"}
     schemas = spec["components"]["schemas"]

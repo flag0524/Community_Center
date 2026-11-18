@@ -26,6 +26,7 @@ from app.routers.admin import (
     setting,
     sms,
     stats,
+    stats_input,
     term,
     transaction,
 )
@@ -50,6 +51,7 @@ for module in (
     term,
     file,
     stats,
+    stats_input,
     sms,
     role,
     reduction,
