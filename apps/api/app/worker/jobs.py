@@ -27,6 +27,7 @@ from app.db.tables import (
     TB_STLM_EVENT,
 )
 from app.domain.admin.refund_service import pg_key, settle_cancel
+from app.domain.admin.sms_purge import FINAL_STATES, purge_request
 from app.domain.admin.transaction_service import RECHECK_MAX, RECHECK_PREFIX, next_event_id
 from app.domain.application.seats import expire_application, lock_course
 from app.domain.payment.service import lock_application, lock_payment, record_event, settle_payment
@@ -449,6 +450,8 @@ def dispatch_sms(db: Session, settings: Settings, sender: SmsSender, bundle_sn: 
             .where(TB_SMS_TRGT.c.SMS_TRGT_SN == trgt_sn)
             .values(TRGT_STTS_CD=status, MDFCN_DT=now, RCRD_VER=TB_SMS_TRGT.c.RCRD_VER + 1)
         )
+        if status in FINAL_STATES:  # 결과가 확정되면 같은 트랜잭션에서 문안·수신번호를 파기한다(ADR-087)
+            purge_request(db, int(target.SMS_DMND_SN), now=now)
         db.commit()
         sent += 1
     return sent
@@ -496,7 +499,7 @@ def recheck_sms(db: Session, sender: SmsSender, bundle_sn: int, clock: Clock) ->
             continue
         now = clock()
         target = db.execute(
-            select(TB_SMS_TRGT.c.TRGT_STTS_CD)
+            select(TB_SMS_TRGT.c.TRGT_STTS_CD, TB_SMS_TRGT.c.SMS_DMND_SN)
             .where(TB_SMS_TRGT.c.SMS_TRGT_SN == trgt_sn)
             .with_for_update(skip_locked=True)
         ).first()
@@ -522,6 +525,7 @@ def recheck_sms(db: Session, sender: SmsSender, bundle_sn: int, clock: Clock) ->
             .where(TB_SMS_TRGT.c.SMS_TRGT_SN == trgt_sn)
             .values(TRGT_STTS_CD=status, MDFCN_DT=now, RCRD_VER=TB_SMS_TRGT.c.RCRD_VER + 1)
         )
+        purge_request(db, int(target.SMS_DMND_SN), now=now)  # 확인된 결과는 모두 확정이다(SENT·FAIL)
         db.commit()
     return checked
 

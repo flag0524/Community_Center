@@ -29,6 +29,7 @@ from app.domain.admin.retention_schemas import (
     RetentionList,
 )
 from app.domain.admin.retention_types import RetentionState, RetentionTarget
+from app.domain.admin.sms_purge import pending_conditions, purge_request
 from app.domain.admin.types import AdminAuthority as AU
 
 OTP_DAYS = 30  # 기관 확정(2026-11-17)
@@ -38,8 +39,13 @@ ANON_NAME = (
     "탈퇴회원"  # 비식별한 회원의 이름. 이름이 이 값이고 전화번호가 없으면 이미 처리한 회원이다(ADR-078)
 )
 EXECUTE_JOB = "RETENTION_EXECUTE"
-# 실행할 수 있는 대상. 감사이력은 검토만 하고 문자기록은 파기 방식을 정하지 못해 처리하지 않는다
-EXECUTABLE = (RetentionTarget.WITHDRAWN_MEMBER, RetentionTarget.AUTH_RECORDS, RetentionTarget.REFUND_ACCOUNT)
+# 실행할 수 있는 대상. 감사이력은 검토만 한다
+EXECUTABLE = (
+    RetentionTarget.WITHDRAWN_MEMBER,
+    RetentionTarget.AUTH_RECORDS,
+    RetentionTarget.REFUND_ACCOUNT,
+    RetentionTarget.SMS_RECORDS,
+)
 # 매일 새벽 시스템이 자동으로 처리하는 대상(기관 확정 2026-11-17: 기간이 지나면 자동 파기)
 AUTO_TARGETS = EXECUTABLE
 
@@ -84,7 +90,7 @@ _ORDER = (
     ),
     _Rule(
         RetentionTarget.SMS_RECORDS,
-        "문자 문안·수신명단은 발송 결과가 확정된 직후 파기하기로 기관이 답했지만, 문자 이력 화면과 저장 항목의 필수 값과 맞물려 구현 방식을 정하지 못했다(ADR-086). 정해지기 전에는 처리하지 않는다.",
+        "문자 문안·수신번호는 발송 결과가 확정되는 순간 파기한다(기관 확정). 이력 행과 상태·건수·실패 사유는 남기고 값만 '(파기됨)'으로 바꾼다. 확정 때 파기하지 못하고 남은 문자가 있으면 이 항목에서 처리한다.",
         ("문안", "수신번호"),
     ),
 )
@@ -121,7 +127,7 @@ def _member_conditions(bundle: int) -> list[ColumnElement[bool]]:
 
 
 def _otp_conditions(bundle: int) -> list[ColumnElement[bool]]:
-    """삭제 대상 후보. 문자 기록이 가리키는 인증 요청은 문자 기록의 보존기간이 정해질 때까지 지우지 않는다."""
+    """삭제 대상 후보. 문자 행은 이력으로 남기고 인증 요청에 연결돼 있어, 문자 수신 대상이 가리키는 인증 요청은 지우지 않는다."""
     return [
         TB_CERT_DMND.c.OPER_BNDL_SN == bundle,
         ~exists().where(
@@ -193,8 +199,12 @@ def _item(db: Session, admin: Admin, now: datetime, index: int) -> RetentionItem
         period = (0, "d")
     else:
         count, oldest = _count_and_oldest(
-            db, TB_SMS_DMND.c.REG_DT, TB_SMS_DMND.c.OPER_BNDL_SN == bundle, due_before=None
+            db,
+            TB_SMS_DMND.c.REG_DT,
+            *pending_conditions(bundle),
+            due_before=now,  # 결과가 확정된 문자는 바로 대상이다
         )
+        period = (0, "d")
     base_date = None if oldest is None else kst_today(oldest)
     due_on: date | None = None
     if period is not None and base_date is not None:
@@ -334,6 +344,7 @@ _TABLE = {
     RetentionTarget.WITHDRAWN_MEMBER: "TB_MBR",
     RetentionTarget.AUTH_RECORDS: "TB_CERT_DMND",
     RetentionTarget.REFUND_ACCOUNT: "TB_RFND",
+    RetentionTarget.SMS_RECORDS: "TB_SMS_DMND",
 }
 
 
@@ -355,6 +366,12 @@ def _due_keys(db: Session, bundle: int, target: RetentionTarget, now: datetime) 
             .where(*_otp_conditions(bundle), TB_CERT_DMND.c.REG_DT <= now - timedelta(days=OTP_DAYS))
             .order_by(TB_CERT_DMND.c.CERT_DMND_SN)
         )
+    elif target is RetentionTarget.SMS_RECORDS:
+        query = (
+            select(TB_SMS_DMND.c.SMS_DMND_SN)
+            .where(*pending_conditions(bundle))
+            .order_by(TB_SMS_DMND.c.SMS_DMND_SN)
+        )
     else:
         query = (
             select(TB_RFND.c.RFND_SN)
@@ -369,6 +386,9 @@ def _apply(db: Session, bundle: int, target: RetentionTarget, keys: list[int], n
         _anonymize(db, bundle, keys, now)
     elif target is RetentionTarget.AUTH_RECORDS:
         db.execute(delete(TB_CERT_DMND).where(TB_CERT_DMND.c.CERT_DMND_SN.in_(keys)))
+    elif target is RetentionTarget.SMS_RECORDS:
+        for sn in keys:
+            purge_request(db, sn, now=now)
     else:
         db.execute(
             update(TB_RFND)
@@ -399,12 +419,7 @@ def execute_retention(
     index = _index(item_id)
     target = _ORDER[index - 1].target
     if target not in EXECUTABLE:
-        message = (
-            "업무 감사이력은 검토만 하고 이 화면에서 처리하지 않습니다."
-            if target is RetentionTarget.AUDIT_HISTORY
-            else "문자 기록은 파기 방식이 정해지지 않아 처리할 수 없습니다."
-        )
-        raise ApiError(ErrorCode.RULE_REJECTED, message)
+        raise ApiError(ErrorCode.RULE_REJECTED, "업무 감사이력은 검토만 하고 이 화면에서 처리하지 않습니다.")
     bundle = admin.bundle_sn
     keys = _due_keys(db, bundle, target, now)
     mark = _mark(idem_key, index, expected_count)

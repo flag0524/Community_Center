@@ -98,11 +98,17 @@ def test_감사이력은_3년이_지난_건수만_보이고_실행하지_않는_
     assert item["dueOn"] == (date.fromisoformat(item["baseDate"]).replace(year=START.year - 1)).isoformat()
 
 
-def test_이체_완료한_환불의_남은_계좌정보는_바로_대상이고_문자기록은_기간이_정해지지_않았다(
+def test_이체_완료한_환불의_남은_계좌정보는_바로_대상이고_문자기록은_결과가_확정된_것이_바로_대상이다(
     world: World,
 ) -> None:
     done = refund(world, status="RS.DONE", RFND_DT=START - timedelta(days=3), RFND_ACTNO_ENCPT_VL=b"x")
-    world.factory.make("TB_SMS_DMND", OPER_BNDL_SN=world.bundle, REG_DT=START - timedelta(days=2))
+    sms = world.factory.make("TB_SMS_DMND", OPER_BNDL_SN=world.bundle, REG_DT=START - timedelta(days=2))
+    world.factory.make(
+        "TB_SMS_TRGT",
+        SMS_DMND_SN=sms["SMS_DMND_SN"],
+        MBR_SN=make_member(world, "sms1")["MBR_SN"],
+        TRGT_STTS_CD="SS.FAIL",
+    )  # 결과가 확정됐는데 수신번호가 남은 문자
     refund(world, status="RS.REQUEST")  # 계좌 없음
     refund(world, status="RS.DONE", RFND_DT=START - timedelta(days=1))  # 집행은 했지만 계좌가 없다
     refund(world, status="RS.APPROVE", RFND_ACTNO_ENCPT_VL=b"y")  # 계좌는 있지만 아직 집행 전이다
@@ -124,9 +130,9 @@ def test_이체_완료한_환불의_남은_계좌정보는_바로_대상이고_�
     )  # 이체 완료를 확인한 날부터 바로 대상이다
     assert (got["SMS_RECORDS"]["count"], got["SMS_RECORDS"]["state"], got["SMS_RECORDS"]["dueOn"]) == (
         1,
-        "PERIOD_TBD",
-        None,
-    )
+        "DUE",
+        (TODAY - timedelta(days=2)).isoformat(),
+    )  # 결과가 확정된 문자는 바로 대상이다(다른 묶음의 문자는 세지 않는다)
     assert done  # 환불 한 건이 계좌와 함께 센다
 
 

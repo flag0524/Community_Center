@@ -469,3 +469,18 @@ def test_발송이_거절되면_이력에_실패로_남고_다시_보내지_않�
         "FAIL",
         1,
     )
+
+
+def test_파기된_문자는_상세에서_문안과_수신번호가_파기됨으로_보이고_결과는_남는다(world: World) -> None:
+    req = request(world, "SM.MANUAL", "SG.CENTER", by=sender(world).sn, event=None, body="(파기됨)")
+    gone = target(world, req, "SS.SENT")
+    world.db.execute(
+        text("UPDATE TB_SMS_TRGT SET RCPTN_TELNO_ENCPT_VL='PURGED' WHERE SMS_TRGT_SN=:t"),
+        {"t": gone["SMS_TRGT_SN"]},
+    )
+    world.db.commit()
+    detail = call(world, "GET", f"/sms/{req['SMS_DMND_SN']}").json()
+    assert detail["content"] == "(파기됨)" and detail["summary"] == "(파기됨)"
+    [row] = detail["targets"]
+    assert (row["targetId"], row["phone"], row["state"]) == (str(gone["SMS_TRGT_SN"]), "(파기됨)", "SENT")
+    assert (detail["sent"], detail["targetCount"]) == (1, 1)

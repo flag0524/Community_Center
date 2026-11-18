@@ -53,3 +53,49 @@ def test_동시에_두_번_돌아도_한_번만_처리하고_이력도_한_건�
     )
     done = arena.query("SELECT COUNT(*) n FROM TB_MBR WHERE OPER_BNDL_SN=:b AND MBR_NM='탈퇴회원'", b=bundle)
     assert (jobs[0]["n"], done[0]["n"]) == (1, 3)
+
+
+def build_sms(f: Any) -> int:
+    bundle = int(f.bundle())
+    for n in range(2):
+        request = f.make(
+            "TB_SMS_DMND",
+            OPER_BNDL_SN=bundle,
+            SMS_CN="[조리읍] 안내",
+            DMND_TYPE_CD="SM.AUTO",  # 자동 문자는 담당자 없이 만들 수 있어 담당자 행이 남지 않는다
+            TRGT_TYPE_CD="SG.EVENT",
+            DMND_MNGR_SN=None,
+            SRC_EVENT_ID=f"EV:{n}",
+        )
+        member = f.make("TB_MBR", OPER_BNDL_SN=bundle, LGN_ID=f"sms{n}", PSWD_HASH_VL="x" * 20)
+        f.make(
+            "TB_SMS_TRGT",
+            OPER_BNDL_SN=bundle,
+            SMS_DMND_SN=request["SMS_DMND_SN"],
+            MBR_SN=member["MBR_SN"],
+            TRGT_STTS_CD="SS.SENT",
+        )
+    return bundle
+
+
+def test_문자_기록도_동시에_두_번_돌아도_한_번만_처리한다(
+    arena: Arena, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = arena.build(build_sms)
+    real = retention_service._apply
+
+    def slow(*args: Any) -> Any:
+        real(*args)
+        time.sleep(0.5)
+
+    monkeypatch.setattr(retention_service, "_apply", slow)
+
+    def once() -> int:
+        with open_session(arena.engine) as session:
+            return retention.purge_due(session, bundle, lambda: START)
+
+    assert sorted(parallel([once, once])) == [0, 2]
+    jobs = arena.query(
+        "SELECT COUNT(*) n FROM TB_JOB_HSTRY WHERE OPER_BNDL_SN=:b AND JOB_CD='RETENTION_EXECUTE'", b=bundle
+    )
+    assert jobs[0]["n"] == 1

@@ -17,6 +17,7 @@ from app.auth.tokens import derived_key, same
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
 from app.db.tables import TB_CERT_DMND, TB_MBR, TB_OPER_BNDL, TB_SMS_DMND, TB_SMS_SNDNG_HSTRY, TB_SMS_TRGT
+from app.domain.admin.sms_purge import purge_sent_now
 from app.domain.member.types import OtpPurpose
 
 OTP_VALID = timedelta(minutes=5)  # 유효 5분(AUTH-02)
@@ -218,6 +219,9 @@ def issue_otp(
         )
     )
     db.execute(update(TB_SMS_TRGT).where(TB_SMS_TRGT.c.SMS_TRGT_SN == trgt_sn).values(TRGT_STTS_CD=status))
+    purge_sent_now(
+        db, dmnd_sn, trgt_sn, now=now
+    )  # 인증 문자는 워커가 다시 확인하지 않아 보낸 직후 파기한다(ADR-087)
     if result.outcome is SendOutcome.REJECTED:
         db.commit()  # 실패 기록은 오류 응답과 함께 사라지지 않게 먼저 확정한다. 자동으로 다시 보내지 않는다
         raise ApiError(ErrorCode.INTERNAL_ERROR)

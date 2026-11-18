@@ -83,7 +83,7 @@ def test_인증번호_원문은_DB와_로그와_저장된_문안에_남지_않�
         )
     ).scalar_one()
     assert code not in str(dump)  # 인증번호 원문은 어디에도 없다
-    assert "{code}" in str(dump)  # 저장 문안은 코드 자리만 비워 둔 템플릿이다
+    assert "(파기됨)" in str(dump)  # 문안은 보낸 직후 파기해 템플릿도 남지 않는다(ADR-087)
     assert PHONE not in str(dump)  # 전화번호는 암호문이다
     assert code not in " ".join(r.getMessage() for r in caplog.records)
     assert body["certRequestId"]
@@ -138,6 +138,18 @@ def test_결과를_알_수_없으면_알_수_없음으로_기록한다(world: Wo
     assert response.status_code == 200  # 사용자는 다시 요청할 수 있다
     history = world.db.execute(select(tables.TB_SMS_SNDNG_HSTRY)).one()
     assert history.PRCS_STTS_CD == "SS.UNKNOWN"
+
+
+@pytest.mark.parametrize("outcome", [SendOutcome.ACCEPTED, SendOutcome.REJECTED, SendOutcome.UNKNOWN])
+def test_인증_문자는_결과와_상관없이_보낸_직후_문안과_수신번호를_파기한다(
+    world: World, outcome: SendOutcome
+) -> None:
+    world.sms.next_outcome = outcome
+    request_otp(world)
+    dmnd = world.db.execute(select(tables.TB_SMS_DMND)).one()
+    target = world.db.execute(select(tables.TB_SMS_TRGT)).one()
+    assert dmnd.SMS_CN == "(파기됨)" and target.RCPTN_TELNO_ENCPT_VL == "PURGED"
+    assert target.TRGT_STTS_CD != "SS.WAIT"  # 행과 상태는 남는다
 
 
 # --- 계정 존재 숨기기 ------------------------------------------------------------

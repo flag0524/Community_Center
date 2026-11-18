@@ -1,4 +1,4 @@
-# 매일 새벽 기간이 지난 개인정보를 자동으로 파기하는 워커 작업(탈퇴 회원 비식별, 인증번호 요청 삭제, 환불 계좌정보 파기, ADR-086)
+# 매일 새벽 기간이 지난 개인정보를 자동으로 파기하는 워커 작업(탈퇴 회원 비식별, 인증번호 요청 삭제, 환불 계좌정보·문자 기록 파기, ADR-086·087)
 import logging
 from collections.abc import Callable
 from datetime import datetime

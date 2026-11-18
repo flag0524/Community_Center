@@ -29,6 +29,7 @@ from app.db.tables import (
 )
 from app.domain.admin.member_service import mask_phone
 from app.domain.admin.refund_service import mask_name
+from app.domain.admin.sms_purge import PURGED_PHONE, PURGED_TEXT
 from app.domain.admin.sms_schemas import (
     SMS_MAX_BYTES,
     SmsAudience,
@@ -451,7 +452,11 @@ def get(db: Session, settings: Settings, admin: Admin, *, now: datetime, sms_id:
 
 def _target(row: Any, secret: str) -> SmsTargetRow:
     try:
-        phone = mask_phone(decrypt(secret, str(row.RCPTN_TELNO_ENCPT_VL)))
+        phone = (
+            PURGED_TEXT
+            if str(row.RCPTN_TELNO_ENCPT_VL) == PURGED_PHONE
+            else mask_phone(decrypt(secret, str(row.RCPTN_TELNO_ENCPT_VL)))
+        )
     except DecryptError:
         phone = "****"
     return SmsTargetRow(

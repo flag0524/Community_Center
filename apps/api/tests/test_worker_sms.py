@@ -9,6 +9,7 @@ from sqlalchemy import text
 
 from app.adapters.sms.base import DeliveryState, SendOutcome, SmsLookup
 from app.auth.crypto import encrypt
+from app.domain.admin.sms_purge import purge_request
 from app.worker import jobs
 from tests.test_applications_read import RESIDENT
 from tests.world import START, World, make_member
@@ -282,3 +283,87 @@ def test_개인정보는_문자_상태_기록에_남기지_않는다(world: Worl
     dispatch(world)
     dumped = str(attempts(world, trgt)) + str(world.db.execute(text("SELECT * FROM TB_JOB_HSTRY")).all())
     assert PHONE not in dumped
+
+
+# --- 확정되는 순간의 파기(ADR-087) --------------------------------------------------------------
+
+
+def stored(w: World, trgt: int) -> tuple[str, str]:
+    """(수신번호 저장값, 요청 문안). 파기하면 두 값이 파기 표식이다."""
+    row = w.db.execute(
+        text(
+            "SELECT t.RCPTN_TELNO_ENCPT_VL AS p, d.SMS_CN AS c FROM TB_SMS_TRGT t "
+            "JOIN TB_SMS_DMND d ON d.SMS_DMND_SN=t.SMS_DMND_SN WHERE t.SMS_TRGT_SN=:t"
+        ),
+        {"t": trgt},
+    ).one()
+    return str(row.p), str(row.c)
+
+
+def test_접수만_된_문자는_아직_확정이_아니라_문안과_수신번호를_남긴다(world: World) -> None:
+    trgt = outbox(world)
+    dispatch(world)
+    assert state(world, trgt) == "SS.SENDING"
+    phone, body = stored(world, trgt)
+    assert phone != "PURGED" and body == "[조리읍] 수강이 확정되었습니다."
+
+
+def test_공급자가_거절해_실패가_확정되면_같은_때_파기하고_행과_사유는_남긴다(world: World) -> None:
+    trgt = outbox(world)
+    world.sms.next_outcome = SendOutcome.REJECTED
+    dispatch(world)
+    assert stored(world, trgt) == ("PURGED", "(파기됨)")
+    assert state(world, trgt) == "SS.FAIL" and attempts(world, trgt)[0]["FAIL_CD"] == "MOCK_REJECTED"
+
+
+def test_결과_불명은_확정될_때까지_남기고_조회로_확정되면_파기한다(world: World) -> None:
+    trgt = sent(world, SendOutcome.UNKNOWN)
+    assert stored(world, trgt)[0] != "PURGED"
+    world.sms.deliveries[f"sms-{trgt}-1"] = SmsLookup(DeliveryState.DELIVERED)
+    recheck(world)
+    assert state(world, trgt) == "SS.SENT" and stored(world, trgt) == ("PURGED", "(파기됨)")
+
+
+def test_전달_실패로_확정돼도_파기한다(world: World) -> None:
+    trgt = sent(world)
+    world.sms.deliveries[f"sms-{trgt}-1"] = SmsLookup(DeliveryState.FAILED, "NO_SERVICE")
+    recheck(world)
+    assert state(world, trgt) == "SS.FAIL" and stored(world, trgt) == ("PURGED", "(파기됨)")
+
+
+def test_아직_모르면_파기하지_않는다(world: World) -> None:
+    trgt = sent(world)
+    world.sms.deliveries[f"sms-{trgt}-1"] = SmsLookup(DeliveryState.PENDING)
+    recheck(world)
+    assert stored(world, trgt)[0] != "PURGED"
+
+
+def test_한_요청의_수신자가_모두_확정돼야_문안을_파기하고_확정된_수신번호는_먼저_파기한다(
+    world: World,
+) -> None:
+    first = outbox(world)
+    request = int(
+        world.db.execute(
+            text("SELECT SMS_DMND_SN FROM TB_SMS_TRGT WHERE SMS_TRGT_SN=:t"), {"t": first}
+        ).scalar_one()
+    )
+    second = int(
+        world.factory.make(
+            "TB_SMS_TRGT",
+            SMS_DMND_SN=request,
+            MBR_SN=make_member(world, "s-extra", **RESIDENT)["MBR_SN"],
+            RCPTN_TELNO_ENCPT_VL=encrypt(world.settings.secret_key, "01099990000"),
+            TRGT_STTS_CD="SS.WAIT",
+        )["SMS_TRGT_SN"]
+    )
+    world.db.execute(text("UPDATE TB_SMS_TRGT SET TRGT_STTS_CD='SS.SENT' WHERE SMS_TRGT_SN=:t"), {"t": first})
+    purge_request(world.db, request, now=world.clock())
+    assert stored(world, first) == ("PURGED", "[조리읍] 수강이 확정되었습니다.")  # 둘째가 남아 문안은 둔다
+    assert stored(world, second)[0] != "PURGED"
+    world.db.execute(
+        text("UPDATE TB_SMS_TRGT SET TRGT_STTS_CD='SS.FAIL' WHERE SMS_TRGT_SN=:t"), {"t": second}
+    )
+    purge_request(world.db, request, now=world.clock())
+    assert stored(world, second) == ("PURGED", "(파기됨)")
+    purge_request(world.db, request, now=world.clock())  # 다시 불러도 그대로다
+    assert stored(world, second) == ("PURGED", "(파기됨)")

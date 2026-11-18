@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from sqlalchemy import text
 
+from app.auth.crypto import encrypt
 from app.domain.admin import retention_service
 from app.domain.admin.retention_types import RetentionTarget
 from app.worker import retention
@@ -186,3 +187,74 @@ def test_일정에_새벽_4시가_들어_있다(world: World) -> None:
 
     listed = build_jobs(world.settings, world.pg, world.sms, MockScanner(), world.bundle, world.clock)
     assert [(j.name, j.cron) for j in listed if j.name == "retention"] == [("retention", (4, 0))]
+
+
+# --- 확정 때 파기하지 못하고 남은 문자 -------------------------------------------------------------
+
+
+def sms(w: World, *states: str) -> tuple[int, list[int]]:
+    """문안과 수신번호가 그대로 남은 문자 요청 한 건. 수신 대상 상태를 줄 수 있다."""
+    request = w.factory.make("TB_SMS_DMND", OPER_BNDL_SN=w.bundle, SMS_CN="[조리읍] 안내")
+    targets = [
+        int(
+            w.factory.make(
+                "TB_SMS_TRGT",
+                SMS_DMND_SN=request["SMS_DMND_SN"],
+                MBR_SN=make_member(w, f"sr{i}-{request['SMS_DMND_SN']}")["MBR_SN"],
+                RCPTN_TELNO_ENCPT_VL=encrypt(w.settings.secret_key, "01012345678"),
+                TRGT_STTS_CD=state,
+            )["SMS_TRGT_SN"]
+        )
+        for i, state in enumerate(states)
+    ]
+    return int(request["SMS_DMND_SN"]), targets
+
+
+def sms_values(w: World, request: int) -> tuple[str, list[str]]:
+    body = w.db.execute(text("SELECT SMS_CN FROM TB_SMS_DMND WHERE SMS_DMND_SN=:d"), {"d": request}).scalar()
+    phones = w.db.execute(
+        text("SELECT RCPTN_TELNO_ENCPT_VL FROM TB_SMS_TRGT WHERE SMS_DMND_SN=:d ORDER BY SMS_TRGT_SN"),
+        {"d": request},
+    ).scalars()
+    return str(body), [str(p) == "PURGED" and "P" or "K" for p in phones]
+
+
+def test_결과가_확정됐는데_남은_문자를_매일_새벽_파기한다(world: World) -> None:
+    done, _ = sms(world, "SS.SENT", "SS.FAIL", "SS.SKIP")
+    half, _ = sms(world, "SS.SENT", "SS.SENDING")  # 한 명은 아직 확정이 아니다
+    waiting, _ = sms(world, "SS.WAIT", "SS.UNKNOWN")
+    assert sweep(world) == 2
+    assert sms_values(world, done) == ("(파기됨)", ["P", "P", "P"])
+    assert sms_values(world, half) == ("[조리읍] 안내", ["P", "K"])  # 확정된 번호만 먼저 파기한다
+    assert sms_values(world, waiting) == ("[조리읍] 안내", ["K", "K"])
+    assert sweep(world) == 0  # 다시 돌려도 더 처리할 것이 없다
+    assert [(j["a"], j["t"], j["c"]) for j in jobs(world)] == [
+        ("AK.SYSTEM", "TB_SMS_DMND", "처리 2건 [자동]")
+    ]
+
+
+def test_다른_묶음의_문자와_수신_대상이_없는_요청은_건드리지_않는다(world: World) -> None:
+    other = world.factory.make("TB_OPER_BNDL")
+    foreign = world.factory.make("TB_SMS_DMND", OPER_BNDL_SN=other["OPER_BNDL_SN"], SMS_CN="남의 문안")
+    world.factory.make(
+        "TB_SMS_TRGT",
+        OPER_BNDL_SN=other["OPER_BNDL_SN"],
+        SMS_DMND_SN=foreign["SMS_DMND_SN"],
+        MBR_SN=make_member(world, "foreign-sms", OPER_BNDL_SN=other["OPER_BNDL_SN"])["MBR_SN"],
+        TRGT_STTS_CD="SS.SENT",
+    )  # 결과는 확정됐지만 다른 묶음이다
+    empty = world.factory.make("TB_SMS_DMND", OPER_BNDL_SN=world.bundle, SMS_CN="대상 없음")
+    assert sweep(world) == 0
+    for request, body in ((foreign, "남의 문안"), (empty, "대상 없음")):
+        assert sms_values(world, int(request["SMS_DMND_SN"]))[0] == body
+
+
+def test_관리자가_문자_항목을_실행하면_같은_방식으로_파기한다(world: World) -> None:
+    done, _ = sms(world, "SS.SENT")
+    open_, _ = sms(world, "SS.SENDING")
+    operator(world)
+    res = run(world, 5, 1)
+    assert res.status_code == 200, res.text
+    assert sms_values(world, done) == ("(파기됨)", ["P"]) and sms_values(world, open_)[1] == ["K"]
+    assert res.json()["executions"][0]["processed"] == 1 and res.json()["count"] == 0
+    assert run(world, 5, 1).status_code == 409  # 처리할 것이 없어졌으니 확인한 건수와 다르다
