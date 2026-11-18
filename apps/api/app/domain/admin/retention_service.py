@@ -263,7 +263,9 @@ def _executions(db: Session, bundle: int, index: int) -> list[RetentionExecution
 def _detail(db: Session, admin: Admin, now: datetime, index: int) -> RetentionDetail:
     item = _item(db, admin, now, index)
     rule = _ORDER[index - 1]
-    allowed = scope_for(db, admin, AU.GRANT_W, now).whole
+    allowed = scope_for(
+        db, admin, AU.GRANT_W, now, group_only=True
+    ).whole  # 시스템 배정은 회원 정보를 파기하지 못한다(R20)
     return RetentionDetail(
         **item.model_dump(),
         rule=rule.rule,
@@ -414,7 +416,7 @@ def execute_retention(
     idem_key: str,
 ) -> RetentionDetail:
     """확인한 건수와 다시 센 건수가 같을 때만 처리한다(되돌릴 수 없다). 대상 행을 잠근 뒤에 세고 처리한다."""
-    if not scope_for(db, admin, AU.GRANT_W, now).whole:
+    if not scope_for(db, admin, AU.GRANT_W, now, group_only=True).whole:
         raise ApiError(ErrorCode.FORBIDDEN)
     index = _index(item_id)
     target = _ORDER[index - 1].target

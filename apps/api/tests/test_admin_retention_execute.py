@@ -233,3 +233,17 @@ def test_상세의_실행_가능은_실행_권한과_대상이_있을_때만_tru
     assert call(world, "GET", "/retention/3").json()["canExecute"] is False  # 검토만 한다
     operator(world, "AU.LOG_R")
     assert call(world, "GET", "/retention/1").json()["canExecute"] is False  # 실행 권한이 없다
+
+
+def test_시스템_배정은_구조_권한이_묶음_전체여도_파기를_실행하지_못한다(world: World) -> None:
+    withdrawn(world, "old1", 60)
+    operator(
+        world, "AU.LOG_R", "AU.GRANT_W", kind="SK.SYSTEM"
+    )  # 구조 권한(AU.GRANT_W)은 시스템 배정에서도 묶음 전체지만 회원 정보는 아니다
+    assert run(world, 1, 1).status_code == 403
+    assert (
+        member_row(world, world.db.execute(text("SELECT MBR_SN FROM TB_MBR WHERE LGN_ID='old1'")).scalar())[
+            "n"
+        ]
+        == "이름old1"
+    )
