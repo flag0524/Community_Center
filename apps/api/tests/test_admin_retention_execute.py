@@ -90,9 +90,9 @@ def test_로그인이_없으면_401이고_조회_권한만_있거나_동_담당�
     )
 
 
-def test_감사이력_환불계좌_문자기록은_실행할_수_없고_없는_번호는_404이다(world: World) -> None:
+def test_감사이력과_문자기록은_실행할_수_없고_없는_번호는_404이다(world: World) -> None:
     operator(world)
-    for item in (3, 4, 5):
+    for item in (3, 5):
         res = run(world, item, 1)
         assert res.status_code == 422 and res.json()["code"] == "RULE_REJECTED", item
     assert run(world, 99, 1).status_code == 404

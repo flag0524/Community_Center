@@ -487,4 +487,5 @@ def test_작업_목록은_문서의_주기를_따른다(world: World) -> None:
         ("retry_webhooks", 30, None),
         ("recheck_refunds", 30, None),
         ("consistency_check", 0, (3, 0)),  # 매일 03:00(한국 시각)
+        ("retention", 0, (4, 0)),  # 매일 04:00(한국 시각)
     ]

@@ -600,6 +600,43 @@ def test_이체_완료를_확인해야_환불완료가_된다(world: World) -> N
     assert state(world, target)["RFND_DT"] == START and jobs(world, target)[-1] == "RFND_DONE"
 
 
+def test_이체_완료를_확인하면_계좌정보를_파기하고_수동_이체였다는_사실은_남는다(world: World) -> None:
+    approver, executor = two(world)
+    target = manual(world, approver)
+    use(world, executor)
+    execute(world, target)
+    r = call(world, "POST", f"/refunds/{target['RFND_SN']}/confirm-done", {"version": version(world, target)})
+    row = state(world, target)
+    assert (row["RFND_BANK_CD"], row["RFND_ACTNO_ENCPT_VL"], row["RFND_DPSTR_ENCPT_VL"]) == (None, None, None)
+    shown = call(world, "GET", f"/refunds/{target['RFND_SN']}").json()
+    assert r.status_code == 200 and shown["manualAccount"] is None  # 계좌정보는 더 이상 보이지 않는다
+    assert shown["executionMethod"] == "MANUAL_TRANSFER"  # PG 취소 번호가 없는 완료 건은 수동 이체로 남는다
+    assert "수동 이체 완료 확인(계좌정보 파기)" in str(
+        world.db.execute(text("SELECT CHG_CN FROM TB_JOB_HSTRY WHERE JOB_CD='RFND_DONE'")).scalars().all()
+    )
+
+
+def test_PG_취소로_끝난_환불은_수동_이체로_보이지_않는다(world: World) -> None:
+    approver, executor = two(world)
+    done = refund(world, status="RS.DONE", approver=approver, RFND_DT=START, PG_RFND_ID="pg-cancel-1")
+    use(world, executor)
+    shown = call(world, "GET", f"/refunds/{done['RFND_SN']}").json()
+    assert (
+        shown["status"] == "DONE"
+        and shown["executionMethod"] == "CANCEL_PAYMENT"
+        and shown["manualAccount"] is None
+    )
+
+
+def test_이체_완료_전에는_계좌정보를_그대로_둔다(world: World) -> None:
+    approver, executor = two(world)
+    target = manual(world, approver)
+    use(world, executor)
+    execute(world, target)  # 처리 중(RS.PENDING)이다
+    row = state(world, target)
+    assert row["RFND_BANK_CD"] == "004" and row["RFND_ACTNO_ENCPT_VL"] is not None
+
+
 def test_승인한_담당자는_이체_완료도_확인할_수_없다(world: World) -> None:
     both = staff(world, "both", "AU.RFND_A", "AU.RFND_X")
     target = manual(world, both)

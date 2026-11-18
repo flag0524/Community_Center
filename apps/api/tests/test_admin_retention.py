@@ -98,12 +98,17 @@ def test_감사이력은_3년이_지난_건수만_보이고_실행하지_않는_
     assert item["dueOn"] == (date.fromisoformat(item["baseDate"]).replace(year=START.year - 1)).isoformat()
 
 
-def test_환불계좌와_문자기록은_보존기간이_정해지지_않아_예정일을_만들지_않는다(world: World) -> None:
+def test_이체_완료한_환불의_남은_계좌정보는_바로_대상이고_문자기록은_기간이_정해지지_않았다(
+    world: World,
+) -> None:
     done = refund(world, status="RS.DONE", RFND_DT=START - timedelta(days=3), RFND_ACTNO_ENCPT_VL=b"x")
     world.factory.make("TB_SMS_DMND", OPER_BNDL_SN=world.bundle, REG_DT=START - timedelta(days=2))
     refund(world, status="RS.REQUEST")  # 계좌 없음
     refund(world, status="RS.DONE", RFND_DT=START - timedelta(days=1))  # 집행은 했지만 계좌가 없다
     refund(world, status="RS.APPROVE", RFND_ACTNO_ENCPT_VL=b"y")  # 계좌는 있지만 아직 집행 전이다
+    refund(
+        world, status="RS.DONE", RFND_DT=START + timedelta(hours=1), RFND_ACTNO_ENCPT_VL=b"z"
+    )  # 완료 시각 전이라 아직 세지 않는다
     other = world.factory.make("TB_OPER_BNDL")
     world.factory.make("TB_SMS_DMND", OPER_BNDL_SN=other["OPER_BNDL_SN"], REG_DT=START - timedelta(days=9))
     viewer(world)
@@ -114,9 +119,9 @@ def test_환불계좌와_문자기록은_보존기간이_정해지지_않아_예
         got["REFUND_ACCOUNT"]["dueOn"],
     ) == (
         1,
-        "PERIOD_TBD",
-        None,
-    )
+        "DUE",
+        (TODAY - timedelta(days=3)).isoformat(),
+    )  # 이체 완료를 확인한 날부터 바로 대상이다
     assert (got["SMS_RECORDS"]["count"], got["SMS_RECORDS"]["state"], got["SMS_RECORDS"]["dueOn"]) == (
         1,
         "PERIOD_TBD",

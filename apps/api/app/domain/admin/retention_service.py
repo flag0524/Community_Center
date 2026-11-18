@@ -1,11 +1,11 @@
-# 관리자 보존·파기 검토의 목록·상세와 실행(탈퇴 회원 비식별, 인증번호 요청 삭제). 보존기간은 TRD 5.1을 따르고 정해지지 않은 자료는 값을 가정하지 않는다(NF-006, ADR-074·078)
+# 관리자 보존·파기 검토의 목록·상세와 실행, 매일 새벽 자동 정리(탈퇴 회원 비식별, 인증번호 요청 삭제, 환불 계좌정보 파기). 보존기간은 TRD 5.1과 기관 회신을 따르고 정해지지 않은 자료는 값을 가정하지 않는다(NF-006, ADR-074·078·086)
 import hashlib
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Column, ColumnElement, and_, delete, exists, func, not_, select, update
+from sqlalchemy import Column, ColumnElement, and_, delete, exists, func, not_, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.audit import record_job
@@ -31,15 +31,17 @@ from app.domain.admin.retention_schemas import (
 from app.domain.admin.retention_types import RetentionState, RetentionTarget
 from app.domain.admin.types import AdminAuthority as AU
 
-OTP_DAYS = 30  # 가정값(PRD Q30 확정 전)
+OTP_DAYS = 30  # 기관 확정(2026-11-17)
 WITHDRAWN_DAYS = 30
 AUDIT_YEARS = 3
 ANON_NAME = (
     "탈퇴회원"  # 비식별한 회원의 이름. 이름이 이 값이고 전화번호가 없으면 이미 처리한 회원이다(ADR-078)
 )
 EXECUTE_JOB = "RETENTION_EXECUTE"
-# 이 화면에서 실행할 수 있는 대상. 감사이력은 검토만 하고 환불계좌·문자기록은 보존기간이 정해지지 않았다
-EXECUTABLE = (RetentionTarget.WITHDRAWN_MEMBER, RetentionTarget.AUTH_RECORDS)
+# 실행할 수 있는 대상. 감사이력은 검토만 하고 문자기록은 파기 방식을 정하지 못해 처리하지 않는다
+EXECUTABLE = (RetentionTarget.WITHDRAWN_MEMBER, RetentionTarget.AUTH_RECORDS, RetentionTarget.REFUND_ACCOUNT)
+# 매일 새벽 시스템이 자동으로 처리하는 대상(기관 확정 2026-11-17: 기간이 지나면 자동 파기)
+AUTO_TARGETS = EXECUTABLE
 
 EXCLUSIONS = [
     RetentionExclusion(
@@ -67,7 +69,7 @@ _ORDER = (
     ),
     _Rule(
         RetentionTarget.AUTH_RECORDS,
-        "인증번호 요청은 30일이 지나면 정리한다(가정값, PRD Q30 확정 전). 세션과 로그인 실패 이력의 기간은 정해지지 않아 세지 않는다.",
+        "인증번호 요청은 30일이 지나면 정리한다(기관 확정). 세션과 로그인 실패 이력의 기간은 정해지지 않아 세지 않는다.",
         ("인증번호 요청 기록",),
     ),
     _Rule(
@@ -77,12 +79,12 @@ _ORDER = (
     ),
     _Rule(
         RetentionTarget.REFUND_ACCOUNT,
-        "수동환불 계좌정보의 보존기간은 정해지지 않았다(TBD). 기관이 정하기 전에는 예정일을 계산하지 않는다.",
+        "수동환불 계좌정보는 이체 완료를 확인하면 바로 파기한다(기관 확정). 이체 확인 때 지우지 못하고 남은 완료 건이 있으면 이 항목에서 처리한다.",
         ("은행", "계좌번호", "예금주"),
     ),
     _Rule(
         RetentionTarget.SMS_RECORDS,
-        "문자 문안·수신명단의 보존기간은 정해지지 않았다(TBD). 기관이 정하기 전에는 예정일을 계산하지 않는다.",
+        "문자 문안·수신명단은 발송 결과가 확정된 직후 파기하기로 기관이 답했지만, 문자 이력 화면과 저장 항목의 필수 값과 맞물려 구현 방식을 정하지 못했다(ADR-086). 정해지기 전에는 처리하지 않는다.",
         ("문안", "수신번호"),
     ),
 )
@@ -125,6 +127,19 @@ def _otp_conditions(bundle: int) -> list[ColumnElement[bool]]:
         ~exists().where(
             TB_SMS_TRGT.c.OPER_BNDL_SN == TB_CERT_DMND.c.OPER_BNDL_SN,
             TB_SMS_TRGT.c.CERT_DMND_SN == TB_CERT_DMND.c.CERT_DMND_SN,
+        ),
+    ]
+
+
+def _refund_account_conditions(bundle: int) -> list[ColumnElement[bool]]:
+    """파기 대상 후보. 이체 완료를 확인했는데 계좌정보가 남아 있는 환불이다."""
+    return [
+        TB_RFND.c.OPER_BNDL_SN == bundle,
+        TB_RFND.c.RFND_STTS_CD == "RS.DONE",
+        or_(
+            TB_RFND.c.RFND_BANK_CD.is_not(None),
+            TB_RFND.c.RFND_ACTNO_ENCPT_VL.is_not(None),
+            TB_RFND.c.RFND_DPSTR_ENCPT_VL.is_not(None),
         ),
     ]
 
@@ -172,11 +187,10 @@ def _item(db: Session, admin: Admin, now: datetime, index: int) -> RetentionItem
         count, oldest = _count_and_oldest(
             db,
             TB_RFND.c.RFND_DT,
-            TB_RFND.c.OPER_BNDL_SN == bundle,
-            TB_RFND.c.RFND_ACTNO_ENCPT_VL.is_not(None),
-            TB_RFND.c.RFND_DT.is_not(None),
-            due_before=None,
+            *_refund_account_conditions(bundle),
+            due_before=now,  # 이체 완료를 확인한 때부터 바로 대상이다
         )
+        period = (0, "d")
     else:
         count, oldest = _count_and_oldest(
             db, TB_SMS_DMND.c.REG_DT, TB_SMS_DMND.c.OPER_BNDL_SN == bundle, due_before=None
@@ -316,6 +330,59 @@ def _anonymize(db: Session, bundle: int, member_sns: list[int], now: datetime) -
         )
 
 
+_TABLE = {
+    RetentionTarget.WITHDRAWN_MEMBER: "TB_MBR",
+    RetentionTarget.AUTH_RECORDS: "TB_CERT_DMND",
+    RetentionTarget.REFUND_ACCOUNT: "TB_RFND",
+}
+
+
+def _index_of(target: RetentionTarget) -> int:
+    return [rule.target for rule in _ORDER].index(target) + 1
+
+
+def _due_keys(db: Session, bundle: int, target: RetentionTarget, now: datetime) -> list[int]:
+    """기간이 지난 대상 행을 잠그고 키를 돌려준다. 센 건수와 처리하는 행이 같도록 센 쪽과 같은 조건을 쓴다."""
+    if target is RetentionTarget.WITHDRAWN_MEMBER:
+        query = (
+            select(TB_MBR.c.MBR_SN)
+            .where(*_member_conditions(bundle), TB_MBR.c.WHDWL_DT <= now - timedelta(days=WITHDRAWN_DAYS))
+            .order_by(TB_MBR.c.MBR_SN)
+        )
+    elif target is RetentionTarget.AUTH_RECORDS:
+        query = (
+            select(TB_CERT_DMND.c.CERT_DMND_SN)
+            .where(*_otp_conditions(bundle), TB_CERT_DMND.c.REG_DT <= now - timedelta(days=OTP_DAYS))
+            .order_by(TB_CERT_DMND.c.CERT_DMND_SN)
+        )
+    else:
+        query = (
+            select(TB_RFND.c.RFND_SN)
+            .where(*_refund_account_conditions(bundle), TB_RFND.c.RFND_DT <= now)
+            .order_by(TB_RFND.c.RFND_SN)
+        )
+    return [int(sn) for sn in db.execute(query.with_for_update()).scalars()]
+
+
+def _apply(db: Session, bundle: int, target: RetentionTarget, keys: list[int], now: datetime) -> None:
+    if target is RetentionTarget.WITHDRAWN_MEMBER:
+        _anonymize(db, bundle, keys, now)
+    elif target is RetentionTarget.AUTH_RECORDS:
+        db.execute(delete(TB_CERT_DMND).where(TB_CERT_DMND.c.CERT_DMND_SN.in_(keys)))
+    else:
+        db.execute(
+            update(TB_RFND)
+            .where(TB_RFND.c.OPER_BNDL_SN == bundle, TB_RFND.c.RFND_SN.in_(keys))
+            .values(
+                RFND_BANK_CD=None,
+                RFND_ACTNO_ENCPT_VL=None,
+                RFND_DPSTR_ENCPT_VL=None,
+                RCRD_VER=TB_RFND.c.RCRD_VER + 1,
+                MDFCN_DT=now,
+            )
+        )
+
+
 def execute_retention(
     db: Session,
     admin: Admin,
@@ -335,32 +402,11 @@ def execute_retention(
         message = (
             "업무 감사이력은 검토만 하고 이 화면에서 처리하지 않습니다."
             if target is RetentionTarget.AUDIT_HISTORY
-            else "보존기간이 정해지지 않은 자료라 처리할 수 없습니다."
+            else "문자 기록은 파기 방식이 정해지지 않아 처리할 수 없습니다."
         )
         raise ApiError(ErrorCode.RULE_REJECTED, message)
     bundle = admin.bundle_sn
-    if target is RetentionTarget.WITHDRAWN_MEMBER:
-        keys = [
-            int(sn)
-            for sn in db.execute(
-                select(TB_MBR.c.MBR_SN)
-                .where(*_member_conditions(bundle), TB_MBR.c.WHDWL_DT <= now - timedelta(days=WITHDRAWN_DAYS))
-                .order_by(TB_MBR.c.MBR_SN)
-                .with_for_update()
-            ).scalars()
-        ]
-        table = "TB_MBR"
-    else:
-        keys = [
-            int(sn)
-            for sn in db.execute(
-                select(TB_CERT_DMND.c.CERT_DMND_SN)
-                .where(*_otp_conditions(bundle), TB_CERT_DMND.c.REG_DT <= now - timedelta(days=OTP_DAYS))
-                .order_by(TB_CERT_DMND.c.CERT_DMND_SN)
-                .with_for_update()
-            ).scalars()
-        ]
-        table = "TB_CERT_DMND"
+    keys = _due_keys(db, bundle, target, now)
     mark = _mark(idem_key, index, expected_count)
     if _replayed(db, bundle, mark):  # 잠금을 기다린 사이 같은 요청이 끝났을 수 있어 잠근 뒤에 본다
         return _detail(db, admin, now, index)
@@ -369,15 +415,12 @@ def execute_retention(
             ErrorCode.CONFLICT_STATE,
             f"처리 대상이 {len(keys)}건으로 바뀌었습니다. 목록을 새로 확인해 주세요.",
         )
-    if target is RetentionTarget.WITHDRAWN_MEMBER:
-        _anonymize(db, bundle, keys, now)
-    else:
-        db.execute(delete(TB_CERT_DMND).where(TB_CERT_DMND.c.CERT_DMND_SN.in_(keys)))
+    _apply(db, bundle, target, keys, now)
     record_job(
         db,
         actor="AK.ADMIN",
         job=EXECUTE_JOB,
-        table=table,
+        table=_TABLE[target],
         key=index,
         request_id=request_id,
         now=now,
@@ -386,3 +429,25 @@ def execute_retention(
         change=f"처리 {len(keys)}건 {mark}",
     )
     return _detail(db, admin, now, index)
+
+
+def purge_target(
+    db: Session, bundle_sn: int, target: RetentionTarget, *, now: datetime, request_id: str
+) -> int:
+    """기간이 지난 한 종류를 시스템이 자동으로 파기한다(매일 새벽 워커, 기관 확정 2026-11-17). 처리한 건수를 돌려준다."""
+    keys = _due_keys(db, bundle_sn, target, now)
+    if not keys:
+        return 0
+    _apply(db, bundle_sn, target, keys, now)
+    record_job(
+        db,
+        actor="AK.SYSTEM",
+        job=EXECUTE_JOB,
+        table=_TABLE[target],
+        key=_index_of(target),
+        request_id=request_id,
+        now=now,
+        bundle_sn=bundle_sn,
+        change=f"처리 {len(keys)}건 [자동]",
+    )
+    return len(keys)

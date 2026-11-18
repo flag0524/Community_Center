@@ -13,7 +13,7 @@ from app.adapters.scan.base import FileScanner
 from app.adapters.sms.base import SmsSender
 from app.core.config import Settings
 from app.db.session import open_session
-from app.worker import consistency, jobs
+from app.worker import consistency, jobs, retention
 from app.worker.status import record_run
 
 log = logging.getLogger("app.worker")
@@ -57,6 +57,12 @@ def build_jobs(
             0,
             lambda db: consistency.consistency_check(db, bundle_sn, clock),
             cron=(3, 0),  # TDD 7.5: 매일 03:00
+        ),
+        Job(
+            "retention",
+            0,
+            lambda db: retention.purge_due(db, bundle_sn, clock),
+            cron=(4, 0),  # TDD 7: 매일 04:00. 기간이 지난 개인정보를 자동으로 파기한다
         ),
     ]
 

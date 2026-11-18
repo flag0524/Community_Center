@@ -314,8 +314,12 @@ def _detail(db: Session, settings: Settings, admin: Admin, now: datetime, refund
     ref = reference_amount(paid, str(row.EDU_BGNG_YMD), str(row.EDU_END_YMD), kst_today(now))
     review, execute = scope_for(db, admin, AU.RFND_A, now), scope_for(db, admin, AU.RFND_X, now)
     status = str(row.RFND_STTS_CD)
+    # 이체 완료를 확인하면 계좌정보를 파기하므로(R22, ADR-085) 완료된 환불은 PG 취소 번호가 없으면 수동 이체였던 것이다
+    manual_done = status == "RS.DONE" and row.PG_RFND_ID is None
     method = (
-        ExecutionMethod.MANUAL_TRANSFER if _manual_account(settings, row) else ExecutionMethod.CANCEL_PAYMENT
+        ExecutionMethod.MANUAL_TRANSFER
+        if _manual_account(settings, row) or manual_done
+        else ExecutionMethod.CANCEL_PAYMENT
     )
     own_approval = row.APRV_MNGR_SN is not None and int(row.APRV_MNGR_SN) == admin.admin_sn
     executable = execute.covers(row.DONG_SN) and status in ("RS.APPROVE", "RS.FAIL")
@@ -839,6 +843,16 @@ def confirm_done(
         raise ApiError(ErrorCode.CONFLICT_STATE)
     if refund.APRV_MNGR_SN is not None and int(refund.APRV_MNGR_SN) == admin.admin_sn:
         raise ApiError(ErrorCode.RULE_REJECTED)
-    _move(db, admin, refund, allowed=("RS.PENDING",), to="RS.DONE", version=version, values={"RFND_DT": now})
-    _audit(db, admin, "RFND_DONE", sn, request_id, now, "수동 이체 완료 확인")
+    # 이체를 확인하면 은행·예금주·계좌번호를 같은 트랜잭션에서 파기한다(기관 회신 R22, 2026-11-17)
+    purge = {"RFND_BANK_CD": None, "RFND_ACTNO_ENCPT_VL": None, "RFND_DPSTR_ENCPT_VL": None}
+    _move(
+        db,
+        admin,
+        refund,
+        allowed=("RS.PENDING",),
+        to="RS.DONE",
+        version=version,
+        values={"RFND_DT": now, **purge},
+    )
+    _audit(db, admin, "RFND_DONE", sn, request_id, now, "수동 이체 완료 확인(계좌정보 파기)")
     return _detail(db, settings, admin, now, sn)
