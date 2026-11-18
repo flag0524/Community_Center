@@ -212,3 +212,6 @@ export const RETENTION_TARGET: Record<Schemas['RetentionTarget'], string> = {
   SMS_RECORDS: '문자 문안·수신명단',
 };
 export const RETENTION_STATE: Record<Schemas['RetentionState'], string> = { DUE: '예정일 지남', WAITING: '예정일 전', REVIEW_ONLY: '검토 전용', PERIOD_TBD: '기간 미정' };
+
+export const STATS_SOURCE_STATE: Record<Schemas['SourceState'], string> = { WAIT: '검토 대기', APPROVED: '승인', REJECTED: '반려' };
+export const NAME_CHANGE_STATE: Record<Schemas['NameChangeState'], string> = { PENDING: '검토 중', APPROVED: '승인', REJECTED: '반려' };

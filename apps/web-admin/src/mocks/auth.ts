@@ -68,6 +68,7 @@ const MENU: Array<{ key: string; title: string; items: MenuDef[] }> = [
     items: [
       { key: 'dashboard', label: '대시보드', path: '/dashboard', anyOf: ['AU.STAT_R'] },
       { key: 'stats', label: '수요·연령·정산 통계', path: '/stats', anyOf: ['AU.STAT_R'] },
+      { key: 'stats-sources', label: '연령·성별 집계자료', path: '/stats-sources', anyOf: ['AU.CONF_W', 'AU.GRANT_W'] },
     ],
   },
   {
@@ -105,6 +106,7 @@ const MENU: Array<{ key: string; title: string; items: MenuDef[] }> = [
       { key: 'contents', label: '홈·센터 콘텐츠', path: '/mbr/contents', anyOf: ['AU.SITE_W'] },
       { key: 'terms', label: '약관·동의문', path: '/mbr/terms', anyOf: ['AU.SITE_W'] },
       { key: 'files', label: '첨부파일', path: '/mbr/files', anyOf: ['AU.POST_W', 'AU.SITE_W'] },
+      { key: 'name-changes', label: '이름 변경 검토', path: '/mbr/name-changes', anyOf: ['AU.GRANT_W'] },
     ],
   },
   {

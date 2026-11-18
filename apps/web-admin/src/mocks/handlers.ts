@@ -10,6 +10,7 @@ import { educationHandlers } from './education';
 import { fileHandlers } from './files';
 import { inquiryHandlers } from './inquiries';
 import { memberHandlers } from './members';
+import { nameChangeHandlers } from './nameChanges';
 import { piiHandlers } from './pii';
 import { refundHandlers } from './refunds';
 import { reductionHandlers } from './reductions';
@@ -19,7 +20,8 @@ import { roleHandlers } from './roles';
 import { settingHandlers } from './settings';
 import { smsHandlers } from './sms';
 import { statsHandlers } from './stats';
+import { statsSourceHandlers } from './statsSources';
 import { termHandlers } from './terms';
 import { transactionHandlers } from './transactions';
 
-export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers, ...refundHandlers, ...memberHandlers, ...boardHandlers, ...inquiryHandlers, ...contentHandlers, ...termHandlers, ...fileHandlers, ...statsHandlers, ...smsHandlers, ...roleHandlers, ...reductionHandlers, ...settingHandlers, ...classHandlers, ...retentionHandlers, ...piiHandlers];
+export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers, ...refundHandlers, ...memberHandlers, ...nameChangeHandlers, ...boardHandlers, ...inquiryHandlers, ...contentHandlers, ...termHandlers, ...fileHandlers, ...statsHandlers, ...statsSourceHandlers, ...smsHandlers, ...roleHandlers, ...reductionHandlers, ...settingHandlers, ...classHandlers, ...retentionHandlers, ...piiHandlers];

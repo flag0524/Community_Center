@@ -11,6 +11,7 @@ import { InquiryDetailPage } from '../pages/inquiry/InquiryDetailPage';
 import { InquiryListPage } from '../pages/inquiry/InquiryListPage';
 import { MemberDetailPage } from '../pages/member/MemberDetailPage';
 import { MemberListPage } from '../pages/member/MemberListPage';
+import { NameChangePage } from '../pages/member/NameChangePage';
 import { ReductionDetailPage } from '../pages/reduction/ReductionDetailPage';
 import { ReductionHistoryPage } from '../pages/reduction/ReductionHistoryPage';
 import { ReductionListPage } from '../pages/reduction/ReductionListPage';
@@ -28,6 +29,9 @@ import { SmsDetailPage } from '../pages/sms/SmsDetailPage';
 import { SmsListPage } from '../pages/sms/SmsListPage';
 import { SmsSendPage } from '../pages/sms/SmsSendPage';
 import { DashboardPage } from '../pages/stats/DashboardPage';
+import { SourceDetailPage } from '../pages/stats/SourceDetailPage';
+import { SourceFormPage } from '../pages/stats/SourceFormPage';
+import { SourceListPage } from '../pages/stats/SourceListPage';
 import { StatsPage } from '../pages/stats/StatsPage';
 import { TermFormPage } from '../pages/term/TermFormPage';
 import { TermListPage } from '../pages/term/TermListPage';
@@ -76,6 +80,7 @@ export const SCREENS: Array<{ path: string; element: ReactElement }> = [
   { path: '/pay/transactions/:transactionId', element: <TransactionDetailPage /> },
   { path: '/mbr/members', element: <MemberListPage /> },
   { path: '/mbr/members/:memberId', element: <MemberDetailPage /> },
+  { path: '/mbr/name-changes', element: <NameChangePage /> },
   { path: '/mbr/posts', element: <PostListPage /> },
   { path: '/mbr/posts/new', element: <PostFormPage mode="create" /> },
   { path: '/mbr/posts/:postId', element: <PostFormPage mode="edit" /> },
@@ -92,6 +97,9 @@ export const SCREENS: Array<{ path: string; element: ReactElement }> = [
   { path: '/mbr/files/:fileId', element: <FileDetailPage /> },
   { path: '/dashboard', element: <DashboardPage /> },
   { path: '/stats', element: <StatsPage /> },
+  { path: '/stats-sources', element: <SourceListPage /> },
+  { path: '/stats-sources/new', element: <SourceFormPage /> },
+  { path: '/stats-sources/:sourceId', element: <SourceDetailPage /> },
   { path: '/sys/sms', element: <SmsListPage /> },
   { path: '/sys/sms/new', element: <SmsSendPage /> },
   { path: '/sys/sms/:smsId', element: <SmsDetailPage /> },

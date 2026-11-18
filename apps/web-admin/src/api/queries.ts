@@ -485,6 +485,21 @@ export const retentionQuery = (itemId: string) =>
     queryFn: ({ signal }) => getJson<Schemas['RetentionDetail']>(`/retention/${encodeURIComponent(itemId)}`, signal),
   });
 
+export const nameChangeListQuery = (state: 'PENDING' | 'DECIDED') =>
+  queryOptions({
+    queryKey: ['name-changes', 'list', state],
+    queryFn: ({ signal }) => getJson<Schemas['AdminNameChangeList']>(`/name-change-requests?state=${state}`, signal),
+  });
+export const statsSourceListQuery = queryOptions({
+  queryKey: ['stats-sources', 'list'],
+  queryFn: ({ signal }) => getJson<Schemas['SourceList']>('/stats/age-gender/sources', signal),
+});
+export const statsSourceQuery = (sourceId: string) =>
+  queryOptions({
+    queryKey: ['stats-sources', 'detail', sourceId],
+    queryFn: ({ signal }) => getJson<Schemas['SourceDetail']>(`/stats/age-gender/sources/${encodeURIComponent(sourceId)}`, signal),
+  });
+
 export const ownerFilesQuery = (ownerPath: string) =>
   queryOptions({
     queryKey: ['owner-files', ownerPath],

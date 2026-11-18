@@ -1,0 +1,64 @@
+// 연령·성별 집계자료 목록 화면. 기관이 준 자료의 버전·출처·기간·승인 상태를 보이고 등록 담당자에게 등록 버튼을 보인다 (ADM-DSH-002 집계자료)
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { statsSourceListQuery } from '../../api/queries';
+import { TableWrap } from '../../components/ListParts';
+import { errorMessage } from '../../lib/errors';
+import { kstDateTime } from '../../lib/format';
+import { STATS_SOURCE_STATE } from '../../lib/labels';
+import { useHasAuthority } from '../../layout/menu';
+
+export function SourceListPage() {
+  const list = useQuery(statsSourceListQuery);
+  const canRegister = useHasAuthority('AU.CONF_W');
+  return (
+    <>
+      <div className="adm-page-heading">
+        <h1>연령·성별 집계자료</h1>
+        {canRegister && (
+          <Link className="adm-button" to="/stats-sources/new">
+            집계자료 등록
+          </Link>
+        )}
+      </div>
+      <p className="adm-notice">기관이 제공한 집계만 등록합니다. 승인한 자료 중 가장 나중에 승인한 한 버전만 통계에 쓰이며 버전을 합산하지 않습니다. 승인한 자료는 고칠 수 없고 새 버전으로 등록합니다.</p>
+      {list.isPending && <p role="status">불러오는 중입니다.</p>}
+      {list.isError && <p role="alert">{errorMessage(list.error)}</p>}
+      {list.data && (
+        <>
+          <TableWrap label="집계자료 목록">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">계열</th>
+                  <th scope="col">버전</th>
+                  <th scope="col">출처</th>
+                  <th scope="col">집계 기간</th>
+                  <th scope="col">연령 기준일</th>
+                  <th scope="col">상태</th>
+                  <th scope="col">등록일시</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.data.items.map((item) => (
+                  <tr key={item.sourceId}>
+                    <td>
+                      <Link to={`/stats-sources/${item.sourceId}`}>{item.datasetId}</Link>
+                    </td>
+                    <td>{item.version}</td>
+                    <td>{item.provider}</td>
+                    <td>{item.periodStart ?? '-'} ~ {item.periodEnd ?? '-'}</td>
+                    <td>{item.ageBasisDate ?? '-'}</td>
+                    <td>{STATS_SOURCE_STATE[item.state]}</td>
+                    <td>{kstDateTime(item.registeredAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+          {list.data.items.length === 0 && <p>등록한 집계자료가 없습니다.</p>}
+        </>
+      )}
+    </>
+  );
+}
