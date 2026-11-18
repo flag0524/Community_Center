@@ -287,3 +287,13 @@ def test_CSRF_토큰이_없으면_관리자_결정도_403이다(world: World) ->
         res = world.client.post(f"/api/admin/v1{ADMIN}/{sn}/{action}", json={})
         assert res.status_code == 403, action
     assert who is not None
+
+
+def test_시스템_배정은_묶음_전체_권한이어도_이름_요청을_보거나_결정하지_못한다(world: World) -> None:
+    member(world)
+    sn = ask(world).json()["requestId"]
+    boss(world, "AU.GRANT_W", kind="SK.SYSTEM")  # 시스템 배정은 회원 정보를 바꾸지 못한다(R20)
+    assert call(world, "GET", ADMIN).status_code == 403
+    assert call(world, "POST", f"{ADMIN}/{sn}/approve", {}).status_code == 403
+    assert call(world, "POST", f"{ADMIN}/{sn}/reject", {}).status_code == 403
+    assert profile_name(world) == "김회원"

@@ -62,7 +62,9 @@ class Scope:
         return self.whole or (dong_sn is not None and dong_sn in self.dongs)
 
 
-def scope_for(db: Session, admin: Admin, authority: AdminAuthority, now: datetime) -> Scope:
+def scope_for(
+    db: Session, admin: Admin, authority: AdminAuthority, now: datetime, *, group_only: bool = False
+) -> Scope:
     """배정 행마다 (역할이 이 권한을 가짐 + 사용 중 + 유효기간 안 + 범위)를 함께 보고, 맞는 행의 범위만 합친다.
 
     서로 다른 행의 역할과 동을 곱집합으로 섞지 않는다. 유효 종료 시각은 포함하지 않는다.
@@ -89,7 +91,7 @@ def scope_for(db: Session, admin: Admin, authority: AdminAuthority, now: datetim
     for row in rows:
         kind = str(row.SCP_TYPE_CD).strip()
         if kind == "SK.SYSTEM":
-            whole = whole or authority in STRUCTURE_AUTHORITIES
+            whole = whole or (authority in STRUCTURE_AUTHORITIES and not group_only)
         elif kind == "SK.GROUP":
             whole = True
         elif kind == "SK.DONG" and row.DONG_SN is not None:

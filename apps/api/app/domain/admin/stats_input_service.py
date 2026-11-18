@@ -7,7 +7,7 @@ from sqlalchemy import insert, select, update
 from sqlalchemy.orm import Session
 
 from app.audit import record_job
-from app.auth.admin_access import Admin, permit_any, scope_for
+from app.auth.admin_access import Admin, scope_for
 from app.core.errors import ApiError, ErrorCode
 from app.core.times import utc
 from app.db.tables import TB_JOB_HSTRY, TB_MBR_STATS_SRC, TB_MBR_STATS_TOT, TB_MNGR, TB_OPER_BNDL
@@ -49,7 +49,7 @@ def _fail(field: str, message: str) -> ApiError:
 
 def _whole_viewer(db: Session, admin: Admin, now: datetime) -> None:
     """자료는 묶음 공통이라 등록 또는 승인 권한이 묶음 전체 범위로 있어야 본다."""
-    if not permit_any(db, admin, (REGISTER, DECIDE), now).whole:
+    if not any(scope_for(db, admin, code, now, group_only=True).whole for code in (REGISTER, DECIDE)):
         raise ApiError(ErrorCode.FORBIDDEN)
 
 
@@ -165,7 +165,7 @@ def create_source(
     db: Session, admin: Admin, *, now: datetime, request_id: str, body: SourceCreate, idem_key: str
 ) -> SourceDetail:
     """검토대기로 등록한다. 버전은 서버가 정하며 묶음 행을 잠가 버전 부여와 멱등 확인을 한 줄로 세운다."""
-    if not scope_for(db, admin, REGISTER, now).whole:
+    if not scope_for(db, admin, REGISTER, now, group_only=True).whole:
         raise ApiError(ErrorCode.FORBIDDEN)
     _validate(body)
     bundle = admin.bundle_sn
@@ -239,7 +239,7 @@ def create_source(
 def _decide(
     db: Session, admin: Admin, *, now: datetime, request_id: str, source_id: str, status: str, label: str
 ) -> SourceDetail:
-    if not scope_for(db, admin, DECIDE, now).whole:
+    if not scope_for(db, admin, DECIDE, now, group_only=True).whole:
         raise ApiError(ErrorCode.FORBIDDEN)
     bundle, source_sn = admin.bundle_sn, int(source_id)
     current = db.execute(

@@ -209,7 +209,9 @@ def create_request(
 
 
 def _whole(db: Session, admin: Admin, now: datetime) -> None:
-    if not scope_for(db, admin, DECIDE, now).whole:
+    if not scope_for(
+        db, admin, DECIDE, now, group_only=True
+    ).whole:  # 시스템 배정은 회원 정보를 바꾸지 못한다
         raise ApiError(ErrorCode.FORBIDDEN)
 
 

@@ -281,3 +281,14 @@ def test_다른_담당자가_같은_키를_써도_따로_등록한다(world: Wor
     actor(world, "AU.CONF_W")
     second = create(world, key="shared-key-01")
     assert second.status_code == 201 and second.json()["sourceId"] != first.json()["sourceId"]
+
+
+def test_시스템_배정은_묶음_전체_권한이어도_자료를_보거나_결정하지_못한다(world: World) -> None:
+    actor(world, "AU.CONF_W", "AU.GRANT_W")
+    sn = create(world).json()["sourceId"]
+    actor(
+        world, "AU.GRANT_W", kind="SK.SYSTEM"
+    )  # 구조 권한(AU.GRANT_W)은 시스템 배정에서도 묶음 전체지만 업무 자료는 아니다
+    assert call(world, "GET", BASE).status_code == 403
+    assert call(world, "POST", f"{BASE}/{sn}/approve").status_code == 403
+    assert call(world, "POST", f"{BASE}/{sn}/reject").status_code == 403

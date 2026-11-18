@@ -17,6 +17,7 @@ _MENU: tuple[tuple[str, str, tuple[tuple[str, str, str, tuple[A, ...]], ...]], .
         (
             ("dashboard", "대시보드", "/dashboard", (A.STAT_R,)),
             ("stats", "수요·연령·정산 통계", "/stats", (A.STAT_R,)),
+            ("stats-sources", "연령·성별 집계자료", "/stats-sources", (A.CONF_W, A.GRANT_W)),
         ),
     ),
     (
@@ -54,6 +55,7 @@ _MENU: tuple[tuple[str, str, tuple[tuple[str, str, str, tuple[A, ...]], ...]], .
             ("contents", "홈·센터 콘텐츠", "/mbr/contents", (A.SITE_W,)),
             ("terms", "약관·동의문", "/mbr/terms", (A.SITE_W,)),
             ("files", "첨부파일", "/mbr/files", (A.POST_W, A.SITE_W)),
+            ("name-changes", "이름 변경 검토", "/mbr/name-changes", (A.GRANT_W,)),
         ),
     ),
     (
@@ -71,11 +73,17 @@ _MENU: tuple[tuple[str, str, tuple[tuple[str, str, str, tuple[A, ...]], ...]], .
 )
 
 
-def _menu_for(held: frozenset[A]) -> list[MenuGroup]:
+# 회원·집계 자료를 바꾸는 화면. 시스템 배정(구조 권한)만 가진 담당자에게는 보이지 않는다(R20)
+_BUSINESS_KEYS = frozenset({"stats-sources", "name-changes"})
+
+
+def _menu_for(held: frozenset[A], business: frozenset[A]) -> list[MenuGroup]:
     groups: list[MenuGroup] = []
     for key, title, items in _MENU:
         shown = [
-            MenuItem(key=k, label=label, path=path) for k, label, path, need in items if held & set(need)
+            MenuItem(key=k, label=label, path=path)
+            for k, label, path, need in items
+            if (business if k in _BUSINESS_KEYS else held) & set(need)
         ]
         if shown:
             groups.append(MenuGroup(key=key, title=title, items=shown))
@@ -100,6 +108,7 @@ def get_permissions(db: Session, admin: Admin, *, now: datetime) -> AdminPermiss
     ).all()
     known = {a.value: a for a in A}
     held: set[A] = set()
+    business: set[A] = set()
     roles: list[str] = []
     for row in rows:
         name = str(row.ROLE_NM)
@@ -111,6 +120,8 @@ def get_permissions(db: Session, admin: Admin, *, now: datetime) -> AdminPermiss
         if str(row.SCP_TYPE_CD).strip() == "SK.SYSTEM" and code not in STRUCTURE_AUTHORITIES:
             continue
         held.add(code)
+        if str(row.SCP_TYPE_CD).strip() == "SK.GROUP":  # 묶음 전체 범위만 이 화면들을 쓴다
+            business.add(code)
     label = db.execute(
         select(TB_OPER_BNDL.c.OPER_BNDL_NM).where(TB_OPER_BNDL.c.OPER_BNDL_SN == admin.bundle_sn)
     ).scalar()
@@ -118,5 +129,5 @@ def get_permissions(db: Session, admin: Admin, *, now: datetime) -> AdminPermiss
         role_names=roles,
         scope_label=str(label) if label is not None else "",
         authorities=[a for a in A if a in held],
-        menu=_menu_for(frozenset(held)),
+        menu=_menu_for(frozenset(held), frozenset(business)),
     )
