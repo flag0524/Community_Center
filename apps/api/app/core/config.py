@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 MIN_SECRET_LENGTH = 32
+ADMIN_LOCK_FAILURES = 5  # 기관 확정값(Q28): 연속 실패 허용 횟수
+ADMIN_LOCK_MINUTES = 5  # 기관 확정값(Q28): 잠금 시간(분). 실패를 세는 구간도 같다
 
 
 class ConfigError(RuntimeError):
@@ -17,7 +19,9 @@ class Settings:
     secret_key: str = "x" * MIN_SECRET_LENGTH  # CSRF·OTP 검증값용 비밀키(용도별로 파생)
     pbkdf2_iterations: int = 600_000  # 비밀번호 해시 반복 횟수. 해시마다 값이 같이 저장돼 나중에 올려도 된다
     cookie_secure: bool = True  # 로컬 http 개발에서만 끈다
-    # 관리자 로그인 실패 제한은 기관 정책(Q28) 전까지 값을 지어내지 않는다. 설정이 없으면 잠그지 않는다.
+    # 관리자 로그인 실패 제한. 기관이 5회·5분으로 정했고(Q28, 2026-11-17)
+    # 배포 설정(load_settings)이 그 값을 기본으로 쓴다.
+    # 시험이나 코드에서 Settings를 직접 만들 때 값을 주지 않으면 잠그지 않는다.
     admin_lock_failures: int | None = None
     admin_lock_minutes: int | None = None
     sms_provider: str = "mock"  # 공급자는 계약 후 정해진다(Q2~Q4). 그 전에는 모의 어댑터만 있다
@@ -60,8 +64,8 @@ def load_settings(environ: dict[str, str] | None = None) -> Settings:
         secret_key=env["JORI_SECRET_KEY"],
         pbkdf2_iterations=_int(env, "JORI_PBKDF2_ITERATIONS") or 600_000,
         cookie_secure=env.get("JORI_COOKIE_SECURE", "1") != "0",
-        admin_lock_failures=lock_failures,
-        admin_lock_minutes=lock_minutes,
+        admin_lock_failures=ADMIN_LOCK_FAILURES if lock_failures is None else lock_failures,
+        admin_lock_minutes=ADMIN_LOCK_MINUTES if lock_minutes is None else lock_minutes,
         sms_provider=env.get("JORI_SMS_PROVIDER", "mock"),
         sms_sender_number=env.get("JORI_SMS_SENDER_NUMBER", "TBD"),
         file_root=env.get("JORI_FILE_ROOT") or "/data/files",

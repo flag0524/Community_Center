@@ -104,6 +104,7 @@ def admin_login(
             TB_MNGR.c.PSWD_HASH_VL,
             TB_MNGR.c.USE_YN,
             TB_MNGR.c.LCK_END_DT,
+            TB_MNGR.c.RCNT_LGN_DT,
         )
         .where(TB_MNGR.c.LGN_ID == login_id)
         .with_for_update()
@@ -119,7 +120,12 @@ def admin_login(
         locked = False
         if settings.admin_lock_failures is not None and settings.admin_lock_minutes is not None:
             window = timedelta(minutes=settings.admin_lock_minutes)
-            failures = _count_failures(db, TB_LGN_FAIL_HSTRY.c.MNGR_SN, admin_sn, now - window)
+            since = now - window
+            if admin.RCNT_LGN_DT is not None and admin.RCNT_LGN_DT > since:
+                since = (
+                    admin.RCNT_LGN_DT
+                )  # 연속 실패만 센다. 중간에 로그인에 성공하면 그 앞의 실패는 세지 않는다
+            failures = _count_failures(db, TB_LGN_FAIL_HSTRY.c.MNGR_SN, admin_sn, since)
             locked = failures >= settings.admin_lock_failures
             db.execute(
                 update(TB_MNGR)

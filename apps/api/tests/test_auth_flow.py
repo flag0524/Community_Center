@@ -317,6 +317,29 @@ def test_관리자_잠금_수치를_설정하면_그대로_적용한다(migrated
         assert login(w, ADMIN, "admin1").status_code == 200
 
 
+def test_관리자_잠금은_연속_실패만_센다(migrated_engine: Engine, schema_doc: SchemaDoc) -> None:
+    settings = Settings(
+        database_url="unused",
+        site_id="s",
+        secret_key="s" * 40,
+        pbkdf2_iterations=ITERATIONS,
+        admin_lock_failures=3,
+        admin_lock_minutes=20,
+    )
+    for w in build_world(migrated_engine, schema_doc, settings):
+        make_admin(w)
+        assert [login(w, ADMIN, "admin1", "wrong").status_code for _ in range(2)] == [401, 401]
+        w.clock.advance(seconds=1)
+        assert login(w, ADMIN, "admin1").status_code == 200  # 성공하면 연속 실패가 끊긴다
+        w.client.cookies.clear()
+        w.clock.advance(seconds=1)
+        assert [login(w, ADMIN, "admin1", "wrong").status_code for _ in range(2)] == [
+            401,
+            401,
+        ]  # 앞의 2번은 세지 않는다
+        assert login(w, ADMIN, "admin1", "wrong").status_code == 429  # 성공 뒤 연속 3번째 실패에서 잠근다
+
+
 def test_사용_중지된_관리자는_로그인할_수_없다(world: World) -> None:
     make_admin(world, "off", USE_YN="N")
     assert login(world, ADMIN, "off").status_code == 401

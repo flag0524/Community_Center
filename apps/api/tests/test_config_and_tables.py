@@ -13,7 +13,10 @@ BASE = {"JORI_DATABASE_URL": "mysql+pymysql://u:secret@h/db", "JORI_SITE_ID": "j
 def test_설정은_환경변수에서_읽고_없으면_값을_드러내지_않고_멈춘다() -> None:
     settings = load_settings(BASE)
     assert (settings.site_id, settings.secret_key, settings.cookie_secure) == ("jori", KEY, True)
-    assert settings.admin_lock_failures is None  # 기관 정책(Q28) 전에는 관리자 잠금 수치를 지어내지 않는다
+    assert (settings.admin_lock_failures, settings.admin_lock_minutes) == (
+        5,
+        5,
+    )  # 기관이 정한 값(Q28)이 기본이다
     for missing in ("JORI_DATABASE_URL", "JORI_SITE_ID", "JORI_SECRET_KEY"):
         env = {name: value for name, value in BASE.items() if name != missing}
         with pytest.raises(ConfigError) as caught:
