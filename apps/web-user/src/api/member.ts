@@ -1,4 +1,4 @@
-// 회원정보 수정, 비밀번호 변경, 회원탈퇴 요청
+// 회원정보 수정, 비밀번호 변경, 회원탈퇴, 이름 변경 요청
 import type { Schemas } from '@jori/api-client';
 import { putJson, postJson, rememberCsrfToken } from './http';
 
@@ -16,3 +16,6 @@ export async function withdraw(body: Schemas['WithdrawalRequest']): Promise<void
   await postJson('/me/withdraw', body);
   rememberCsrfToken(null);
 }
+
+export const requestNameChange = (body: Schemas['NameChangeCreate'], idempotencyKey: string) =>
+  postJson<Schemas['MyNameChange']>('/me/name-change-requests', body, { headers: { 'Idempotency-Key': idempotencyKey } });

@@ -107,6 +107,9 @@ export function ProfilePage() {
       <div className="proto">
         <ProfileForm profile={profile} />
         <div className="proto-actions">
+          <Link className="button secondary" to="/me/name-change">
+            이름 변경 요청
+          </Link>
           <Link className="button secondary" to="/me/password">
             비밀번호 변경
           </Link>

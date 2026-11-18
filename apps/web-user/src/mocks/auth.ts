@@ -53,6 +53,7 @@ interface MockAuthState {
   passwords: Map<string, string>;
   profiles: Map<string, MockProfile>;
   memberSeq: number;
+  nameChanges: Array<{ memberId: string; item: Schemas['MyNameChange']; fingerprint: string; key: string }>;
 }
 
 /** 탈퇴를 막는 규칙. 신청 모의 서버가 진행 중인 신청이 있으면 사유를 돌려준다. */
@@ -74,6 +75,7 @@ const initialState = (): MockAuthState => ({
     [DEMO.loginId, { name: DEMO.member.name, phone: '01000000000', email: 'demo@example.invalid', residenceDeclared: null, joinedOn: '2026-09-01' }],
   ]),
   memberSeq: 1,
+  nameChanges: [],
 });
 
 let state = initialState();
@@ -175,6 +177,20 @@ function profileBody(member: MemberBrief): Schemas['MemberProfile'] {
     residenceStatus: 'UNVERIFIED',
   };
 }
+/** 시험에서 담당자가 이름 변경 요청을 처리한 것처럼 만든다. 승인하면 회원 이름이 바뀐다. */
+export function decideMockNameChange(requestId: string, outcome: 'APPROVED' | 'REJECTED', note: string | null = null): void {
+  const found = state.nameChanges.find((entry) => entry.item.requestId === requestId);
+  if (!found) throw new Error(`이름 변경 요청 ${requestId}가 없습니다.`);
+  found.item.state = outcome;
+  found.item.decidedAt = '2026-11-18T01:00:00Z';
+  found.item.decisionNote = note;
+  if (outcome === 'APPROVED') {
+    const loginId = [...state.members.values()].find((member) => member.memberId === found.memberId)?.loginId;
+    const profile = loginId ? state.profiles.get(loginId) : undefined;
+    if (profile) profile.name = found.item.requestedName;
+  }
+}
+
 export const authHandlers = [
   http.get('/api/v1/auth/session', () => HttpResponse.json(sessionBody())),
 
@@ -354,4 +370,43 @@ export const authHandlers = [
     state.member = null;
     rotateCsrf();
     return new HttpResponse(null, { status: 204 });
-  }),];
+  }),
+
+  http.get('/api/v1/me/name-change-requests', () => {
+    if (!state.member) return apiError('UNAUTHENTICATED');
+    const mine = state.nameChanges.filter((entry) => entry.memberId === state.member?.memberId).map((entry) => entry.item);
+    return HttpResponse.json({ items: [...mine].reverse() } satisfies Schemas['MyNameChangeList']);
+  }),
+
+  http.post('/api/v1/me/name-change-requests', async ({ request }) => {
+    if (!state.member) return apiError('UNAUTHENTICATED');
+    if (csrfRejected(request)) return apiError('FORBIDDEN');
+    const body = (await request.json()) as Schemas['NameChangeCreate'];
+    if (state.passwords.get(state.member.loginId) !== body.password) {
+      return apiError('VALIDATION_FAILED', { password: '비밀번호가 올바르지 않습니다.' });
+    }
+    const name = body.newName.trim();
+    if (!name) return apiError('VALIDATION_FAILED', { newName: '이름 형식이 맞지 않습니다.' });
+    const key = request.headers.get('Idempotency-Key') ?? '';
+    const fingerprint = JSON.stringify([name, body.reason.trim()]);
+    const prior = state.nameChanges.find((entry) => entry.memberId === state.member?.memberId && entry.key === key);
+    if (prior) return prior.fingerprint === fingerprint ? HttpResponse.json(prior.item, { status: 201 }) : apiError('IDEMPOTENCY_CONFLICT');
+    if (name === state.profiles.get(state.member.loginId)?.name || name === '탈퇴회원') {
+      return apiError('RULE_REJECTED', { newName: '현재 이름과 같거나 사용할 수 없는 이름입니다.' });
+    }
+    if (state.nameChanges.some((entry) => entry.memberId === state.member?.memberId && entry.item.state === 'PENDING')) {
+      return HttpResponse.json({ code: 'CONFLICT_STATE', message: '검토 중인 이름 변경 요청이 이미 있습니다.', fields: null, requestId: 'mock-conflict-0001' }, { status: 409 });
+    }
+    const item: Schemas['MyNameChange'] = {
+      requestId: `95${String(state.nameChanges.length + 1).padStart(20, '0')}`,
+      requestedName: name,
+      reason: body.reason.trim(),
+      state: 'PENDING',
+      requestedAt: '2026-11-17T01:00:00Z',
+      decidedAt: null,
+      decisionNote: null,
+    };
+    state.nameChanges.push({ memberId: state.member.memberId, item, fingerprint, key });
+    return HttpResponse.json(item, { status: 201 });
+  }),
+];

@@ -142,6 +142,11 @@ export const contentQuery = (slug: ContentSlug) =>
     staleTime: 5 * 60 * 1000,
   });
 
+export const nameChangesQuery = queryOptions({
+  queryKey: ['me', 'name-changes'],
+  queryFn: ({ signal }) => getJson<Schemas['MyNameChangeList']>('/me/name-change-requests', signal),
+});
+
 export const profileQuery = queryOptions({
   queryKey: ['me', 'profile'],
   queryFn: ({ signal }) => getJson<MemberProfile>('/me/profile', signal),

@@ -33,6 +33,7 @@ import { BoardListPage } from '../pages/board/BoardListPage';
 import { PostDetailPage } from '../pages/board/PostDetailPage';
 import { ChangePasswordPage } from '../pages/account/ChangePasswordPage';
 import { FindIdPage } from '../pages/account/FindIdPage';
+import { NameChangePage } from '../pages/account/NameChangePage';
 import { ProfilePage } from '../pages/account/ProfilePage';
 import { ResetPasswordPage } from '../pages/account/ResetPasswordPage';
 import { WithdrawDonePage } from '../pages/account/WithdrawDonePage';
@@ -163,6 +164,7 @@ export const routes: RouteObject[] = [
         ['me/receipts/:paymentId', <ReceiptPage />],
         ['me/refunds', <MyRefundsPage />],
         ['me/profile', <ProfilePage />],
+        ['me/name-change', <NameChangePage />],
         ['me/password', <ChangePasswordPage />],
         ['me/withdraw', <WithdrawPage />],
       ].map(([path, page]) => ({
