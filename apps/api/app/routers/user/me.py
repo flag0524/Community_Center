@@ -16,9 +16,18 @@ from app.auth.deps import (
 from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
 from app.db.session import get_db
+from app.domain.member import name_change_service
 from app.domain.member import profile_service as service
+from app.domain.member.name_change_schemas import MyNameChange, MyNameChangeList, NameChangeCreate
 from app.domain.member.schemas import MemberProfile, PasswordChange, ProfileUpdate, WithdrawalRequest
-from app.routers.deps import MEMBER_ERRORS, SESSION_COOKIE_NAME, csrf_header, error_responses, member_session
+from app.routers.deps import (
+    MEMBER_ERRORS,
+    SESSION_COOKIE_NAME,
+    IdempotencyKey,
+    csrf_header,
+    error_responses,
+    member_session,
+)
 
 router = APIRouter(tags=["me"], responses=MEMBER_ERRORS, dependencies=[Security(member_session)])
 
@@ -65,3 +74,32 @@ def withdraw(
     out = Response(status_code=204)
     clear_cookie(out, settings, SESSION_COOKIE_NAME)
     return out
+
+
+@router.get("/me/name-change-requests")
+def list_my_name_changes(db: Db, settings: Config, me: Me) -> MyNameChangeList:
+    """내 이름 변경 요청을 최근 순 20건까지 준다. 검토 중·승인·반려가 모두 보인다."""
+    return name_change_service.my_requests(db, settings, me)
+
+
+@router.post(
+    "/me/name-change-requests",
+    status_code=201,
+    responses=error_responses(
+        ErrorCode.RULE_REJECTED, ErrorCode.CONFLICT_STATE, ErrorCode.IDEMPOTENCY_CONFLICT
+    ),
+    dependencies=[Depends(csrf_header)],
+)
+def request_name_change(
+    body: NameChangeCreate,
+    request: Request,
+    db: Db,
+    settings: Config,
+    me: MeWrite,
+    clock: Now,
+    idempotency_key: IdempotencyKey,
+) -> MyNameChange:
+    """비밀번호를 다시 확인해 이름 변경을 요청한다. 담당자가 승인하면 바뀌고, 검토 중인 요청은 한 건뿐이다."""
+    return name_change_service.create_request(
+        db, settings, me, body, request_id=request_id_of(request), now=clock(), idem_key=idempotency_key
+    )
