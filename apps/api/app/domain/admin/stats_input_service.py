@@ -3,6 +3,7 @@ import hashlib
 from datetime import date, datetime
 from typing import Any
 
+from pydantic import BaseModel
 from sqlalchemy import insert, select, update
 from sqlalchemy.orm import Session
 
@@ -137,20 +138,20 @@ def _validate(body: SourceCreate) -> None:
         seen.add(key)
 
 
-def _mark(idem_key: str, body: SourceCreate) -> str:
+def mark_of(idem_key: str, body: BaseModel) -> str:
     """멱등 표식. 대상 테이블에 멱등키 칸이 없어 작업이력 메모에 둔다."""
     key = hashlib.sha256(idem_key.encode()).hexdigest()[:16]
     digest = hashlib.sha256(body.model_dump_json().encode()).hexdigest()[:16]
     return f"[idem {key}:{digest}]"
 
 
-def _replayed(db: Session, bundle: int, admin_sn: int, mark: str) -> int | None:
+def replayed(db: Session, bundle: int, admin_sn: int, mark: str, job: str = CREATE_JOB) -> int | None:
     prefix = mark.split(":")[0] + ":"
     found = db.execute(
         select(TB_JOB_HSTRY.c.CHG_CN, TB_JOB_HSTRY.c.TRGT_KEY_VL).where(
             TB_JOB_HSTRY.c.OPER_BNDL_SN == bundle,
             TB_JOB_HSTRY.c.MNGR_SN == admin_sn,  # 키는 담당자마다 따로 쓴다
-            TB_JOB_HSTRY.c.JOB_CD == CREATE_JOB,
+            TB_JOB_HSTRY.c.JOB_CD == job,
             TB_JOB_HSTRY.c.CHG_CN.contains(prefix, autoescape=True),
         )
     ).first()
@@ -172,8 +173,8 @@ def create_source(
     db.execute(
         select(TB_OPER_BNDL.c.OPER_BNDL_SN).where(TB_OPER_BNDL.c.OPER_BNDL_SN == bundle).with_for_update()
     )
-    mark = _mark(idem_key, body)
-    again = _replayed(db, bundle, admin.admin_sn, mark)
+    mark = mark_of(idem_key, body)
+    again = replayed(db, bundle, admin.admin_sn, mark)
     if again is not None:
         return _detail(db, bundle, again)
     latest = db.execute(
