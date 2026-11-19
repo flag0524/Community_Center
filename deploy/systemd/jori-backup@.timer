@@ -1,0 +1,11 @@
+# 초안(미검증): 매일 새벽 2시 30분(한국 시간 기준 서버 시각)에 전체 백업. 워커의 03:00·04:00 작업보다 앞이다.
+[Unit]
+Description=조리읍 주민자치센터 수강시스템 일일 백업 (%i)
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

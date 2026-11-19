@@ -57,8 +57,32 @@
 - DB 시험을 Ubuntu에서 한 번 더 돌려 대소문자 이름 규칙과 READ COMMITTED 쓰기(바이너리 로그를 켠 상태)를 확인한다(ADR-029·038)
 - 실제 ClamAV 연동(`JORI_FILE_SCANNER=clamd`)
 
-## 5. 아직 하지 않은 것
+## 5. 초안(미검증): 계정 분리·백업·배포 자동화
 
-- DB 계정 분리(`worker_jori`, `retention_jori`, `backup_jori`)와 권한 부여 SQL. 지금은 한 계정을 함께 쓴다.
-- 백업(mariabackup·binlog 전송·첨부 rsync)과 월 1회 복구시험 스크립트
-- 배포 자동화 스크립트와 새 자치회 추가 절차
+실제 서버에서 확인하기 전에는 운영에 쓰지 않는다(ADR-102). 시험 `apps/api/tests/test_deploy_drafts.py`는 파일 내용과 스크립트 문법·`--dry-run` 순서만 본다.
+
+| 파일 | 내용 |
+|---|---|
+| `mariadb/accounts.sql` | DB·계정 4개(`app_jori`, `worker_jori`, `backup_jori`, `migrate_jori`)와 권한. `python -m app.tools.generate_grants`로 설계안에서 만든다. 비밀번호는 `{{…_PASSWORD}}` 자리표시 |
+| `env/jori.migrate.env.example` | `deploy.sh`가 구조 변경 계정으로 마이그레이션할 때 읽는 접속 주소 |
+| `systemd/jori-worker@.service` | `/etc/jori/<인스턴스>.worker.env`가 있으면 워커만 `worker_jori`로 접속하게 덮어쓴다 |
+| `backup/backup.sh` | 전체 백업(mariabackup 스트림을 바로 암호화, 첨부 사본, 해시, 별도 저장소 전송, 30일 정리) |
+| `backup/binlog-sync.sh` | 바이너리 로그를 별도 저장소로 전송 |
+| `backup/restore-check.sh`, `restore-check.sql` | 월 1회 복구시험. 백업을 임시 서버에 풀어 건수·금액·첨부 연결을 대조 |
+| `systemd/jori-backup@.service·.timer` | 매일 02:30 백업(워커 03:00 작업보다 앞) |
+| `systemd/jori-binlog-sync@.service·.timer` | 15분마다 로그 전송 |
+| `env/jori.backup.env.example` | 백업 스크립트 설정(`/etc/jori/jori.backup.env`, 0600) |
+| `deploy.sh` | 배포 7단계: 백업 → 풀기 → 파이썬 환경 → 커밋 해시 기록 → 마이그레이션 → 전환·재시작 → 건강 확인. 실패하면 이전 버전으로 되돌리고 DB는 되돌리지 않는다 |
+
+서버에서 먼저 확인할 것:
+- `deploy.sh <인스턴스> <커밋> <빌드.tar.gz> --dry-run`과 `backup.sh <인스턴스> --dry-run`으로 순서를 본다.
+- `mariabackup`·`mbstream`·`mariadbd`·`rsync`·`openssl`·`uv`가 설치되어 있는지, `backup_jori`의 권한(`RELOAD, PROCESS, LOCK TABLES, BINLOG MONITOR`)으로 백업이 되는지
+- 백업 유닛을 root로 돌리는 것을 줄일 수 있는지, 별도 저장소(`JORI_BACKUP_DEST`)와 암호화 키의 별도 보관 방법
+- `accounts.sql`을 적용한 뒤 API·워커가 필요한 권한만으로 동작하는지(권한이 모자라면 시퀀스·작업 이력부터 본다)
+- 복구시험을 스테이징 서버에서 한 번 실제로 돌려 결과 보고서를 확인한다
+- 이 초안은 `retention_{자치회}` 계정을 두지 않았다. 파기는 워커 계정으로 돈다
+
+## 6. 아직 하지 않은 것
+
+- 새 자치회를 추가하는 절차(DB·계정·백업 세트·사이트 생성)
+- 웹 앱 빌드와 산출물 묶음을 만드는 절차(`deploy.sh`는 만들어진 `.tar.gz`를 받는다)

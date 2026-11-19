@@ -12,6 +12,8 @@ User=jori
 Group=jori
 WorkingDirectory=/opt/jori/current/apps/api
 EnvironmentFile=/etc/jori/%i.env
+# 워커 전용 DB 계정(worker_jori)을 쓰려면 이 파일에 JORI_DATABASE_URL 한 줄을 둔다. 없으면 공통 설정을 쓴다(초안, ADR-102)
+EnvironmentFile=-/etc/jori/%i.worker.env
 # 상태 파일 위치(JORI_WORKER_STATUS_FILE)는 이 폴더 안이다. 재시작하면 지워지고 워커가 다시 만든다
 RuntimeDirectory=jori/%i
 RuntimeDirectoryPreserve=no

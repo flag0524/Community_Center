@@ -81,8 +81,11 @@ def test_워커_유닛은_알림형이고_watchdog_주기가_워커_신호보다
 
 def test_두_유닛은_같은_환경_파일과_계정을_쓰고_상태_폴더가_앱_설정과_맞다() -> None:
     api, worker = unit("jori-api@.service")["Service"], unit("jori-worker@.service")["Service"]
-    for key in ("EnvironmentFile", "User", "Group", "WorkingDirectory"):
+    for key in ("User", "Group", "WorkingDirectory"):
         assert api[key] == worker[key], key
+    assert (
+        api["EnvironmentFile"] == "/etc/jori/%i.env"
+    )  # 워커는 같은 파일에 선택 파일을 더 읽는다(초안 시험이 본다)
     status_dir = "/run/" + worker["RuntimeDirectory"].replace("%i", "jori")
     assert env_example()["JORI_WORKER_STATUS_FILE"].startswith(status_dir + "/")
 

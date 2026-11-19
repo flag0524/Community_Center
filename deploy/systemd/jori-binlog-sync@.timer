@@ -1,0 +1,10 @@
+# 초안(미검증): 15분마다 바이너리 로그를 보낸다(복구 지점 15분 이내, TDD 11장).
+[Unit]
+Description=조리읍 주민자치센터 수강시스템 바이너리 로그 전송 주기 (%i)
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+
+[Install]
+WantedBy=timers.target

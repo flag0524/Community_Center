@@ -1,0 +1,10 @@
+# 초안(미검증): 바이너리 로그 전송 한 번. jori-binlog-sync@.timer가 15분마다 부른다.
+[Unit]
+Description=조리읍 주민자치센터 수강시스템 바이너리 로그 전송 (%i)
+After=mariadb.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/opt/jori/current/deploy/backup/binlog-sync.sh %i
+TimeoutStartSec=10min
