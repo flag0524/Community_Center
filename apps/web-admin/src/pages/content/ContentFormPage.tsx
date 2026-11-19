@@ -16,6 +16,12 @@ import { useIdempotencyKey } from '../../lib/useIdempotencyKey';
 type ContentType = Schemas['ContentType'];
 const TYPES = Object.keys(CONTENT_TYPE) as ContentType[];
 const IMAGE_TYPES: ContentType[] = ['VISUAL', 'BANNER', 'POPUP'];
+// 스키마에 코드가 없는 유형은 저장할 수 없다(ADR-092). 연혁·안내 본문은 공개 화면이 읽는 JSON이다.
+const UNSAVABLE: ContentType[] = ['VISUAL', 'FACILITY'];
+const BODY_HINT: Partial<Record<ContentType, string>> = {
+  HISTORY: '본문은 {"subtitle": "...", "sections": [...]} 모양의 JSON입니다.',
+  GUIDE: '본문은 {"slug": "guide-apply" 또는 "guide-refund", "subtitle": "...", "sections": [...]} 모양의 JSON입니다. 종류마다 하나만 둘 수 있습니다.',
+};
 const CONTACT_LABELS: Array<[keyof ContactFields, string]> = [
   ['phone', '수강문의 번호'],
   ['adminOfficePhone', '행정복지센터 대표번호'],
@@ -126,8 +132,8 @@ function ContentForm({ content, initialType }: { content?: AdminContent; initial
       </div>
       <form className="adm-form" aria-label="콘텐츠" noValidate onSubmit={submit}>
         <div className="adm-form-grid">
-          <Field id="content-type" label="유형" required error={err('contentType')}>
-            <select {...describe('content-type', err('contentType'))} value={values.contentType} disabled={content !== undefined} onChange={(event) => set('contentType', event.target.value as ContentType)}>
+          <Field id="content-type" label="유형" required error={err('contentType')} hint={UNSAVABLE.includes(values.contentType) ? '이 유형은 아직 저장할 수 없습니다(스키마에 코드가 없습니다).' : undefined}>
+            <select {...describe('content-type', err('contentType'), UNSAVABLE.includes(values.contentType) ? '이 유형은 아직 저장할 수 없습니다(스키마에 코드가 없습니다).' : undefined)} value={values.contentType} disabled={content !== undefined} onChange={(event) => set('contentType', event.target.value as ContentType)}>
               {TYPES.map((value) => (
                 <option key={value} value={value}>
                   {CONTENT_TYPE[value]}
@@ -156,8 +162,8 @@ function ContentForm({ content, initialType }: { content?: AdminContent; initial
               </Field>
             ))
           ) : (
-            <Field id="content-body" label="본문" required error={err('body')} full>
-              <textarea {...describe('content-body', err('body'))} rows={8} maxLength={20000} value={values.body} onChange={(event) => set('body', event.target.value)} />
+            <Field id="content-body" label="본문" required error={err('body')} hint={BODY_HINT[values.contentType]} full>
+              <textarea {...describe('content-body', err('body'), BODY_HINT[values.contentType])} rows={8} maxLength={20000} value={values.body} onChange={(event) => set('body', event.target.value)} />
             </Field>
           )}
           <Field id="content-url" label="링크" error={err('url')} hint="사이트 안 경로(/로 시작)나 https 주소를 입력합니다." full>

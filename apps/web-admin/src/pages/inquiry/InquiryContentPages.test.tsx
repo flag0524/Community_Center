@@ -219,6 +219,38 @@ describe('콘텐츠 등록·수정', () => {
     await userEvent.click(screen.getByRole('link', { name: '목록' }));
     expect((await rows('콘텐츠 목록')).map((row) => cells(row)[0])).toEqual(['맨 앞 비주얼', '4분기 수강 안내 비주얼', '센터 소개 비주얼']);
   });
+  it('안내·연혁은 본문이 JSON이라는 안내를 보이고 일반 유형에는 보이지 않는다', async () => {
+    await signInAs('group');
+    const guide = renderApp('/mbr/contents/new?type=GUIDE');
+    await heading('콘텐츠 등록');
+    expect(field('본문')).toHaveAccessibleDescription(/guide-apply.*guide-refund.*종류마다 하나만/);
+    guide.unmount();
+    const history = renderApp('/mbr/contents/new?type=HISTORY');
+    await heading('콘텐츠 등록');
+    expect(field('본문')).toHaveAccessibleDescription(/subtitle.*sections/);
+    history.unmount();
+    renderApp('/mbr/contents/new?type=BANNER');
+    await heading('콘텐츠 등록');
+    expect(field('본문')).not.toHaveAccessibleDescription();
+  });
+
+  it('스키마에 코드가 없는 유형(홈 비주얼·시설안내)은 저장할 수 없다고 알린다', async () => {
+    await signInAs('group');
+    renderApp('/mbr/contents/new?type=FACILITY');
+    await heading('콘텐츠 등록');
+    expect(field('유형')).toHaveAccessibleDescription('이 유형은 아직 저장할 수 없습니다(스키마에 코드가 없습니다).');
+    await userEvent.selectOptions(field('유형'), '수강·환불 안내');
+    expect(field('유형')).not.toHaveAccessibleDescription();
+  });
+
+  it('연락처 유형은 본문 대신 항목 입력칸을 보인다', async () => {
+    await signInAs('group');
+    renderApp('/mbr/contents/new?type=CONTACT');
+    await heading('콘텐츠 등록');
+    expect(screen.queryByLabelText('본문')).not.toBeInTheDocument();
+    expect(field('수강문의 번호')).toBeInTheDocument();
+  });
+
   it('사이트 밖의 임의 주소와 거꾸로 된 게시 기간은 서버 오류를 항목 아래에 보인다', async () => {
     await signInAs('group');
     renderApp('/mbr/contents/new?type=BANNER');
