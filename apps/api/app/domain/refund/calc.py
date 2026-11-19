@@ -1,4 +1,4 @@
-# 반환 기준액 산정. 개강 전 전액, 개강 후 지난 달(당월 포함)의 수강료를 뺀다(TDD 5.6, PRD Q15, 2026-11-19 확정)
+# 반환 기준액 산정. 개강 전 전액, 개강 후 지난 달(당월 포함) 수강료를 뺀다(TDD 5.6, PRD Q15, 2026-11-19 확정)
 from dataclasses import dataclass
 from datetime import date
 

@@ -12,12 +12,15 @@ describe('생성된 API 타입', () => {
     components: { schemas: Record<string, { properties?: Record<string, { type?: string; 'x-serial'?: boolean }> }> };
   };
 
-  it('경로 166개에 엔드포인트 208개를 담고 있다', () => {
+  it('현재 계약의 경로 178개와 엔드포인트 223개 및 주요 업무 경로를 담고 있다', () => {
     const paths = Object.values(openapi.paths) as Record<string, unknown>[];
-    expect(paths.length).toBe(166);
-    expect(paths.reduce((count, item) => count + Object.keys(item).length, 0)).toBe(208);
+    const methods = new Set(['get', 'post', 'put', 'patch', 'delete', 'head', 'options', 'trace']);
+    expect(paths.length).toBe(178);
+    expect(paths.reduce((count, item) => count + Object.keys(item).filter((key) => methods.has(key)).length, 0)).toBe(223);
     expect(types).toContain('"/api/v1/me/applications"');
     expect(types).toContain('"/api/admin/v1/me/permissions"');
+    expect(openapi.paths).toHaveProperty('/api/v1/me/name-change-requests');
+    expect(openapi.paths).toHaveProperty('/api/admin/v1/retention');
   });
 
   it('Id로 끝나는 필드가 number로 선언되지 않는다', () => {

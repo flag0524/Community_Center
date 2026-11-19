@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 현재 상태
 
-조리읍 주민자치센터 수강시스템(파주시) 구축 프로젝트의 **설계 단계**다. 소스 코드, 빌드·테스트 설정은 아직 없다. 빌드·린트·테스트 명령은 코드가 생기면 이 파일에 추가한다.
+조리읍 주민자치센터 수강시스템(파주시)의 **업무 구현·검증 단계**다. `apps/api`에 FastAPI·MariaDB·워커가 있고 `apps/web-user`, `apps/web-admin`에 React 앱이 있다. 개발 화면은 MSW가 기본이고 `VITE_API_MODE=live`로 실제 API를 쓴다. 운영 PG·SMS 연동·배포·복구 검증은 남아 있으며 완료 여부는 `checklist.md`와 최신 ADR을 따른다.
+
+표준 검증은 루트의 `pnpm check`다. Python 검사는 `apps/api`에서 `uv run ruff check .`, `uv run mypy app tests`, `uv run pytest -q`를 실행한다. 환경의 pnpm·uv 실행기가 막히면 설치된 Node·`.venv/Scripts/python.exe`를 직접 쓰고 그 제한을 기록한다. DB 시험은 `jori_test`만 초기화하며 DB 없는 시험 결과를 통합 검증 통과로 보고하지 않는다.
 
 상위 폴더 `../CLAUDE.md`의 행동 규칙(한국어 콜론 종결 금지, 새 파일 첫 줄 한국어 역할 주석, checklist.md·context-notes.md 유지, 시맨틱 커밋)이 함께 적용된다. 작업을 시작할 때 루트의 `checklist.md`와 `context-notes.md`를 먼저 읽는다. 사용자가 확정한 결정과 그 이유가 이 두 파일에 있다.
 
@@ -14,10 +16,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |---|---|
 | `docs/(DEV-A-0300)요구사항정의서_V1.1.xlsm` | 원천. 기능 72건(RQ-FUN-FN-001~072), 비기능 22건 |
 | `docs/(DEV-A-0300)요구사항추적표_V1.1.xlsm` | 원천. 정의서 내용 + 화면ID·테이블명·UT/IT ID 열. **설계 근거는 이 파일 기준** |
-| `docs/PRJ_2026_002_DB스키마_설계안.md` | **데이터 모델 기준**(v0.5, 45테이블·610컬럼·184FK·코드·무결성규칙). 컬럼·코드·권한 이름이 다른 문서와 다르면 이 문서를 따른다(ADR-027) |
+| `docs/PRJ_2026_002_DB스키마_설계안.md` | **데이터 모델 기준**(v0.6, 45테이블·611컬럼·184FK·코드·무결성규칙). 컬럼·코드·권한 이름이 다른 문서와 다르면 이 문서를 따른다(ADR-027) |
 | `docs/PRD.md` | 기능 요구·수용 기준·미결 질문 Q1~Q30 |
 | `docs/TRD.md` | 수치 기준(성능·보안·보존·백업)과 외부 연동 |
-| `docs/ADR.md` | 설계 결정 ADR-001~028. 결정을 뒤집을 때는 새 ADR을 추가하고 기존 것을 `대체됨(→ADR-NNN)`으로 바꾼다. 삭제 금지 |
+| `docs/ADR.md` | 누적 설계 결정. 결정을 뒤집을 때는 새 ADR을 추가하고 기존 것을 `대체됨(→ADR-NNN)`으로 바꾼다. 삭제 금지 |
 | `docs/TDD.md` | 기술 설계(모듈, 상태 머신, 테이블, API, 배치) |
 | `docs/화면설계서.md` | 화면 117행(원천 115 + ID 제안 2), 와이어프레임 22개, 미결 S1~S8 |
 
@@ -29,7 +31,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 계획된 아키텍처 (TDD.md, ADR.md 요약)
 
 - 스택은 Ubuntu Server, FastAPI(Python 3.12, SQLAlchemy 2 동기 세션 + Alembic), MariaDB 10.11, React 18 + TypeScript + Vite다.
-- 모노레포 구성(ADR-021)은 `apps/api`, `apps/worker`(APScheduler, api 도메인 패키지를 재사용), `apps/web-user`(기본·쉬운 화면), `apps/web-admin`, `packages/ui`, `packages/api-client`다.
+- 모노레포 구성은 `apps/api`, `apps/web-user`(기본·쉬운 화면), `apps/web-admin`, `packages/ui`, `packages/api-client`다. 워커는 ADR-048에 따라 `apps/api/app/worker`에 두고 프로세스만 따로 띄운다.
 - **주민자치회마다 WAS·DB·DB 계정을 따로 둔다**(ADR-002). 센터 간 JOIN·통합 원장은 만들지 않는다. 한 자치회 DB 안에서는 모든 업무 테이블의 `OPER_BNDL_SN`으로 접근 범위를 나눈다.
 - Redis·Celery는 쓰지 않는다. 동시성은 MariaDB `SELECT … FOR UPDATE`로 제어하고, 배치는 워커가 DB 상태를 폴링하며 `FOR UPDATE SKIP LOCKED`로 대상을 집는다(ADR-003, ADR-004).
 
@@ -49,3 +51,5 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 범위에서 빠진 기능 (요청이 와도 먼저 확인)
 
 다음은 만들지 않는다. 취소·미결제 3회 자동 차단, 주민 만족도 설문 제출, 가상계좌, 온라인·오프라인 80:20 정원 배분, 관리자 MFA, 로그인 이력 조회 기능(잠금 판정용 실패 카운터만 둔다), PASS·카카오 인증(SMS OTP로 통일), 과거 원장 이관. 근거는 PRD 1.3절과 ADR에 있다.
+
+OTP 개정 ADR-095: 0001 SQL은 배포 기준으로 동결한다. 스키마 생성기는 tables.py만 갱신하며 이후 DB 변경은 추가 Alembic 버전으로 작성한다. 0002 최초 전환과 비밀키 변경은 발급 중지 후 5분 만료 대기가 필수다.
