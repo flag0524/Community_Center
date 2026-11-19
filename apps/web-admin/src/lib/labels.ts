@@ -206,10 +206,13 @@ export const CLASS_ACTION: Record<Schemas['ClassHistoryAction'], string> = { CRE
 
 export const RETENTION_TARGET: Record<Schemas['RetentionTarget'], string> = {
   WITHDRAWN_MEMBER: '탈퇴 회원 개인정보',
-  AUTH_RECORDS: '인증 기록(OTP·세션·로그인 실패)',
+  AUTH_RECORDS: '인증번호 요청 기록',
   AUDIT_HISTORY: '업무 감사이력',
   REFUND_ACCOUNT: '수동환불 계좌정보',
   SMS_RECORDS: '문자 문안·수신명단',
+  SESSION_RECORDS: '로그인 세션 기록',
+  LOGIN_FAILURES: '로그인 실패 이력',
+  FILE_ORIGINALS: '삭제한 첨부 파일 원본',
 };
 export const RETENTION_STATE: Record<Schemas['RetentionState'], string> = { DUE: '예정일 지남', WAITING: '예정일 전', REVIEW_ONLY: '검토 전용', PERIOD_TBD: '기간 미정' };
 
