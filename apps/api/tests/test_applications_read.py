@@ -623,6 +623,26 @@ def test_결제를_마친_확정_신청은_환불을_요청할_수_있다(world:
     assert body["canCancel"] is False and body["canPay"] is False and body["paymentStatus"] == "PAID"
 
 
+@pytest.mark.parametrize(
+    ("begin", "end", "can_request"),
+    [
+        ("20261110", "20270209", True),  # 개강 전이라 전액
+        ("20261101", "20270131", True),  # 3개월 중 첫 달이라 2/3
+        ("20260901", "20261130", False),  # 마지막 달이라 기준액 0, 접수해도 RFND_NOT_ALLOWED
+    ],
+    ids=["개강전", "교육중_남은_달_있음", "마지막_달"],
+)
+def test_환불_기준액이_0이면_환불을_요청할_수_없다고_알린다(
+    world: World, begin: str, end: str, can_request: bool
+) -> None:
+    me = sign_in(world, **RESIDENT)
+    app = application(world, me, open_course(world, EDU_BGNG_YMD=begin, EDU_END_YMD=end), "ES.CONFIRM")
+    payment(world, app, "PS.PAID", STLM_AMT=30000)
+    assert detail(world, app).json()["canRequestRefund"] is can_request
+    listed = world.client.get(f"{MEMBER}/me/applications").json()["items"]
+    assert [item["canRequestRefund"] for item in listed] == [can_request]
+
+
 def test_결제_없는_확정은_개강_전까지만_취소할_수_있다(world: World) -> None:
     me = sign_in(world, **RESIDENT)
     before = application(

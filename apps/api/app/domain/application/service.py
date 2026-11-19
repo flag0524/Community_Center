@@ -1,5 +1,5 @@
 # 수강신청 조회(신청 화면 미리보기, 내 신청 목록·상세). 가능 여부와 화면 상태는 서버가 판정한다(FN-014, 025, 037)
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any
 
@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import DEFAULT_MESSAGES, ApiError, ErrorCode
 from app.core.schema import PageCriteria
-from app.core.times import kst_ymd, utc
+from app.core.times import kst_today, kst_ymd, utc
 from app.db.tables import TB_ATNLC_APLY, TB_CORS, TB_MBR, TB_RFND, TB_STLM
 from app.domain.application.pricing import is_resident, quote
 from app.domain.application.schemas import (
@@ -23,6 +23,7 @@ from app.domain.application.types import ApplicationStatus
 from app.domain.course.service import course_query, reception_state, summaries, visible_course
 from app.domain.course.types import ReceptionState
 from app.domain.payment.types import PaymentStatus
+from app.domain.refund.calc import reference_amount
 from app.domain.refund.types import RefundStage
 
 PAYMENT_WINDOW_SECONDS = 600  # 자리 배정 시각부터 결제할 수 있는 시간(SEAT-01)
@@ -204,6 +205,7 @@ def _my_query(bundle_sn: int, member_sn: int) -> Select[Any]:
             TB_ATNLC_APLY,
             TB_CORS.c.CORS_STTS_CD,
             TB_CORS.c.EDU_BGNG_YMD,
+            TB_CORS.c.EDU_END_YMD,
             latest_payment.label("PAY_SN"),
         )
         .join(
@@ -230,18 +232,17 @@ def _summaries(db: Session, bundle_sn: int, rows: list[Any], now: datetime) -> l
     }
     course_summaries = dict(zip(courses, summaries(db, bundle_sn, list(courses.values()), now), strict=True))
     pay_sns = [int(r.PAY_SN) for r in rows if r.PAY_SN is not None]
-    payments = (
-        {
-            int(p.STLM_SN): str(p.STLM_STTS_CD)
-            for p in db.execute(
-                select(TB_STLM.c.STLM_SN, TB_STLM.c.STLM_STTS_CD).where(
-                    TB_STLM.c.OPER_BNDL_SN == bundle_sn, TB_STLM.c.STLM_SN.in_(pay_sns)
-                )
-            ).all()
-        }
+    paid_rows = (
+        db.execute(
+            select(TB_STLM.c.STLM_SN, TB_STLM.c.STLM_STTS_CD, TB_STLM.c.STLM_AMT).where(
+                TB_STLM.c.OPER_BNDL_SN == bundle_sn, TB_STLM.c.STLM_SN.in_(pay_sns)
+            )
+        ).all()
         if pay_sns
-        else {}
+        else []
     )
+    payments = {int(p.STLM_SN): str(p.STLM_STTS_CD) for p in paid_rows}
+    paid_amounts = {int(p.STLM_SN): int(p.STLM_AMT) for p in paid_rows}
     refunds: dict[int, str] = {}
     if pay_sns:
         for r in db.execute(
@@ -260,6 +261,13 @@ def _summaries(db: Session, bundle_sn: int, rows: list[Any], now: datetime) -> l
         refund_code = refunds.get(int(row.PAY_SN)) if row.PAY_SN is not None else None
         refund = REFUND_STAGE.get(refund_code) if refund_code else None
         state = flags(row, payment, refund, now)
+        if state.can_request_refund and row.PAY_SN is not None:
+            # 환불 기준액이 0이면 접수해도 RFND_NOT_ALLOWED라, 화면에서 처음부터 신청 버튼을 숨긴다(환불 접수와 같은 계산)
+            reference = reference_amount(
+                paid_amounts[int(row.PAY_SN)], str(row.EDU_BGNG_YMD), str(row.EDU_END_YMD), kst_today(now)
+            )
+            if reference.amount <= 0:
+                state = replace(state, can_request_refund=False)
         result.append(
             ApplicationSummary(
                 application_id=str(int(row.ATNLC_APLY_SN)),
