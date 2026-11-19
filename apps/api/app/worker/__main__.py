@@ -17,6 +17,9 @@ from app.db.bundle import BundleResolver
 from app.db.session import create_db_engine, open_session
 from app.worker.runner import build_jobs, run_guarded
 from app.worker.status import initialize_status
+from app.worker.systemd import notify
+
+WATCHDOG_PING_SECONDS = 15  # 유닛의 WatchdogSec(60초)보다 충분히 짧게 보낸다
 
 
 def utc_now() -> datetime:
@@ -50,6 +53,15 @@ def main() -> None:
             coalesce=True,
         )
     open_session(engine).close()  # 접속을 미리 확인한다
+    # 스케줄러 스레드가 살아 있는 동안만 watchdog 신호가 나가, 스케줄러가 멈추면 systemd가 다시 시작한다
+    scheduler.add_job(
+        notify,
+        IntervalTrigger(seconds=WATCHDOG_PING_SECONDS),
+        args=["WATCHDOG=1"],
+        id="watchdog",
+        max_instances=1,
+    )
+    notify("READY=1")
     scheduler.start()
 
 

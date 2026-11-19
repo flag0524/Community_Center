@@ -1,0 +1,14 @@
+# /etc/mysql/mariadb.conf.d/60-jori.cnf 로 둔다. MariaDB 10.11 기준(ADR-029·038).
+[mysqld]
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+# 신청·결제 동시성은 READ COMMITTED의 문장 단위 최신 읽기와 행 잠금을 전제로 한다(ADR-038)
+transaction_isolation = READ-COMMITTED
+# 바이너리 로그를 켠 운영 DB에서 STATEMENT이면 READ COMMITTED 쓰기가 거절된다. MIXED 또는 ROW를 쓴다
+log_bin = /var/lib/mysql/mariadb-bin
+binlog_format = ROW
+expire_logs_days = 7
+# 리눅스 기본값. 대소문자를 구분하는 이름 규칙을 개발 DB(lower_case_table_names=2)가 가리던 문제를 운영에서 확인한다
+lower_case_table_names = 0
+# 앱 세션이 UTC로 쓰고 읽는다(TDD 11장)
+default_time_zone = +00:00

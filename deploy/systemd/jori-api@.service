@@ -1,0 +1,29 @@
+# 자치회 인스턴스마다 하나씩 띄우는 API 프로세스 유닛. 예: systemctl enable --now jori-api@jori
+# 가정한 배포 값(경로·포트·계정)은 deploy/README.md의 표를 따른다. 확정되면 이 파일의 값만 바꾼다.
+[Unit]
+Description=조리읍 주민자치센터 수강시스템 API (%i)
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=jori
+Group=jori
+WorkingDirectory=/opt/jori/current/apps/api
+# JORI_API_PORT·JORI_API_WORKERS는 이 유닛만 읽는다(앱 설정이 아니다)
+EnvironmentFile=/etc/jori/%i.env
+RuntimeDirectory=jori/%i
+ExecStart=/opt/jori/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port ${JORI_API_PORT} --workers ${JORI_API_WORKERS} --proxy-headers --forwarded-allow-ips=127.0.0.1 --no-server-header
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+# 앱이 쓰는 곳은 첨부 저장소와 실행 상태 폴더뿐이다
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/jori/%i
+
+[Install]
+WantedBy=multi-user.target
