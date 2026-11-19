@@ -122,7 +122,9 @@ const kstYearMonth = (date: Date): [number, number] => {
   return [Number(year), Number(month)];
 };
 
-/** 반환 기준액 산정을 흉내 낸다. 개강 전이면 전액, 개강 후에는 지난 달수와 당월분을 뺀 나머지다(PRD Q15, 기관 승인 전 값). */
+const RULE_FINALIZED_ON = '2026-11-19'; // 반환 기준 공식의 확정일(서버 응답과 같은 값, ADR-097)
+
+/** 반환 기준액 산정을 흉내 낸다. 개강 전이면 전액, 개강 후에는 지난 달수와 당월분을 뺀 나머지다(PRD Q15, 2026-11-19 확정). */
 function buildRefundPreview(application: Application, reserved: number, now: Date): Schemas['RefundPreview'] {
   const paid = application.payableAmount;
   const [startYear, startMonth] = application.course.educationStart.split('-').map(Number) as [number, number];
@@ -131,7 +133,7 @@ function buildRefundPreview(application: Application, reserved: number, now: Dat
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(now);
   const base = { applicationId: application.applicationId, paidAmount: paid, reservedAmount: reserved, serverNow: now.toISOString() };
   if (today < application.course.educationStart) {
-    return { ...base, refundableAmount: paid, basis: { rule: 'BEFORE_START', referenceDate: today } };
+    return { ...base, refundableAmount: paid, basis: { rule: 'BEFORE_START', ruleFinalizedOn: RULE_FINALIZED_ON, referenceDate: today } };
   }
   const [year, month] = kstYearMonth(now);
   const elapsed = Math.min(educationMonths, (year - startYear) * 12 + (month - startMonth) + 1);
@@ -139,7 +141,7 @@ function buildRefundPreview(application: Application, reserved: number, now: Dat
   return {
     ...base,
     refundableAmount: monthlyFee * Math.max(0, educationMonths - elapsed),
-    basis: { rule: 'AFTER_START', referenceDate: today, educationMonths, elapsedMonths: elapsed, monthlyFee },
+    basis: { rule: 'AFTER_START', ruleFinalizedOn: RULE_FINALIZED_ON, referenceDate: today, educationMonths, elapsedMonths: elapsed, monthlyFee },
   };
 }
 function createApplication(courseId: string, memberId: string, now: Date): Application {

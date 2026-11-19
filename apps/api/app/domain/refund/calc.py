@@ -1,13 +1,16 @@
-# 반환 기준액 산정. 개강 전 전액, 개강 후에는 지난 달(당월 포함)의 수강료를 뺀다(TDD 5.6, PRD Q15 잠정 공식)
+# 반환 기준액 산정. 개강 전 전액, 개강 후 지난 달(당월 포함)의 수강료를 뺀다(TDD 5.6, PRD Q15, 2026-11-19 확정)
 from dataclasses import dataclass
 from datetime import date
 
 from app.domain.refund.types import RefundRule
 
+# 반환 기준 공식을 기관이 확정한 날(사용자 전달). 공식을 바꾸면 새 ADR과 함께 이 날짜를 바꾼다
+RULE_FINALIZED_ON = date(2026, 11, 19)
+
 
 @dataclass(frozen=True)
 class Reference:
-    """반환 기준액과 그 근거. 근거는 기관 승인본이 나오면 공식과 함께 바뀔 수 있다."""
+    """반환 기준액과 그 근거. 공식은 2026-11-19에 확정했다. 바꾸려면 새 ADR로 대체한다."""
 
     amount: int
     rule: RefundRule

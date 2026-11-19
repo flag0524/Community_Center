@@ -16,7 +16,7 @@ from app.db.tables import TB_ATNLC_APLY, TB_CORS, TB_RFND, TB_STLM
 from app.domain.application.seats import cancel_ready_payments, lock_course, promote_waiters, set_status
 from app.domain.application.service import REFUND_STAGE
 from app.domain.payment.service import lock_application, lock_payment
-from app.domain.refund.calc import Reference, reference_amount
+from app.domain.refund.calc import RULE_FINALIZED_ON, Reference, reference_amount
 from app.domain.refund.schemas import Refund, RefundBasis, RefundPage, RefundPreview
 from app.domain.refund.types import RefundStatus
 
@@ -102,6 +102,7 @@ def _application(db: Session, bundle_sn: int, member_sn: int, application_sn: in
 def _basis(ref: Reference) -> RefundBasis:
     return RefundBasis(
         rule=ref.rule,
+        rule_finalized_on=RULE_FINALIZED_ON,
         reference_date=ref.reference_date,
         education_months=ref.education_months,
         elapsed_months=ref.elapsed_months,

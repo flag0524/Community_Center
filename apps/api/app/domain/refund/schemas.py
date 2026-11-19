@@ -8,9 +8,10 @@ from app.domain.refund.types import RefundRule, RefundStage, RefundStatus
 
 
 class RefundBasis(ApiModel):
-    """반환 기준액 산정 근거. 공식은 기관 승인본이 나오면 바뀔 수 있다(PRD Q15)."""
+    """반환 기준액 산정 근거. 공식은 2026-11-19에 확정했다(PRD Q15, ADR-097)."""
 
     rule: RefundRule
+    rule_finalized_on: date = Field(description="반환 기준 공식을 기관이 확정한 날(한국 날짜)")
     reference_date: date
     education_months: int | None = Field(default=None, ge=1)
     elapsed_months: int | None = Field(default=None, ge=0)

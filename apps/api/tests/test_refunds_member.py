@@ -107,6 +107,14 @@ def test_개강_전_미리보기는_결제액_전액이다(world: World) -> None
     body = preview(world, app).json()
     assert (body["paidAmount"], body["refundableAmount"], body["reservedAmount"]) == (30000, 30000, 0)
     assert body["basis"]["rule"] == "BEFORE_START"
+    assert body["basis"]["ruleFinalizedOn"] == "2026-11-19"  # 반환 기준 공식의 확정일(ADR-097)
+
+
+def test_개강_후_미리보기도_공식_확정일을_준다(world: World) -> None:
+    me = sign_in(world, **RESIDENT)
+    app = paid_application(world, me, open_course(world, EDU_BGNG_YMD="20261101", EDU_END_YMD="20270131"))
+    basis = preview(world, app).json()["basis"]
+    assert (basis["rule"], basis["ruleFinalizedOn"]) == ("AFTER_START", "2026-11-19")
 
 
 @pytest.mark.parametrize("kind", ["결제없는_확정", "대기"])
