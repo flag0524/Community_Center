@@ -141,11 +141,29 @@ def test_수정일은_수정_시각이_있으면_그것을_한국_날짜로_주�
     assert world.client.get(f"{MEMBER}/contents/center-history").json()["updatedOn"] == "2024-03-01"
 
 
-@pytest.mark.parametrize("content_type", ["CT.INTRO", "CT.HISTORY"])
-def test_저장_위치가_없는_안내_글은_같은_식별자가_있어도_404다(world: World, content_type: str) -> None:
-    for slug in ("guide-apply", "guide-refund", "center-facility"):
-        publish(world, content_type, slug, json.dumps(HISTORY))  # 어떤 유형으로 저장돼 있어도 내주지 않는다
-        assert world.client.get(f"{MEMBER}/contents/{slug}").status_code == 404
+@pytest.mark.parametrize("content_type", ["CT.INTRO", "CT.HISTORY", "CT.GUIDE"])
+def test_시설안내는_코드가_없어_어떤_유형으로_저장돼도_404다(world: World, content_type: str) -> None:
+    publish(world, content_type, "center-facility", json.dumps(HISTORY))
+    assert world.client.get(f"{MEMBER}/contents/center-facility").status_code == 404
+
+
+@pytest.mark.parametrize("slug", ["guide-apply", "guide-refund"])
+def test_안내_글은_CT_GUIDE의_게시_중인_글을_식별자로_찾는다(world: World, slug: str) -> None:
+    publish(
+        world, "CT.GUIDE", "guide-apply", json.dumps({**HISTORY, "subtitle": "신청 안내"}), CONTS_TTL="신청"
+    )
+    publish(
+        world, "CT.GUIDE", "guide-refund", json.dumps({**HISTORY, "subtitle": "환불 안내"}), CONTS_TTL="환불"
+    )
+    out = world.client.get(f"{MEMBER}/contents/{slug}").json()
+    assert (out["slug"], out["subtitle"]) == (slug, "신청 안내" if slug == "guide-apply" else "환불 안내")
+
+
+def test_안내_글은_다른_유형이나_미게시면_내주지_않는다(world: World) -> None:
+    publish(world, "CT.HISTORY", "guide-apply", json.dumps(HISTORY))  # 유형이 다르다
+    publish(world, "CT.GUIDE", "guide-refund", json.dumps(HISTORY), PSTG_YN="N")
+    assert world.client.get(f"{MEMBER}/contents/guide-apply").status_code == 404
+    assert world.client.get(f"{MEMBER}/contents/guide-refund").status_code == 404
 
 
 def test_식별자가_다른_연혁이나_미게시_연혁은_내주지_않는다(world: World) -> None:
@@ -206,3 +224,49 @@ def test_연락처는_요청이_해석된_운영묶음의_값을_준다(world: W
     world.client.app.dependency_overrides[get_bundle_resolver] = lambda: FixedBundle(int(other))  # type: ignore[attr-defined]
     body = world.client.get(f"{MEMBER}/site/contact").json()
     assert body["phone"] == "0319990000" and body["address"] == "다른 센터"
+
+
+def test_연락처_글이_게시돼_있으면_그_항목을_주고_비어_있는_전화와_주소만_운영묶음_값으로_채운다(
+    world: World,
+) -> None:
+    world.db.execute(
+        tables.TB_OPER_BNDL.update()
+        .where(tables.TB_OPER_BNDL.c.OPER_BNDL_SN == world.bundle)
+        .values(TELNO="0319451234", ADDR="경기도 파주시 조리읍")
+    )
+    publish(
+        world,
+        "CT.CONTACT",
+        "contact",
+        json.dumps({"phone": "031-111-2222", "adminOfficePhone": "031-333-4444", "openHours": "평일 9~18시"}),
+    )
+    assert world.client.get(f"{MEMBER}/site/contact").json() == {
+        "phone": "031-111-2222",  # 글의 값이 이긴다
+        "adminOfficePhone": "031-333-4444",
+        "postalCode": None,
+        "address": "경기도 파주시 조리읍",  # 글에 없으면 운영묶음 값이다
+        "floorInfo": None,
+        "openHours": "평일 9~18시",
+        "parking": None,
+    }
+
+
+@pytest.mark.parametrize(
+    "values",
+    [{"PSTG_YN": "N"}, {"PSTG_END_DT": START}, {"PSTG_BGNG_DT": START + timedelta(seconds=1)}],
+    ids=["미게시", "게시_종료", "게시_시작_전"],
+)
+def test_게시_중이_아닌_연락처_글은_쓰지_않는다(world: World, values: dict[str, Any]) -> None:
+    world.db.execute(
+        tables.TB_OPER_BNDL.update()
+        .where(tables.TB_OPER_BNDL.c.OPER_BNDL_SN == world.bundle)
+        .values(TELNO="0319451234", ADDR="경기도 파주시 조리읍")
+    )
+    publish(world, "CT.CONTACT", "contact", json.dumps({"phone": "031-111-2222"}), **values)
+    assert world.client.get(f"{MEMBER}/site/contact").json()["phone"] == "0319451234"
+
+
+@pytest.mark.parametrize("raw", ["not json", "[]", json.dumps({"phone": 123})])
+def test_연락처_글_본문이_모양이_틀리면_500이다(world: World, raw: str) -> None:
+    publish(world, "CT.CONTACT", "contact", raw)
+    assert world.client.get(f"{MEMBER}/site/contact").status_code == 500

@@ -15,8 +15,12 @@ from app.domain.member.types import TermType
 from app.domain.site.schemas import ContactResponse, ContentDocument, ContentSlug
 
 KST = timezone(timedelta(hours=9))
-# 안내 글 중 지금 저장 위치(CT 코드)가 있는 것만 둔다. 나머지 셋은 스키마 개정 R9 전까지 404다(ADR-034).
-SLUG_CONTENT_TYPE = {ContentSlug.CENTER_HISTORY: "CT.HISTORY"}
+# 안내 글 중 저장 위치(CT 코드)가 있는 것만 둔다. 시설안내(center-facility)는 코드를 추가하지 않기로 해 404다(ADR-092).
+SLUG_CONTENT_TYPE = {
+    ContentSlug.CENTER_HISTORY: "CT.HISTORY",
+    ContentSlug.GUIDE_APPLY: "CT.GUIDE",
+    ContentSlug.GUIDE_REFUND: "CT.GUIDE",
+}
 
 
 def _kst_date(value: datetime | None) -> date | None:
@@ -99,9 +103,25 @@ def get_content(db: Session, bundle_sn: int, slug: ContentSlug, now: datetime) -
         raise ApiError(ErrorCode.INTERNAL_ERROR) from None
 
 
-def get_contact(db: Session, bundle_sn: int) -> ContactResponse:
-    """연락처 저장 위치가 아직 없어(Q23) 운영묶음의 전화·주소만 채우고 나머지는 비운다."""
-    row = db.execute(
+def get_contact(db: Session, bundle_sn: int, now: datetime) -> ContactResponse:
+    """게시 중인 연락처 글(CT.CONTACT)의 항목을 우선하고, 비어 있는 전화·주소는 운영묶음 값으로 채운다."""
+    base = db.execute(
         select(TB_OPER_BNDL.c.TELNO, TB_OPER_BNDL.c.ADDR).where(TB_OPER_BNDL.c.OPER_BNDL_SN == bundle_sn)
     ).one()
-    return ContactResponse(phone=row.TELNO, address=row.ADDR)
+    row = _latest_published(db, bundle_sn, "CT.CONTACT", now, content_id=None, version=None)
+    values: dict[str, Any] = {}
+    if row is not None:
+        try:
+            parsed = json.loads(str(row.CONTS_CN))
+            if not isinstance(parsed, dict):
+                raise ValueError("본문이 객체가 아니다")
+            values = parsed
+        except ValueError:
+            raise ApiError(ErrorCode.INTERNAL_ERROR) from None
+    try:
+        found = ContactResponse.model_validate(values)
+    except ValidationError:
+        raise ApiError(ErrorCode.INTERNAL_ERROR) from None
+    return found.model_copy(
+        update={"phone": found.phone or base.TELNO, "address": found.address or base.ADDR}
+    )

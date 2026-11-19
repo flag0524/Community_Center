@@ -20,6 +20,7 @@ from app.domain.admin.content_schemas import (
     AdminContentSummary,
     AdminContentUpdate,
     AdminContentWrite,
+    ContactFields,
 )
 from app.domain.admin.content_types import ContentType
 from app.domain.admin.education_service import _idem_mark, _replayed
@@ -27,15 +28,19 @@ from app.domain.admin.types import AdminAuthority as AU
 from app.domain.board.sanitize import clean_body
 from app.domain.site.schemas import ContentDocument, ContentSlug
 
-# 스키마(CT)에 있는 코드만 저장할 수 있다. 나머지 유형은 개정 요청(R9·R14·Q23) 전까지 거절한다
+# 스키마(CT)에 있는 코드만 저장할 수 있다. 홈 비주얼(VISUAL)과 시설안내(FACILITY)는 코드가 없어 거절한다(ADR-092)
 TYPE_CODE = {
     ContentType.BANNER: "CT.BANNER",
     ContentType.POPUP: "CT.POPUP",
     ContentType.HISTORY: "CT.HISTORY",
     ContentType.INTRO: "CT.INTRO",
+    ContentType.GUIDE: "CT.GUIDE",
+    ContentType.CONTACT: "CT.CONTACT",
 }
 CODE_TYPE = {code: kind for kind, code in TYPE_CODE.items()}
 HISTORY_ID = ContentSlug.CENTER_HISTORY.value  # 공개 화면이 이 식별자로 연혁을 찾는다
+CONTACT_ID = "contact"  # 연락처는 운영묶음에 하나다
+GUIDE_IDS = (ContentSlug.GUIDE_APPLY.value, ContentSlug.GUIDE_REFUND.value)  # 안내 글은 이 식별자마다 하나다
 VERSION = "v1"  # 콘텐츠는 제자리에서 고친다. 약관처럼 버전을 늘리지 않는다
 JOB = "CONTENT_CREATE"
 
@@ -67,11 +72,12 @@ def _summary(row: Any) -> AdminContentSummary:
 
 
 def _detail(row: Any) -> AdminContent:
+    is_contact = str(row.CONTS_TYPE_CD).strip() == "CT.CONTACT"
     return AdminContent(
         **_summary(row).model_dump(),
-        body=str(row.CONTS_CN),
+        body="" if is_contact else str(row.CONTS_CN),  # 연락처는 본문 대신 구조 값(CONTS_CN의 JSON)이다
         url=None if row.URL_ADDR is None else str(row.URL_ADDR),
-        contact=None,  # 연락처 유형은 저장 위치가 없다(PRD Q23, 개정 요청 R14)
+        contact=ContactFields.model_validate(json.loads(str(row.CONTS_CN))) if is_contact else None,
         version=int(row.RCRD_VER),
     )
 
@@ -128,13 +134,17 @@ def _fail(field: str, message: str) -> ApiError:
     return ApiError(ErrorCode.RULE_REJECTED, message, fields={field: message})
 
 
-def _checked(body: AdminContentWrite) -> tuple[str, str, str | None]:
-    """제목·본문·링크를 검사한다. 본문은 허용된 서식만 남기고, 연혁은 공개 화면이 읽는 JSON 모양이어야 한다."""
+def _checked(body: AdminContentWrite) -> tuple[str, str, str | None, str | None]:
+    """제목·본문·링크를 검사한다. 돌려주는 값은 (제목, 저장할 본문, 링크, 고정 식별자)다.
+
+    본문은 허용된 서식만 남긴다. 연혁·안내는 공개 화면이 읽는 JSON 모양이어야 하고, 연락처는 구조 입력을 JSON으로 저장한다.
+    고정 식별자는 운영묶음에 하나만 둘 수 있는 유형(연혁·연락처·안내 글마다)의 CONTS_ID다.
+    """
     kind = body.content_type
     if kind not in TYPE_CODE:
-        raise _fail("contentType", "아직 저장할 수 없는 유형입니다(스키마 개정 요청 R9·R14 대기).")
-    if body.contact is not None:
-        raise _fail("contact", "연락처 구조 입력은 아직 저장할 수 없습니다(PRD Q23 대기).")
+        raise _fail("contentType", "이 유형은 저장할 수 없습니다(홈 비주얼과 시설안내는 코드가 없습니다).")
+    if kind is not ContentType.CONTACT and body.contact is not None:
+        raise _fail("contact", "연락처 유형이 아니면 구조 입력을 받지 않습니다.")
     title = body.title.strip()
     if not title:
         raise _fail("title", "제목을 입력해 주세요.")
@@ -143,16 +153,33 @@ def _checked(body: AdminContentWrite) -> tuple[str, str, str | None]:
         raise _fail("url", "링크는 사이트 안 경로(/로 시작)이거나 https 주소여야 합니다.")
     if body.period_start and body.period_end and body.period_end <= body.period_start:
         raise _fail("periodEnd", "게시 종료는 게시 시작보다 뒤여야 합니다.")
-    if kind is ContentType.HISTORY:
+    if kind is ContentType.CONTACT:
+        if body.contact is None:
+            raise _fail("contact", "연락처 항목을 입력해 주세요.")
+        values = body.contact.model_dump(by_alias=True, exclude_none=True)
+        values = {name: value.strip() for name, value in values.items() if value.strip()}
+        if not values:
+            raise _fail("contact", "연락처 항목을 하나 이상 입력해 주세요.")
+        return title, json.dumps(values, ensure_ascii=False), url, CONTACT_ID
+    if kind in (ContentType.HISTORY, ContentType.GUIDE):
         try:
             parsed = json.loads(body.body)
             if not isinstance(parsed, dict):
                 raise ValueError("객체가 아니다")
-            ContentDocument.model_validate({**parsed, "slug": HISTORY_ID, "title": title})
+            slug = HISTORY_ID if kind is ContentType.HISTORY else str(parsed.pop("slug", ""))
+            if kind is ContentType.GUIDE and slug not in GUIDE_IDS:
+                raise _fail("body", "안내 본문의 slug는 guide-apply 또는 guide-refund여야 합니다.")
+            ContentDocument.model_validate({**parsed, "slug": slug, "title": title})
         except (ValueError, ValidationError):
-            raise _fail("body", "연혁 본문은 {subtitle, sections} 모양의 JSON이어야 합니다.") from None
-        return title, body.body, url
-    return title, clean_body(body.body), url
+            name = "연혁" if kind is ContentType.HISTORY else "안내"
+            raise _fail("body", f"{name} 본문은 {{subtitle, sections}} 모양의 JSON이어야 합니다.") from None
+        return (
+            title,
+            json.dumps(parsed, ensure_ascii=False) if kind is ContentType.GUIDE else body.body,
+            url,
+            slug,
+        )
+    return title, clean_body(body.body), url, None
 
 
 def _content_dong(scope: Scope) -> int | None:
@@ -196,17 +223,17 @@ def create_content(
     prior = _replayed(db, admin.bundle_sn, JOB, idem_key, body)
     if prior is not None:
         return _detail(db.execute(_base(admin.bundle_sn).where(TB_SITE_CONTS.c.SITE_CONTS_SN == prior)).one())
-    title, text, url = _checked(body)
+    title, text, url, fixed_id = _checked(body)
     dong = _content_dong(scope)
-    if body.content_type is ContentType.HISTORY:
+    if fixed_id is not None:
         exists = db.execute(
             select(TB_SITE_CONTS.c.SITE_CONTS_SN).where(
-                TB_SITE_CONTS.c.OPER_BNDL_SN == admin.bundle_sn, TB_SITE_CONTS.c.CONTS_ID == HISTORY_ID
+                TB_SITE_CONTS.c.OPER_BNDL_SN == admin.bundle_sn, TB_SITE_CONTS.c.CONTS_ID == fixed_id
             )
         ).first()
         if exists is not None:
-            raise _fail("contentType", "연혁은 하나만 둘 수 있습니다. 기존 연혁을 고쳐 주세요.")
-        conts_id = HISTORY_ID
+            raise _fail("contentType", "이 유형은 하나만 둘 수 있습니다. 기존 글을 고쳐 주세요.")
+        conts_id = fixed_id
     else:
         conts_id = f"{body.content_type.value.lower()}-{secrets.token_hex(4)}"
     sn = int(
@@ -249,7 +276,9 @@ def update_content(
     ).one()
     if body.version != int(locked.RCRD_VER):
         raise ApiError(ErrorCode.VERSION_CONFLICT)
-    title, text, url = _checked(body)
+    title, text, url, fixed_id = _checked(body)
+    if fixed_id is not None and fixed_id != str(row.CONTS_ID):
+        raise _fail("body", "안내 글의 종류는 바꿀 수 없습니다.")
     db.execute(
         update(TB_SITE_CONTS)
         .where(TB_SITE_CONTS.c.SITE_CONTS_SN == row.SITE_CONTS_SN)

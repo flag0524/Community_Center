@@ -119,18 +119,131 @@ def test_배너를_등록하면_본문을_정리해_저장하고_공통_콘텐�
     )
 
 
-@pytest.mark.parametrize("kind", ["VISUAL", "CONTACT", "GUIDE", "FACILITY"])
+@pytest.mark.parametrize("kind", ["VISUAL", "FACILITY"])
 def test_스키마에_코드가_없는_유형은_저장하지_않고_이유를_알린다(world: World, kind: str) -> None:
     use(world, staff(world, "boss", "AU.SITE_W"))
     r = make(world, body(kind))
-    assert r.status_code == 422 and "contentType" in r.json()["fields"] and "개정 요청" in r.json()["message"]
+    assert (
+        r.status_code == 422
+        and "contentType" in r.json()["fields"]
+        and "코드가 없습니다" in r.json()["message"]
+    )
     assert rows(world, "SELECT COUNT(*) n FROM TB_SITE_CONTS")[0]["n"] == 0
 
 
-def test_연락처_구조_입력은_저장하지_않는다(world: World) -> None:
+def test_연락처가_아닌_유형은_구조_입력을_받지_않는다(world: World) -> None:
     use(world, staff(world, "boss", "AU.SITE_W"))
     r = make(world, body("BANNER", contact={"phone": "031-000-0000"}))
     assert r.status_code == 422 and "contact" in r.json()["fields"]
+
+
+# --- 연락처·안내 ----------------------------------------------------------------------------------
+
+
+CONTACT = {"phone": " 031-945-1234 ", "openHours": "평일 09:00~18:00", "parking": "", "address": None}
+
+
+def test_연락처는_구조_입력을_JSON으로_저장하고_빈_값은_뺀다(world: World) -> None:
+    use(world, staff(world, "boss", "AU.SITE_W"))
+    r = make(world, body("CONTACT", title="센터 연락처", body="", contact=CONTACT))
+    assert r.status_code == 201, r.text
+    out = r.json()
+    assert (out["contentType"], out["body"]) == ("CONTACT", "")  # 본문 대신 구조 값을 쓴다
+    assert out["contact"] == {
+        "phone": "031-945-1234",
+        "adminOfficePhone": None,
+        "postalCode": None,
+        "address": None,
+        "floorInfo": None,
+        "openHours": "평일 09:00~18:00",
+        "parking": None,
+    }
+    [row] = rows(world, "SELECT CONTS_TYPE_CD c, CONTS_ID i, CONTS_CN n, DONG_SN d FROM TB_SITE_CONTS")
+    assert (row["c"].strip(), row["i"], row["d"]) == ("CT.CONTACT", "contact", None)
+    assert json.loads(row["n"]) == {"phone": "031-945-1234", "openHours": "평일 09:00~18:00"}
+
+
+@pytest.mark.parametrize("contact", [None, {}, {"phone": "  ", "parking": ""}])
+def test_연락처는_항목을_하나_이상_입력해야_한다(world: World, contact: dict[str, str] | None) -> None:
+    use(world, staff(world, "boss", "AU.SITE_W"))
+    r = make(world, body("CONTACT", contact=contact))
+    assert r.status_code == 422 and "contact" in r.json()["fields"]
+    assert rows(world, "SELECT COUNT(*) n FROM TB_SITE_CONTS")[0]["n"] == 0
+
+
+def test_연락처는_하나만_두고_고쳐서_쓴다(world: World) -> None:
+    use(world, staff(world, "boss", "AU.SITE_W"))
+    made = make(world, body("CONTACT", contact=CONTACT)).json()
+    again = make(world, body("CONTACT", contact={"phone": "02"}), key="key-00000002")
+    assert again.status_code == 422 and "contentType" in again.json()["fields"]
+    r = call(
+        world,
+        "PUT",
+        f"/contents/{made['contentId']}",
+        {**body("CONTACT", contact={"phone": "031-000-1111", "parking": "정문 옆"}), "version": 1},
+    )
+    assert r.status_code == 200 and (r.json()["contact"]["phone"], r.json()["contact"]["parking"]) == (
+        "031-000-1111",
+        "정문 옆",
+    )
+    assert r.json()["contact"]["openHours"] is None  # 고칠 때 입력하지 않은 항목은 비운다
+
+
+GUIDE = {
+    "subtitle": "수강 신청",
+    "sections": [
+        {
+            "heading": "신청 방법",
+            "paragraphs": ["접수기간에 신청"],
+            "steps": [],
+            "items": [],
+            "table": None,
+            "links": [],
+        }
+    ],
+}
+
+
+def guide_body(slug: str = "guide-apply", **values: Any) -> dict[str, Any]:
+    text = json.dumps({**GUIDE, "slug": slug}, ensure_ascii=False)
+    return body("GUIDE", title="수강 신청 안내", body=text, **values)
+
+
+def test_안내_글은_종류마다_하나이고_공개_화면이_읽는_JSON이어야_한다(world: World) -> None:
+    use(world, staff(world, "boss", "AU.SITE_W"))
+    assert make(world, guide_body("guide-apply")).status_code == 201
+    assert make(world, guide_body("guide-refund"), key="key-00000002").status_code == 201
+    dup = make(world, guide_body("guide-apply"), key="key-00000003")
+    assert dup.status_code == 422 and "contentType" in dup.json()["fields"]
+    ids = {r["i"] for r in rows(world, "SELECT CONTS_ID i FROM TB_SITE_CONTS")}
+    assert ids == {"guide-apply", "guide-refund"}
+    for bad in (guide_body("guide-other"), body("GUIDE", body="평범한 글"), body("GUIDE", body="[]")):
+        r = make(world, bad, key="key-00000009")
+        assert r.status_code == 422 and "body" in r.json()["fields"], bad
+
+
+def test_관리자가_올린_안내_글과_연락처가_공개_화면에_그대로_나간다(world: World) -> None:
+    use(world, staff(world, "boss", "AU.SITE_W"))
+    assert make(world, guide_body("guide-refund")).status_code == 201
+    out = world.client.get(f"{MEMBER}/contents/guide-refund").json()
+    assert (out["slug"], out["title"], out["subtitle"]) == ("guide-refund", "수강 신청 안내", "수강 신청")
+    assert make(world, body("CONTACT", contact=CONTACT), key="key-00000002").status_code == 201
+    contact = world.client.get(f"{MEMBER}/site/contact").json()
+    assert (contact["phone"], contact["openHours"]) == ("031-945-1234", "평일 09:00~18:00")
+    assert (
+        "slug"
+        not in rows(world, "SELECT CONTS_CN c FROM TB_SITE_CONTS WHERE CONTS_ID='guide-refund'")[0]["c"]
+    )
+
+
+def test_안내_글의_종류는_고칠_때_바꿀_수_없다(world: World) -> None:
+    use(world, staff(world, "boss", "AU.SITE_W"))
+    made = make(world, guide_body("guide-apply")).json()
+    path = f"/contents/{made['contentId']}"
+    changed = call(world, "PUT", path, {**guide_body("guide-refund"), "version": 1})
+    assert changed.status_code == 422 and "body" in changed.json()["fields"]
+    ok = call(world, "PUT", path, {**guide_body("guide-apply", posted=False), "version": 1})
+    assert ok.status_code == 200 and ok.json()["posted"] is False
 
 
 def test_제목_링크_게시기간을_검사한다(world: World) -> None:

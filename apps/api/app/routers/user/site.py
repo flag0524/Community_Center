@@ -30,8 +30,9 @@ def get_home(
 def get_contact(
     db: Annotated[Session, Depends(get_db)],
     bundles: Annotated[BundleResolver, Depends(get_bundle_resolver)],
+    clock: Annotated[Clock, Depends(get_clock)],
 ) -> ContactResponse:
-    return service.get_contact(db, bundles.resolve(db))
+    return service.get_contact(db, bundles.resolve(db), clock())
 
 
 @router.get("/terms/{term_type}", responses=error_responses(ErrorCode.NOT_FOUND))
