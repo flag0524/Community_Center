@@ -89,7 +89,7 @@ KINDS = {
     # 홈 배너·팝업의 이미지 한 장(jpg·png). 다른 유형은 이미지를 쓰지 않는다
     FileOwnerKind.CONTENT: ("SITE_CONTS_SN", "FP.IMAGE", 1),
 }
-IMAGE_CONTENT_TYPES = ("CT.BANNER", "CT.POPUP")
+IMAGE_CONTENT_TYPES = ("CT.VISUAL", "CT.BANNER", "CT.POPUP")
 INSTRUCTOR_EDITABLE = ("IA.WAIT",)  # 서류 검토중에만 증빙을 더하고 뺀다
 EVIDENCE_VIEW_JOB = "RDCT_EVIDENCE_VIEW"
 GALLERY_IMAGES = 10

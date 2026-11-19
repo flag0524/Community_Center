@@ -28,8 +28,9 @@ from app.domain.admin.types import AdminAuthority as AU
 from app.domain.board.sanitize import clean_body
 from app.domain.site.schemas import ContentDocument, ContentSlug
 
-# 스키마(CT)에 있는 코드만 저장할 수 있다. 홈 비주얼(VISUAL)과 시설안내(FACILITY)는 코드가 없어 거절한다(ADR-092)
+# 스키마(CT)에 있는 코드만 저장할 수 있다. 시설안내(FACILITY)는 기관이 코드를 추가하지 않아 거절한다(ADR-092·099)
 TYPE_CODE = {
+    ContentType.VISUAL: "CT.VISUAL",
     ContentType.BANNER: "CT.BANNER",
     ContentType.POPUP: "CT.POPUP",
     ContentType.HISTORY: "CT.HISTORY",
@@ -40,6 +41,7 @@ TYPE_CODE = {
 CODE_TYPE = {code: kind for kind, code in TYPE_CODE.items()}
 HISTORY_ID = ContentSlug.CENTER_HISTORY.value  # 공개 화면이 이 식별자로 연혁을 찾는다
 CONTACT_ID = "contact"  # 연락처는 운영묶음에 하나다
+VISUAL_ID = "home-visual"  # 홈 비주얼도 운영묶음에 하나다. 사진 출처는 본문 끝에 문장으로 적는다(ADR-099)
 GUIDE_IDS = (ContentSlug.GUIDE_APPLY.value, ContentSlug.GUIDE_REFUND.value)  # 안내 글은 이 식별자마다 하나다
 VERSION = "v1"  # 콘텐츠는 제자리에서 고친다. 약관처럼 버전을 늘리지 않는다
 JOB = "CONTENT_CREATE"
@@ -142,7 +144,7 @@ def _checked(body: AdminContentWrite) -> tuple[str, str, str | None, str | None]
     """
     kind = body.content_type
     if kind not in TYPE_CODE:
-        raise _fail("contentType", "이 유형은 저장할 수 없습니다(홈 비주얼과 시설안내는 코드가 없습니다).")
+        raise _fail("contentType", "이 유형은 저장할 수 없습니다(시설안내는 코드가 없습니다).")
     if kind is not ContentType.CONTACT and body.contact is not None:
         raise _fail("contact", "연락처 유형이 아니면 구조 입력을 받지 않습니다.")
     title = body.title.strip()
@@ -179,6 +181,8 @@ def _checked(body: AdminContentWrite) -> tuple[str, str, str | None, str | None]
             url,
             slug,
         )
+    if kind is ContentType.VISUAL:
+        return title, clean_body(body.body), url, VISUAL_ID
     return title, clean_body(body.body), url, None
 
 
@@ -278,7 +282,7 @@ def update_content(
         raise ApiError(ErrorCode.VERSION_CONFLICT)
     title, text, url, fixed_id = _checked(body)
     if fixed_id is not None and fixed_id != str(row.CONTS_ID):
-        raise _fail("body", "안내 글의 종류는 바꿀 수 없습니다.")
+        raise _fail("body", "고정 식별자 글의 종류는 바꿀 수 없습니다.")
     db.execute(
         update(TB_SITE_CONTS)
         .where(TB_SITE_CONTS.c.SITE_CONTS_SN == row.SITE_CONTS_SN)

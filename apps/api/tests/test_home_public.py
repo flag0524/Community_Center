@@ -287,6 +287,70 @@ def test_배너와_팝업은_서로_유형이_섞이지_않고_다른_묶음의_
     ]
 
 
-def test_대표_비주얼은_저장_위치가_정해질_때까지_항상_null이다(world: World) -> None:
-    publish_content(world, "CT.INTRO", "home-visual", "{}", CONTS_TTL="비주얼")
+def test_비주얼은_CT_VISUAL로만_나오고_센터소개_같은_다른_유형은_쓰지_않는다(world: World) -> None:
+    publish_content(world, "CT.INTRO", "home-visual", "{}", CONTS_TTL="소개")
     assert home(world)["visual"] is None
+
+
+def test_비주얼은_게시한_한_건의_제목_본문_링크_이미지를_주고_배너와_섞이지_않는다(world: World) -> None:
+    content = publish_content(
+        world,
+        "CT.VISUAL",
+        "home-visual",
+        "함께 배우는 조리읍. 사진 출처: 조리읍 행정복지센터",
+        CONTS_TTL="배우고 나누는 조리읍",
+        URL_ADDR="/courses",
+    )
+    image = banner_image(world, content)
+    body = home(world)
+    assert body["visual"] == {
+        "title": "배우고 나누는 조리읍",
+        "body": "함께 배우는 조리읍. 사진 출처: 조리읍 행정복지센터",
+        "linkUrl": "/courses",
+        "image": {"url": f"/api/v1/files/{image['FILE_SN']}", "alt": "배우고 나누는 조리읍"},
+    }
+    assert body["banners"] == [] and body["popups"] == []  # 비주얼은 배너 목록에 들어가지 않는다
+
+
+def test_비주얼은_게시_기간과_상관없이_게시_여부만_보고_이미지도_내려받을_수_있다(
+    world: World, tmp_path: Any
+) -> None:
+    from dataclasses import replace
+
+    from app.core.config import get_settings
+
+    settings = replace(world.settings, file_root=str(tmp_path))
+    world.client.app.dependency_overrides[get_settings] = lambda: settings  # type: ignore[attr-defined]
+    content = publish_content(
+        world, "CT.VISUAL", "home-visual", "본문", CONTS_TTL="기간이 지난 비주얼", PSTG_END_DT=START - DAY
+    )
+    (tmp_path / "k").write_bytes(b"IMG")
+    banner_image(world, content, STRG_KEY="k")
+    visual = home(world)["visual"]
+    assert visual is not None and visual["title"] == "기간이 지난 비주얼"
+    response = world.client.get(visual["image"]["url"])
+    assert response.status_code == 200 and response.content == b"IMG"
+
+
+def test_게시하지_않았거나_본문이_공백이면_비주얼은_없거나_본문이_null이다(world: World) -> None:
+    publish_content(world, "CT.VISUAL", "home-visual", "본문", CONTS_TTL="내림", PSTG_YN="N")
+    assert home(world)["visual"] is None
+    other = world.factory.make("TB_OPER_BNDL")["OPER_BNDL_SN"]
+    publish_content(world, "CT.VISUAL", "home-visual", "남의 본문", CONTS_TTL="남의 것", OPER_BNDL_SN=other)
+    assert home(world)["visual"] is None  # 다른 묶음의 비주얼은 나오지 않는다
+    publish_content(
+        world,
+        "CT.VISUAL",
+        "home-visual",
+        "   ",
+        CONTS_TTL="본문 없음",
+        VER_NM="v2",
+        URL_ADDR="javascript:alert(1)",  # 안전하지 않은 링크는 버린다
+    )
+    visual = home(world)["visual"]
+    assert (visual["title"], visual["body"], visual["linkUrl"], visual["image"]) == (
+        "본문 없음",
+        None,
+        None,
+        None,
+    )

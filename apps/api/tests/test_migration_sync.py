@@ -42,6 +42,23 @@ def test_0002를_되돌려도_기존_테이블과_데이터는_지우지_않는�
     assert "DROP TABLE" not in sql and "DELETE FROM" not in sql
 
 
+@pytest.mark.parametrize(("direction", "revision"), [("upgrade", "0003:0004"), ("downgrade", "0004:0003")])
+def test_0004는_홈_비주얼_코드_한_행만_더하고_빼며_이미_있으면_다시_넣지_않는다(
+    direction: str, revision: str
+) -> None:
+    output = io.StringIO()
+    config = Config(str(API_DIR / "alembic.ini"), output_buffer=output)
+    config.set_main_option("script_location", str(API_DIR / "migrations"))
+    getattr(command, direction)(config, revision, sql=True)
+    sql = output.getvalue()
+    assert "CT.VISUAL" in sql
+    if direction == "upgrade":
+        assert "INSERT INTO TB_COM_CD" in sql and "WHERE NOT EXISTS" in sql and "DELETE FROM" not in sql
+    else:
+        assert "DELETE FROM TB_COM_CD WHERE COM_CD = 'CT.VISUAL'" in sql and "INSERT INTO" not in sql
+    assert "DROP TABLE" not in sql and "CREATE TABLE" not in sql and "ALTER TABLE" not in sql
+
+
 @pytest.mark.parametrize(
     ("direction", "revision", "precision"),
     [

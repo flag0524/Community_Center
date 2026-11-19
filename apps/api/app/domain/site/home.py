@@ -17,13 +17,14 @@ from app.domain.course.service import (
     ymd,
 )
 from app.domain.course.types import ReceptionState
-from app.domain.file.service import file_url
+from app.domain.file.service import ALWAYS_LISTED, file_url
 from app.domain.site.schemas import (
     CategoryOverview,
     HomeBanner,
     HomeImage,
     HomePopup,
     HomeResponse,
+    HomeVisual,
 )
 from app.domain.site.service import banner_window, published_window
 
@@ -105,7 +106,7 @@ def _contents(db: Session, bundle_sn: int, content_type: str, now: datetime) -> 
         .where(
             TB_SITE_CONTS.c.OPER_BNDL_SN == bundle_sn,
             TB_SITE_CONTS.c.CONTS_TYPE_CD == content_type,
-            banner_window(now) if content_type == "CT.BANNER" else published_window(now),
+            banner_window(now) if content_type in ALWAYS_LISTED else published_window(now),
         )
         .order_by(TB_SITE_CONTS.c.SITE_CONTS_SN.desc())
     ).all()
@@ -137,9 +138,10 @@ def _images(db: Session, bundle_sn: int, content_sns: list[int]) -> dict[int, in
 
 def get_home(db: Session, bundle_sn: int, now: datetime) -> HomeResponse:
     cycle = current_cycle(db, bundle_sn, now)
+    visuals = _contents(db, bundle_sn, "CT.VISUAL", now)
     banners = _contents(db, bundle_sn, "CT.BANNER", now)
     popups = _contents(db, bundle_sn, "CT.POPUP", now)
-    images = _images(db, bundle_sn, [int(r.SITE_CONTS_SN) for r in (*banners, *popups)])
+    images = _images(db, bundle_sn, [int(r.SITE_CONTS_SN) for r in (*visuals, *banners, *popups)])
 
     def image(row: Any) -> HomeImage | None:
         file_sn = images.get(int(row.SITE_CONTS_SN))
@@ -150,7 +152,15 @@ def get_home(db: Session, bundle_sn: int, now: datetime) -> HomeResponse:
         cycle=None if cycle is None else cycle_info(cycle, now),
         categories=[] if cycle is None else _categories(db, bundle_sn, cycle, now),
         notices=notice_briefs(db, bundle_sn, now, NOTICE_COUNT),
-        visual=None,  # 저장 위치(CT.VISUAL)가 스키마 개정 R14로 확정될 때까지 비운다(ADR-036)
+        # 운영묶음에 하나뿐이라 첫 행을 쓴다. 게시한 글이 없으면 비워 두고 화면이 기본 문구를 쓴다(ADR-099)
+        visual=None
+        if not visuals
+        else HomeVisual(
+            title=str(visuals[0].CONTS_TTL),
+            body=str(visuals[0].CONTS_CN).strip() or None,
+            link_url=safe_link(visuals[0].URL_ADDR),
+            image=image(visuals[0]),
+        ),
         banners=[
             HomeBanner(
                 content_id=str(int(r.SITE_CONTS_SN)),

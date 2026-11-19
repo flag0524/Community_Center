@@ -16,9 +16,10 @@ import { useIdempotencyKey } from '../../lib/useIdempotencyKey';
 type ContentType = Schemas['ContentType'];
 const TYPES = Object.keys(CONTENT_TYPE) as ContentType[];
 const IMAGE_TYPES: ContentType[] = ['VISUAL', 'BANNER', 'POPUP'];
-// 스키마에 코드가 없는 유형은 저장할 수 없다(ADR-092). 연혁·안내 본문은 공개 화면이 읽는 JSON이다.
-const UNSAVABLE: ContentType[] = ['VISUAL', 'FACILITY'];
+// 스키마에 코드가 없는 유형은 저장할 수 없다(ADR-092·099). 연혁·안내 본문은 공개 화면이 읽는 JSON이다.
+const UNSAVABLE: ContentType[] = ['FACILITY'];
 const BODY_HINT: Partial<Record<ContentType, string>> = {
+  VISUAL: '홈 첫 화면의 대표 문구입니다. 운영묶음에 하나만 둘 수 있습니다. 사진을 올리면 본문 끝에 사진 출처를 한 줄로 적어 주세요.',
   HISTORY: '본문은 {"subtitle": "...", "sections": [...]} 모양의 JSON입니다.',
   GUIDE: '본문은 {"slug": "guide-apply" 또는 "guide-refund", "subtitle": "...", "sections": [...]} 모양의 JSON입니다. 종류마다 하나만 둘 수 있습니다.',
 };

@@ -119,7 +119,32 @@ def test_배너를_등록하면_본문을_정리해_저장하고_공통_콘텐�
     )
 
 
-@pytest.mark.parametrize("kind", ["VISUAL", "FACILITY"])
+def test_홈_비주얼은_고정_식별자로_하나만_저장하고_고쳐서_쓴다(world: World) -> None:
+    use(world, staff(world, "boss", "AU.SITE_W"))
+    made = make(
+        world, body("VISUAL", title="배우고 나누는 조리읍", body="사진 출처: 센터 <script>x</script>")
+    )
+    assert made.status_code == 201, made.text
+    out = made.json()
+    assert (out["contentType"], out["title"]) == ("VISUAL", "배우고 나누는 조리읍")
+    assert "script" not in out["body"] and "사진 출처: 센터" in out["body"]  # 허용된 서식만 남는다
+    [row] = rows(world, "SELECT CONTS_TYPE_CD c, CONTS_ID i, DONG_SN d, ESNTL_YN e FROM TB_SITE_CONTS")
+    assert (row["c"].strip(), row["i"], row["d"], row["e"]) == ("CT.VISUAL", "home-visual", None, "N")
+    again = make(world, body("VISUAL", title="둘째"), key="key-00000002")
+    assert again.status_code == 422 and "contentType" in again.json()["fields"]
+    assert rows(world, "SELECT COUNT(*) n FROM TB_SITE_CONTS")[0]["n"] == 1
+
+
+def test_홈_비주얼은_제목이_비었거나_링크가_잘못되면_거절한다(world: World) -> None:
+    use(world, staff(world, "boss", "AU.SITE_W"))
+    blank = make(world, body("VISUAL", title="  "))
+    assert blank.status_code == 422 and "title" in blank.json()["fields"]
+    bad = make(world, body("VISUAL", url="javascript:alert(1)"), key="key-00000003")
+    assert bad.status_code == 422 and "url" in bad.json()["fields"]
+    assert rows(world, "SELECT COUNT(*) n FROM TB_SITE_CONTS")[0]["n"] == 0
+
+
+@pytest.mark.parametrize("kind", ["FACILITY"])
 def test_스키마에_코드가_없는_유형은_저장하지_않고_이유를_알린다(world: World, kind: str) -> None:
     use(world, staff(world, "boss", "AU.SITE_W"))
     r = make(world, body(kind))

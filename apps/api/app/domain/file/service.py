@@ -13,7 +13,8 @@ from app.domain.course.service import VISIBLE_STATUSES
 from app.domain.site.service import banner_window, published_window
 from app.files.storage import StorageError, read_blob
 
-HOME_CONTENT_TYPES = ("CT.BANNER", "CT.POPUP")  # 이미지를 올릴 수 있는 홈 콘텐츠
+HOME_CONTENT_TYPES = ("CT.VISUAL", "CT.BANNER", "CT.POPUP")  # 이미지를 올릴 수 있는 홈 콘텐츠
+ALWAYS_LISTED = ("CT.VISUAL", "CT.BANNER")  # 게시 기간과 상관없이 게시 여부만 보는 홈 콘텐츠(ADR-088·099)
 FILE_URL = "/api/v1/files/{}"
 
 
@@ -47,7 +48,7 @@ def public_file(db: Session, bundle_sn: int, file_id: str, now: datetime) -> Any
             TB_SITE_CONTS.c.SITE_CONTS_SN == file.SITE_CONTS_SN,
             TB_SITE_CONTS.c.CONTS_TYPE_CD.in_(HOME_CONTENT_TYPES),
             case(
-                (TB_SITE_CONTS.c.CONTS_TYPE_CD == "CT.BANNER", banner_window(now)),
+                (TB_SITE_CONTS.c.CONTS_TYPE_CD.in_(ALWAYS_LISTED), banner_window(now)),
                 else_=published_window(now),
             ),
         )

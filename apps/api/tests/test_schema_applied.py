@@ -160,8 +160,8 @@ def test_공통코드_시드가_문서와_같다(migrated_engine: Engine, schema
     assert re.fullmatch(r"\d+", str(rows(migrated_engine, "SELECT COUNT(*) FROM TB_COM_CD")[0][0]))
 
 
-def test_마이그레이션_버전은_0003이다(migrated_engine: Engine) -> None:
-    assert rows(migrated_engine, "SELECT version_num FROM alembic_version") == [("0003",)]
+def test_마이그레이션_버전은_0004이다(migrated_engine: Engine) -> None:
+    assert rows(migrated_engine, "SELECT version_num FROM alembic_version") == [("0004",)]
 
 
 def test_되돌리면_테이블과_시퀀스가_모두_사라지고_다시_올릴_수_있다(migrated_engine: Engine) -> None:

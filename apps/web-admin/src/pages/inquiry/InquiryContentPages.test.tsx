@@ -234,7 +234,15 @@ describe('콘텐츠 등록·수정', () => {
     expect(field('본문')).not.toHaveAccessibleDescription();
   });
 
-  it('스키마에 코드가 없는 유형(홈 비주얼·시설안내)은 저장할 수 없다고 알린다', async () => {
+  it('홈 비주얼은 하나만 둘 수 있고 사진 출처를 본문 끝에 적으라고 안내한다', async () => {
+    await signInAs('group');
+    renderApp('/mbr/contents/new?type=VISUAL');
+    await heading('콘텐츠 등록');
+    expect(field('본문')).toHaveAccessibleDescription(/하나만 둘 수 있습니다.*본문 끝에 사진 출처/);
+    expect(field('유형')).not.toHaveAccessibleDescription(); // 비주얼은 저장할 수 있는 유형이다
+  });
+
+  it('스키마에 코드가 없는 유형(시설안내)은 저장할 수 없다고 알린다', async () => {
     await signInAs('group');
     renderApp('/mbr/contents/new?type=FACILITY');
     await heading('콘텐츠 등록');

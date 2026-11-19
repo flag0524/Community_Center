@@ -69,6 +69,15 @@ def test_팝업도_올릴_수_있고_이미지는_한_장뿐이며_제거하면_
     assert len(files_of(world)) == 2
 
 
+def test_홈_비주얼에도_이미지_한_장을_올릴_수_있다(world: World, root: Path) -> None:
+    visual = publish(world, "CT.VISUAL", "home-visual", "본문")
+    editor(world)
+    first = upload(world, path(visual), "청사.png", PNG)
+    assert first.status_code == 201, first.text
+    assert upload(world, path(visual), "둘째.png", PNG).status_code == 422  # 한 장뿐이다
+    assert call(world, "GET", path(visual)).json()["maxFiles"] == 1
+
+
 def test_이미지를_쓰지_않는_유형은_올릴_수_없고_목록에서_편집_불가이다(world: World, root: Path) -> None:
     history = publish(world, "CT.HISTORY", "center-history", "연혁")
     editor(world)
