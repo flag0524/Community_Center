@@ -53,6 +53,7 @@
 - `systemctl status jori-worker@jori`에서 `Active: active (running)`과 watchdog 갱신, 워커를 멈추게(`kill -STOP`) 했을 때 60초 안에 다시 시작되는지
 - `nginx -t`, 주민 도메인으로 `/api/admin/…` 요청이 404인지, 20MB 첨부가 올라가는지
 - `curl http://127.0.0.1:8001/api/health`가 정상이고 워커 상태 파일을 읽는지
+- `curl http://127.0.0.1:8001/api/health/version`의 커밋 해시가 배포한 빌드와 같고 마이그레이션 리비전이 최신인지(`JORI_BUILD_COMMIT`를 환경 파일에 넣었는지)
 - DB 시험을 Ubuntu에서 한 번 더 돌려 대소문자 이름 규칙과 READ COMMITTED 쓰기(바이너리 로그를 켠 상태)를 확인한다(ADR-029·038)
 - 실제 ClamAV 연동(`JORI_FILE_SCANNER=clamd`)
 
@@ -60,5 +61,4 @@
 
 - DB 계정 분리(`worker_jori`, `retention_jori`, `backup_jori`)와 권한 부여 SQL. 지금은 한 계정을 함께 쓴다.
 - 백업(mariabackup·binlog 전송·첨부 rsync)과 월 1회 복구시험 스크립트
-- `/api/health/version`(커밋 해시·마이그레이션 리비전 노출)
 - 배포 자동화 스크립트와 새 자치회 추가 절차

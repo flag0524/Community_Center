@@ -36,6 +36,7 @@ class Settings:
     worker_status_file: str = (
         "/var/run/jori/worker-status.json"  # 워커가 작업별 마지막 실행을 쓰고 /api/health가 읽는다
     )
+    build_commit: str = "unknown"  # 배포한 빌드의 커밋 해시. 배포 절차가 넣고 /api/health/version이 보인다
 
     def __post_init__(self) -> None:
         if self.environment not in {"development", "test", "production"}:
@@ -86,6 +87,7 @@ def load_settings(environ: dict[str, str] | None = None) -> Settings:
         pg_provider=env.get("JORI_PG_PROVIDER", "mock"),
         pg_merchant_id=env.get("JORI_PG_MERCHANT_ID", "TBD"),
         worker_status_file=env.get("JORI_WORKER_STATUS_FILE") or "/var/run/jori/worker-status.json",
+        build_commit=env.get("JORI_BUILD_COMMIT") or "unknown",
     )
 
 
