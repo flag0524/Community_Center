@@ -29,6 +29,9 @@ import { SmsDetailPage } from '../pages/sms/SmsDetailPage';
 import { SmsListPage } from '../pages/sms/SmsListPage';
 import { SmsSendPage } from '../pages/sms/SmsSendPage';
 import { DashboardPage } from '../pages/stats/DashboardPage';
+import { SatisfactionDetailPage } from '../pages/stats/SatisfactionDetailPage';
+import { SatisfactionFormPage } from '../pages/stats/SatisfactionFormPage';
+import { SatisfactionListPage } from '../pages/stats/SatisfactionListPage';
 import { SourceDetailPage } from '../pages/stats/SourceDetailPage';
 import { SourceFormPage } from '../pages/stats/SourceFormPage';
 import { SourceListPage } from '../pages/stats/SourceListPage';
@@ -97,6 +100,9 @@ export const SCREENS: Array<{ path: string; element: ReactElement }> = [
   { path: '/mbr/files/:fileId', element: <FileDetailPage /> },
   { path: '/dashboard', element: <DashboardPage /> },
   { path: '/stats', element: <StatsPage /> },
+  { path: '/satisfaction-sources', element: <SatisfactionListPage /> },
+  { path: '/satisfaction-sources/new', element: <SatisfactionFormPage /> },
+  { path: '/satisfaction-sources/:sourceId', element: <SatisfactionDetailPage /> },
   { path: '/stats-sources', element: <SourceListPage /> },
   { path: '/stats-sources/new', element: <SourceFormPage /> },
   { path: '/stats-sources/:sourceId', element: <SourceDetailPage /> },

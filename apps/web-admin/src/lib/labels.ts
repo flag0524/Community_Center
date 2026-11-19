@@ -215,3 +215,4 @@ export const RETENTION_STATE: Record<Schemas['RetentionState'], string> = { DUE:
 
 export const STATS_SOURCE_STATE: Record<Schemas['SourceState'], string> = { WAIT: '검토 대기', APPROVED: '승인', REJECTED: '반려' };
 export const NAME_CHANGE_STATE: Record<Schemas['NameChangeState'], string> = { PENDING: '검토 중', APPROVED: '승인', REJECTED: '반려' };
+export const RESPONSE_TYPE: Record<Schemas['ResponseType'], string> = { SINGLE: '단일선택', MULTI: '복수선택', SCORE: '점수' };

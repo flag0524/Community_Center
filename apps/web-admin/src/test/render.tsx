@@ -24,6 +24,7 @@ import { resetMockReview } from '../mocks/review';
 import { resetMockRoles } from '../mocks/roles';
 import { resetMockSettings } from '../mocks/settings';
 import { resetMockSms } from '../mocks/sms';
+import { resetMockSatisfactionSources } from '../mocks/satisfactionSources';
 import { resetMockStatsSources } from '../mocks/statsSources';
 import { resetExportLog } from '../mocks/csv';
 import { resetMockPii } from '../mocks/pii';
@@ -61,6 +62,7 @@ export function useMockServer(): void {
     resetMockClasses();
     resetMockRetention();
     resetMockStatsSources();
+    resetMockSatisfactionSources();
     resetMockFiles();
     resetMockTransactions();
     resetExportLog();

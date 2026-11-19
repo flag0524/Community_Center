@@ -20,8 +20,9 @@ import { roleHandlers } from './roles';
 import { settingHandlers } from './settings';
 import { smsHandlers } from './sms';
 import { statsHandlers } from './stats';
+import { satisfactionSourceHandlers } from './satisfactionSources';
 import { statsSourceHandlers } from './statsSources';
 import { termHandlers } from './terms';
 import { transactionHandlers } from './transactions';
 
-export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers, ...refundHandlers, ...memberHandlers, ...nameChangeHandlers, ...boardHandlers, ...inquiryHandlers, ...contentHandlers, ...termHandlers, ...fileHandlers, ...statsHandlers, ...statsSourceHandlers, ...smsHandlers, ...roleHandlers, ...reductionHandlers, ...settingHandlers, ...classHandlers, ...retentionHandlers, ...piiHandlers];
+export const handlers = [...authHandlers, ...educationHandlers, ...campusHandlers, ...reviewHandlers, ...attendanceHandlers, ...applicationHandlers, ...transactionHandlers, ...refundHandlers, ...memberHandlers, ...nameChangeHandlers, ...boardHandlers, ...inquiryHandlers, ...contentHandlers, ...termHandlers, ...fileHandlers, ...statsHandlers, ...statsSourceHandlers, ...satisfactionSourceHandlers, ...smsHandlers, ...roleHandlers, ...reductionHandlers, ...settingHandlers, ...classHandlers, ...retentionHandlers, ...piiHandlers];

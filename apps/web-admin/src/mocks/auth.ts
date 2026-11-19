@@ -69,6 +69,7 @@ const MENU: Array<{ key: string; title: string; items: MenuDef[] }> = [
       { key: 'dashboard', label: '대시보드', path: '/dashboard', anyOf: ['AU.STAT_R'] },
       { key: 'stats', label: '수요·연령·정산 통계', path: '/stats', anyOf: ['AU.STAT_R'] },
       { key: 'stats-sources', label: '연령·성별 집계자료', path: '/stats-sources', anyOf: ['AU.CONF_W', 'AU.GRANT_W'] },
+      { key: 'satisfaction-sources', label: '강좌 만족도 집계자료', path: '/satisfaction-sources', anyOf: ['AU.CONF_W', 'AU.GRANT_W'] },
     ],
   },
   {

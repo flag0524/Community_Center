@@ -490,6 +490,15 @@ export const nameChangeListQuery = (state: 'PENDING' | 'DECIDED') =>
     queryKey: ['name-changes', 'list', state],
     queryFn: ({ signal }) => getJson<Schemas['AdminNameChangeList']>(`/name-change-requests?state=${state}`, signal),
   });
+export const satisfactionSourceListQuery = queryOptions({
+  queryKey: ['satisfaction-sources', 'list'],
+  queryFn: ({ signal }) => getJson<Schemas['SatisfactionSourceList']>('/stats/satisfaction/sources', signal),
+});
+export const satisfactionSourceQuery = (sourceId: string) =>
+  queryOptions({
+    queryKey: ['satisfaction-sources', 'detail', sourceId],
+    queryFn: ({ signal }) => getJson<Schemas['SatisfactionSourceDetail']>(`/stats/satisfaction/sources/${encodeURIComponent(sourceId)}`, signal),
+  });
 export const statsSourceListQuery = queryOptions({
   queryKey: ['stats-sources', 'list'],
   queryFn: ({ signal }) => getJson<Schemas['SourceList']>('/stats/age-gender/sources', signal),

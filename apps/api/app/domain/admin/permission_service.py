@@ -18,6 +18,7 @@ _MENU: tuple[tuple[str, str, tuple[tuple[str, str, str, tuple[A, ...]], ...]], .
             ("dashboard", "대시보드", "/dashboard", (A.STAT_R,)),
             ("stats", "수요·연령·정산 통계", "/stats", (A.STAT_R,)),
             ("stats-sources", "연령·성별 집계자료", "/stats-sources", (A.CONF_W, A.GRANT_W)),
+            ("satisfaction-sources", "강좌 만족도 집계자료", "/satisfaction-sources", (A.CONF_W, A.GRANT_W)),
         ),
     ),
     (
@@ -74,7 +75,7 @@ _MENU: tuple[tuple[str, str, tuple[tuple[str, str, str, tuple[A, ...]], ...]], .
 
 
 # 회원·집계 자료를 바꾸는 화면. 시스템 배정(구조 권한)만 가진 담당자에게는 보이지 않는다(R20)
-_BUSINESS_KEYS = frozenset({"stats-sources", "name-changes"})
+_BUSINESS_KEYS = frozenset({"stats-sources", "satisfaction-sources", "name-changes"})
 
 
 def _menu_for(held: frozenset[A], business: frozenset[A]) -> list[MenuGroup]:

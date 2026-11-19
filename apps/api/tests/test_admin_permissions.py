@@ -94,11 +94,11 @@ def test_시스템_배정은_구조_권한만_갖고_기능을_켜지_않는_코
 
 def test_집계자료와_이름_변경_메뉴는_묶음_배정만_보고_시스템·동_배정에는_보이지_않는다(world: World) -> None:
     use(world, staff(world, "p7", "AU.CONF_W", "AU.GRANT_W"))
-    assert {"stats-sources", "name-changes"} <= set(keys(me(world)))
+    assert {"stats-sources", "satisfaction-sources", "name-changes"} <= set(keys(me(world)))
     use(world, staff(world, "p8", "AU.GRANT_W", kind="SK.SYSTEM"))
-    assert not {"stats-sources", "name-changes"} & set(keys(me(world)))
+    assert not {"stats-sources", "satisfaction-sources", "name-changes"} & set(keys(me(world)))
     use(
         world,
         staff(world, "p9", "AU.CONF_W", "AU.GRANT_W", kind="SK.DONG", dong_sn=dong(world, "가동")["DONG_SN"]),
     )
-    assert not {"stats-sources", "name-changes"} & set(keys(me(world)))
+    assert not {"stats-sources", "satisfaction-sources", "name-changes"} & set(keys(me(world)))
