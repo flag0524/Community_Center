@@ -58,9 +58,7 @@ server {
     ssl_certificate_key /etc/ssl/jori/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
 
-    # 관리자 접속은 센터 고정 주소로 제한하는 것을 권장한다(TRD 2.1). 주소가 정해지면 아래 두 줄을 연다
-    # allow {{ADMIN_ALLOW_CIDR}};
-    # deny all;
+    # 관리자 접속은 주소로 제한하지 않는다(기관 회신 2026-11-19). 제한이 필요해지면 allow/deny를 이 자리에 더한다.
 
     root /opt/jori/current/apps/web-admin/dist;
     index index.html;

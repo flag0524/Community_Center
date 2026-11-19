@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { contactQuery } from '../../api/queries';
+import { ContentLink } from '../../components/ContentLink';
 import { PhoneLink } from '../../components/PhoneLink';
 import { QueryFallback } from '../../components/QueryFallback';
 import { NAV_GROUPS } from '../../layout/navigation';
@@ -10,6 +11,8 @@ import { usePageTitle } from '../../lib/usePageTitle';
 
 const TITLE = '위치 및 연락처';
 const UNKNOWN = '확인 필요';
+// 기관이 지도 업체를 네이버로 정했다(2026-11-19, ADR-100). 지도 SDK의 키가 나오기 전에는 주소로 네이버 지도를 여는 링크만 둔다.
+const NAVER_MAP_SEARCH = 'https://map.naver.com/p/search/';
 
 export function ContactPage() {
   usePageTitle(TITLE);
@@ -19,6 +22,7 @@ export function ContactPage() {
   // 불러오는 동안 '확인 필요'가 먼저 보이지 않게 연락처가 올 때까지 기다린다.
   if (!contact) return <QueryFallback query={query} what="연락처" />;
   const address = [contact.postalCode ? `[${contact.postalCode}]` : null, contact.address].filter(Boolean).join(' ');
+  const mapUrl = contact.address ? `${NAVER_MAP_SEARCH}${encodeURIComponent(contact.address)}` : null;
 
   return (
     <SubLayout
@@ -58,6 +62,11 @@ export function ContactPage() {
         ) : null}
       </dl>
       <div className="button-row">
+        {mapUrl ? (
+          <ContentLink className="button" url={mapUrl}>
+            네이버 지도에서 보기
+          </ContentLink>
+        ) : null}
         <Link className="button secondary" to="/center/facility">
           층별 시설 안내
         </Link>

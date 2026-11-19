@@ -121,13 +121,23 @@ describe('센터소개', () => {
     expect(screen.getByRole('link', { name: '층별 시설 안내' })).toHaveAttribute('href', '/center/facility');
   });
 
-  it('연락처가 비어 있으면 확인 필요로 표시한다', async () => {
+  it('주소로 네이버 지도를 새 창에서 여는 링크를 보인다', async () => {
+    renderApp('/center/contact');
+
+    const link = await screen.findByRole('link', { name: /네이버 지도에서 보기/ });
+    expect(link).toHaveAttribute('href', `https://map.naver.com/p/search/${encodeURIComponent('경기도 파주시 조리읍 봉천로 64')}`);
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('연락처가 비어 있으면 확인 필요로 표시하고 지도 링크는 보이지 않는다', async () => {
     server.use(http.get('/api/v1/site/contact', () => HttpResponse.json({})));
     renderApp('/center/contact');
 
     expect(await screen.findByRole('heading', { level: 1, name: '위치 및 연락처' })).toBeInTheDocument();
     const address = screen.getByText('주소', { selector: 'dt' }).nextElementSibling as HTMLElement;
     expect(address).toHaveTextContent('확인 필요');
+    expect(screen.queryByRole('link', { name: /네이버 지도/ })).not.toBeInTheDocument();
   });
 });
 
