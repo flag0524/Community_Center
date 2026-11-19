@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.admin_access import Admin, require_admin
 from app.auth.deps import Clock, get_clock, request_id_of
+from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
 from app.db.session import get_db
 from app.domain.admin import retention_service as service
@@ -46,6 +47,7 @@ def execute_retention(
     admin: Me,
     clock: Now,
     idempotency_key: IdempotencyKey,
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> RetentionDetail:
     """대상을 다시 세어 확인한 건수와 같을 때만 파기·비식별 처리하고 실행 결과를 감사기록에 남긴다."""
     return service.execute_retention(
@@ -56,4 +58,5 @@ def execute_retention(
         item_id=item_id,
         expected_count=body.expected_count,
         idem_key=idempotency_key,
+        file_root=settings.file_root,
     )

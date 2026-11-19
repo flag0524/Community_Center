@@ -46,6 +46,14 @@ def write_blob(root: str, key: str, data: bytes) -> None:
         raise StorageError("파일을 쓰지 못했다") from None
 
 
+def purge_blob(root: str, key: str) -> None:
+    """보존기간이 지난 원본을 지운다. 이미 없으면 지나가지만 지우지 못하면 실패로 알려, 원본이 남은 채 DB 행만 사라지지 않게 한다."""
+    try:
+        _resolve(root, key).unlink(missing_ok=True)
+    except OSError:
+        raise StorageError("파일을 지우지 못했다") from None
+
+
 def remove_blob(root: str, key: str) -> None:
     """저장한 뒤 DB 기록이 실패했을 때 고아 파일을 치운다. 없으면 조용히 지나간다."""
     with contextlib.suppress(OSError, StorageError):

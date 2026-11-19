@@ -10,6 +10,7 @@ class RetentionTarget(StrEnum):
     SMS_RECORDS = "SMS_RECORDS"  # 문자 문안·수신명단 (결과 확정 직후)
     SESSION_RECORDS = "SESSION_RECORDS"  # 만료·폐기된 로그인 세션 기록 (끝난 뒤 30일, 기관 확정 2026-11-19)
     LOGIN_FAILURES = "LOGIN_FAILURES"  # 로그인 실패 이력 (90일, 기관 확정 2026-11-19)
+    FILE_ORIGINALS = "FILE_ORIGINALS"  # 삭제한 첨부 원본 (삭제 후 30일, 증빙은 올린 지 5년)
 
 
 class RetentionState(StrEnum):

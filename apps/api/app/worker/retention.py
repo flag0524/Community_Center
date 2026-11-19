@@ -13,14 +13,20 @@ log = logging.getLogger("app.worker")
 Clock = Callable[[], datetime]
 
 
-def purge_due(db: Session, bundle_sn: int, clock: Clock) -> int:
-    """대상 종류마다 행을 잠그고 처리한 뒤 커밋한다. 한 종류가 실패해도 나머지는 계속하고, 실패가 있으면 마지막에 알린다."""
+def purge_due(db: Session, bundle_sn: int, clock: Clock, file_root: str | None = None) -> int:
+    """대상 종류마다 행을 잠그고 처리한 뒤 커밋한다. 한 종류가 실패해도 나머지는 계속하고, 실패가 있으면 마지막에 알린다.
+    첨부 원본의 저장 위치는 주지 않으면 설정(JORI_FILE_ROOT)을 따른다."""
     total = 0
     failed: list[str] = []
     for target in retention_service.AUTO_TARGETS:
         try:
             total += retention_service.purge_target(
-                db, bundle_sn, target, now=clock(), request_id=f"worker-{new_token()[:16]}"
+                db,
+                bundle_sn,
+                target,
+                now=clock(),
+                request_id=f"worker-{new_token()[:16]}",
+                file_root=file_root,
             )
             db.commit()
         except Exception as error:

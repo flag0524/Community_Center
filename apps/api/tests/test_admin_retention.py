@@ -46,6 +46,7 @@ def test_자료가_없으면_모두_0건이고_정산자료는_제외한다고_�
         ("5", "SMS_RECORDS"),
         ("6", "SESSION_RECORDS"),
         ("7", "LOGIN_FAILURES"),
+        ("8", "FILE_ORIGINALS"),
     ]
     assert all(i["count"] == 0 and i["baseDate"] is None and i["dueOn"] is None for i in res["items"])
     assert [e["label"] for e in res["exclusions"]][0] == "정산자료(결제·환불 원장)"
@@ -213,5 +214,5 @@ def test_상세는_규칙과_처리_항목을_주고_실행_가능은_아직_fal
     assert one["target"] == "WITHDRAWN_MEMBER" and one["count"] == 1 and one["state"] == "DUE"
     assert one["fields"] == ["이름", "휴대전화", "이메일"] and "30일" in one["rule"]
     assert one["executions"] == [] and one["canExecute"] is False
-    for bad in ("0", "8", "9999999999"):
+    for bad in ("0", "9", "9999999999"):
         assert call(world, "GET", f"/retention/{bad}").status_code == 404

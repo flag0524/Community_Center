@@ -10,15 +10,18 @@ from sqlalchemy.orm import Session
 
 from app.audit import record_job
 from app.auth.admin_access import Admin, permit, scope_for
+from app.core.config import get_settings
 from app.core.errors import ApiError, ErrorCode
 from app.core.times import kst_today, utc
 from app.db.tables import (
     TB_CERT_DMND,
+    TB_FILE,
     TB_JOB_HSTRY,
     TB_LGN_FAIL_HSTRY,
     TB_LGN_SSN,
     TB_MBR,
     TB_MNGR,
+    TB_RDCT_HSTRY_FILE,
     TB_RFND,
     TB_SMS_DMND,
     TB_SMS_TRGT,
@@ -33,10 +36,13 @@ from app.domain.admin.retention_schemas import (
 from app.domain.admin.retention_types import RetentionState, RetentionTarget
 from app.domain.admin.sms_purge import pending_conditions, purge_request
 from app.domain.admin.types import AdminAuthority as AU
+from app.files.storage import purge_blob
 
 OTP_DAYS = 30  # 기관 확정(2026-11-17)
 SESSION_DAYS = 30  # 기관 확정(2026-11-19): 만료되거나 폐기된 세션 기록
 LOGIN_FAIL_DAYS = 90  # 기관 확정(2026-11-19)
+FILE_DAYS = 30  # 기관 확정(2026-11-19): 삭제 처리한 첨부 파일 원본
+PROOF_YEARS = 5  # 기관 확정(2026-11-19): 감면·환불 증빙은 정산자료처럼 올린 날부터 5년(사용자 확정)
 WITHDRAWN_DAYS = 30
 AUDIT_YEARS = 3
 ANON_NAME = (
@@ -51,6 +57,7 @@ EXECUTABLE = (
     RetentionTarget.SMS_RECORDS,
     RetentionTarget.SESSION_RECORDS,
     RetentionTarget.LOGIN_FAILURES,
+    RetentionTarget.FILE_ORIGINALS,
 )
 # 매일 새벽 시스템이 자동으로 처리하는 대상(기관 확정 2026-11-17: 기간이 지나면 자동 파기)
 AUTO_TARGETS = EXECUTABLE
@@ -108,6 +115,11 @@ _ORDER = (
         RetentionTarget.LOGIN_FAILURES,
         "로그인 실패 이력은 90일이 지나면 삭제한다(기관 확정 2026-11-19). 잠금 판정에는 최근 구간만 쓰므로 영향이 없다.",
         ("로그인 실패 기록",),
+    ),
+    _Rule(
+        RetentionTarget.FILE_ORIGINALS,
+        "삭제 처리한 첨부 파일은 삭제한 날부터 30일이 지나면 저장소의 원본과 파일 행을 지운다(기관 확정 2026-11-19). 감면·환불 증빙은 담당자가 먼저 삭제 처리해도 올린 날부터 5년이 지나야 지운다. 감면 판정의 근거로 연결된 증빙은 판정 이력이 남는 동안 지우지 않는다.",
+        ("저장소 원본", "파일명·해시 등 파일 정보"),
     ),
 )
 
@@ -180,6 +192,52 @@ def _login_fail_conditions(bundle: int) -> list[ColumnElement[bool]]:
     return [or_(TB_LGN_FAIL_HSTRY.c.OPER_BNDL_SN == bundle, TB_LGN_FAIL_HSTRY.c.OPER_BNDL_SN.is_(None))]
 
 
+def _add_years(value: datetime, years: int) -> datetime:
+    try:
+        return value.replace(year=value.year + years)
+    except ValueError:  # 2월 29일
+        return value.replace(year=value.year + years, day=28)
+
+
+@dataclass(frozen=True)
+class _FileDue:
+    file_sn: int
+    basis: datetime  # 기한을 세기 시작하는 시각
+    due: datetime  # 원본을 지울 수 있게 되는 시각
+
+
+def _file_candidates(db: Session, bundle: int, *, lock: bool = False) -> list[_FileDue]:
+    """삭제 처리한 파일과 지울 수 있게 되는 시각. 감면 판정의 근거로 연결된 파일은 판정 이력이 행을 붙잡고 있어 뺀다.
+    감면·환불 증빙은 올린 날부터 5년, 나머지는 삭제 처리한 날부터 30일이다."""
+    query = (
+        select(
+            TB_FILE.c.FILE_SN,
+            TB_FILE.c.REG_DT,
+            TB_FILE.c.MDFCN_DT,
+            or_(TB_FILE.c.RFND_SN.is_not(None), TB_FILE.c.RDCT_BFHD_SRNG_SN.is_not(None)).label("PROOF"),
+        )
+        .where(
+            TB_FILE.c.OPER_BNDL_SN == bundle,
+            TB_FILE.c.FILE_STTS_CD == "FS.DELETE",
+            ~exists().where(
+                TB_RDCT_HSTRY_FILE.c.OPER_BNDL_SN == TB_FILE.c.OPER_BNDL_SN,
+                TB_RDCT_HSTRY_FILE.c.FILE_SN == TB_FILE.c.FILE_SN,
+            ),
+        )
+        .order_by(TB_FILE.c.FILE_SN)
+    )
+    out = []
+    for row in db.execute(query.with_for_update() if lock else query):
+        if row.PROOF:
+            basis = row.REG_DT
+            due = _add_years(basis, PROOF_YEARS)
+        else:
+            basis = row.MDFCN_DT or row.REG_DT  # 삭제 처리는 수정 시각을 남긴다
+            due = basis + timedelta(days=FILE_DAYS)
+        out.append(_FileDue(int(row.FILE_SN), basis, due))
+    return out
+
+
 def _count_and_oldest(
     db: Session,
     column: Column[Any] | ColumnElement[Any],
@@ -250,6 +308,11 @@ def _item(db: Session, admin: Admin, now: datetime, index: int) -> RetentionItem
             due_before=now - timedelta(days=LOGIN_FAIL_DAYS),
         )
         period = (LOGIN_FAIL_DAYS, "d")
+    elif target is RetentionTarget.FILE_ORIGINALS:
+        pending = _file_candidates(db, bundle)
+        count, oldest = sum(1 for f in pending if f.due <= now), None
+        period = (FILE_DAYS, "d")  # 기한이 파일마다 달라 아래에서 가장 이른 것으로 직접 정한다
+        soonest = min(pending, key=lambda f: f.due, default=None)
     else:
         count, oldest = _count_and_oldest(
             db,
@@ -260,7 +323,10 @@ def _item(db: Session, admin: Admin, now: datetime, index: int) -> RetentionItem
         period = (0, "d")
     base_date = None if oldest is None else kst_today(oldest)
     due_on: date | None = None
-    if period is not None and base_date is not None:
+    if target is RetentionTarget.FILE_ORIGINALS:
+        if soonest is not None:
+            base_date, due_on = kst_today(soonest.basis), kst_today(soonest.due)
+    elif period is not None and base_date is not None:
         due_on = (
             base_date + timedelta(days=period[0]) if period[1] == "d" else _years_after(base_date, period[0])
         )
@@ -402,6 +468,7 @@ _TABLE = {
     RetentionTarget.SMS_RECORDS: "TB_SMS_DMND",
     RetentionTarget.SESSION_RECORDS: "TB_LGN_SSN",
     RetentionTarget.LOGIN_FAILURES: "TB_LGN_FAIL_HSTRY",
+    RetentionTarget.FILE_ORIGINALS: "TB_FILE",
 }
 
 
@@ -423,6 +490,8 @@ def _due_keys(db: Session, bundle: int, target: RetentionTarget, now: datetime) 
             .where(*_otp_conditions(bundle), TB_CERT_DMND.c.REG_DT <= now - timedelta(days=OTP_DAYS))
             .order_by(TB_CERT_DMND.c.CERT_DMND_SN)
         )
+    elif target is RetentionTarget.FILE_ORIGINALS:
+        return [f.file_sn for f in _file_candidates(db, bundle, lock=True) if f.due <= now]
     elif target is RetentionTarget.SESSION_RECORDS:
         query = (
             select(TB_LGN_SSN.c.LGN_SSN_SN)
@@ -453,8 +522,27 @@ def _due_keys(db: Session, bundle: int, target: RetentionTarget, now: datetime) 
     return [int(sn) for sn in db.execute(query.with_for_update()).scalars()]
 
 
-def _apply(db: Session, bundle: int, target: RetentionTarget, keys: list[int], now: datetime) -> None:
-    if target is RetentionTarget.WITHDRAWN_MEMBER:
+def _purge_files(db: Session, bundle: int, keys: list[int], file_root: str | None) -> None:
+    """저장소 원본을 먼저 지우고 파일 행을 지운다. 원본을 못 지우면 예외로 멈춰 행이 남고(다음에 다시 한다), 반대 순서로 하면 원본이 고아로 남는다."""
+    root = file_root or get_settings().file_root
+    for strg_key in db.execute(
+        select(TB_FILE.c.STRG_KEY).where(TB_FILE.c.OPER_BNDL_SN == bundle, TB_FILE.c.FILE_SN.in_(keys))
+    ).scalars():
+        purge_blob(root, str(strg_key))
+    db.execute(delete(TB_FILE).where(TB_FILE.c.OPER_BNDL_SN == bundle, TB_FILE.c.FILE_SN.in_(keys)))
+
+
+def _apply(
+    db: Session,
+    bundle: int,
+    target: RetentionTarget,
+    keys: list[int],
+    now: datetime,
+    file_root: str | None = None,
+) -> None:
+    if target is RetentionTarget.FILE_ORIGINALS:
+        _purge_files(db, bundle, keys, file_root)
+    elif target is RetentionTarget.WITHDRAWN_MEMBER:
         _anonymize(db, bundle, keys, now)
     elif target is RetentionTarget.AUTH_RECORDS:
         db.execute(delete(TB_CERT_DMND).where(TB_CERT_DMND.c.CERT_DMND_SN.in_(keys)))
@@ -488,6 +576,7 @@ def execute_retention(
     item_id: str,
     expected_count: int,
     idem_key: str,
+    file_root: str | None = None,
 ) -> RetentionDetail:
     """확인한 건수와 다시 센 건수가 같을 때만 처리한다(되돌릴 수 없다). 대상 행을 잠근 뒤에 세고 처리한다."""
     if not scope_for(db, admin, AU.GRANT_W, now, group_only=True).whole:
@@ -506,7 +595,7 @@ def execute_retention(
             ErrorCode.CONFLICT_STATE,
             f"처리 대상이 {len(keys)}건으로 바뀌었습니다. 목록을 새로 확인해 주세요.",
         )
-    _apply(db, bundle, target, keys, now)
+    _apply(db, bundle, target, keys, now, file_root)
     record_job(
         db,
         actor="AK.ADMIN",
@@ -523,13 +612,19 @@ def execute_retention(
 
 
 def purge_target(
-    db: Session, bundle_sn: int, target: RetentionTarget, *, now: datetime, request_id: str
+    db: Session,
+    bundle_sn: int,
+    target: RetentionTarget,
+    *,
+    now: datetime,
+    request_id: str,
+    file_root: str | None = None,
 ) -> int:
     """기간이 지난 한 종류를 시스템이 자동으로 파기한다(매일 새벽 워커, 기관 확정 2026-11-17). 처리한 건수를 돌려준다."""
     keys = _due_keys(db, bundle_sn, target, now)
     if not keys:
         return 0
-    _apply(db, bundle_sn, target, keys, now)
+    _apply(db, bundle_sn, target, keys, now, file_root)
     record_job(
         db,
         actor="AK.SYSTEM",
