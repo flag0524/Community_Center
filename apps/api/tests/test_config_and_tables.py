@@ -60,7 +60,7 @@ def schema() -> SchemaDoc:
 
 def test_테이블_정의가_문서의_테이블_컬럼_기본키와_같다(schema: SchemaDoc) -> None:
     assert set(tables.metadata.tables) == {table.name for table in schema.tables}
-    assert sum(len(table.columns) for table in tables.metadata.tables.values()) == 610
+    assert sum(len(table.columns) for table in tables.metadata.tables.values()) == 611
     for doc in schema.tables:
         built = tables.metadata.tables[doc.name]
         assert [column.name for column in built.columns] == [column.name for column in doc.columns]

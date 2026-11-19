@@ -2,13 +2,14 @@
 import hashlib
 import hmac
 import json
+import re
 import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import insert, select, update
 from sqlalchemy.orm import Session
 
 from app.adapters.sms.base import SendOutcome, SmsSender
@@ -18,6 +19,7 @@ from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
 from app.db.tables import TB_CERT_DMND, TB_MBR, TB_OPER_BNDL, TB_SMS_DMND, TB_SMS_SNDNG_HSTRY, TB_SMS_TRGT
 from app.domain.admin.sms_purge import purge_sent_now
+from app.domain.member.schemas import PHONE_PATTERN
 from app.domain.member.types import OtpPurpose
 
 OTP_VALID = timedelta(minutes=5)  # 유효 5분(AUTH-02)
@@ -49,6 +51,15 @@ def new_code() -> str:
 def code_hash(secret: str, cert_id: str, code: str) -> str:
     """인증번호 검증값. 요청 번호를 섞어 같은 코드도 요청마다 다른 값이 된다."""
     return hmac.new(derived_key(secret, "otp"), f"{cert_id}:{code}".encode(), hashlib.sha256).hexdigest()
+
+
+def phone_hash(secret: str, phone: str) -> str:
+    """API가 받는 숫자형 국내 휴대전화만 검색키로 만든다. 원문이나 단순 해시를 저장하지 않는다."""
+    if re.fullmatch(PHONE_PATTERN, phone) is None:
+        raise ApiError(ErrorCode.VALIDATION_FAILED, fields={"phone": "휴대전화번호 형식이 맞지 않습니다."})
+    return hmac.new(
+        derived_key(secret, "otp-phone-search"), phone.encode("ascii"), hashlib.sha256
+    ).hexdigest()
 
 
 # --- 재전송 제한용 서명 쿠키 ---------------------------------------------------------
@@ -101,13 +112,23 @@ def _find_member(
     return None if found is None else int(found)
 
 
-def _recently_issued(db: Session, member_sn: int, purpose_code: str, now: datetime) -> bool:
-    latest = db.execute(
-        select(func.max(TB_CERT_DMND.c.REG_DT)).where(
-            TB_CERT_DMND.c.MBR_SN == member_sn, TB_CERT_DMND.c.CERT_PRPS_CD == purpose_code
-        )
+def _check_phone_limit(db: Session, bundle_sn: int, digest: str, now: datetime) -> None:
+    # 첫 요청에는 잠글 인증 행이 없으므로 묶음 행으로 판단·발급을 직렬화한다. SMS 호출 전에 커밋한다.
+    db.execute(
+        select(TB_OPER_BNDL.c.OPER_BNDL_SN).where(TB_OPER_BNDL.c.OPER_BNDL_SN == bundle_sn).with_for_update()
     ).scalar_one()
-    return latest is not None and now - latest < RESEND_INTERVAL
+    latest = db.execute(
+        select(TB_CERT_DMND.c.REG_DT)
+        .where(
+            TB_CERT_DMND.c.OPER_BNDL_SN == bundle_sn,
+            TB_CERT_DMND.c.TELNO_SRCH_HASH_VL == digest,
+        )
+        .order_by(TB_CERT_DMND.c.REG_DT.desc())
+        .limit(1)
+        .with_for_update()  # REPEATABLE READ에서도 잠금 대기 후 커밋된 최신 발급을 읽는다.
+    ).scalar_one_or_none()
+    if latest is not None and now - latest < RESEND_INTERVAL:
+        raise ApiError(ErrorCode.OTP_RESEND_TOO_SOON)
 
 
 # --- 발급 ----------------------------------------------------------------------------
@@ -133,11 +154,11 @@ def issue_otp(
     if purpose is OtpPurpose.JOIN and not (name and name.strip()):
         # 가입 요청에는 이름이 없어서 인증 단계에서 받아 암호문에 담아 둔다
         raise ApiError(ErrorCode.VALIDATION_FAILED, fields={"name": "이름을 입력해 주세요."})
+    digest = phone_hash(settings.secret_key, phone)
+    _check_phone_limit(db, bundle_sn, digest, now)
     target = (
         None if purpose is OtpPurpose.JOIN else _find_member(db, bundle_sn, purpose, phone, name, login_id)
     )
-    if target is not None and _recently_issued(db, target, purpose_code, now):
-        raise ApiError(ErrorCode.OTP_RESEND_TOO_SOON)
 
     code = new_code()
     cert_id = uuid.uuid4().hex
@@ -151,6 +172,7 @@ def issue_otp(
             CERT_DMND_ID=cert_id,
             CERT_PRPS_CD=purpose_code,
             TELNO_ENCPT_VL=encrypt(settings.secret_key, payload),
+            TELNO_SRCH_HASH_VL=digest,
             OTP_HASH_VL=code_hash(settings.secret_key, cert_id, code),
             KEY_VER_ID=KEY_VERSION,
             REG_DT=now,  # 재전송 제한이 REG_DT로 판정하므로 만료(EXPRY_DT)와 같은 앱 시계로 맞춘다
@@ -165,6 +187,7 @@ def issue_otp(
     # 일치하는 회원이 없으면 문자는 보내지 않고 인증 행만 남긴다. 확인도 같은 모양으로 실패해
     # 회원 존재를 알 수 없다(FN-061).
     if purpose is not OtpPurpose.JOIN and target is None:
+        db.commit()  # 가짜 요청도 번호 제한을 확정해 계정 존재·다음 요청에 따라 429 여부가 달라지지 않게 한다
         return issued
 
     center = db.execute(

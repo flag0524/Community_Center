@@ -191,7 +191,11 @@ def test_비밀번호_재설정은_아이디와_전화번호가_함께_맞아야
     assert wrong_id.status_code == 200 and world.sms.outbox == []
     world.client.cookies.clear()
     ok = request_otp(world, "PASSWORD_RESET", PHONE, loginId="found")
-    assert ok.status_code == 200 and len(world.sms.outbox) == 1
+    assert ok.status_code == 429 and world.sms.outbox == []  # 계정 존재와 무관하게 같은 번호는 제한된다
+    world.clock.advance(seconds=60)
+    world.client.cookies.clear()
+    assert request_otp(world, "PASSWORD_RESET", PHONE, loginId="found").status_code == 200
+    assert len(world.sms.outbox) == 1
 
 
 def test_탈퇴한_회원은_대상이_되지_않는다(world: World) -> None:
@@ -210,6 +214,14 @@ def test_전화번호_변경_목적은_아직_구현되지_않았다(world: Worl
 
 
 # --- 재전송 60초 -------------------------------------------------------------------
+
+
+def test_가입도_쿠키를_지워_새_브라우저처럼_요청해도_같은_번호는_차단된다(world: World) -> None:
+    assert request_otp(world).status_code == 200
+    world.client.cookies.clear()
+    again = request_otp(world)
+    assert again.status_code == 429 and again.json()["code"] == "OTP_RESEND_TOO_SOON"
+    assert len(world.sms.outbox) == 1
 
 
 def test_가입_인증은_쿠키로_60초_안에_다시_요청할_수_없다(world: World) -> None:

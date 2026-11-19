@@ -1,18 +1,14 @@
-# 스키마 설계안에서 첫 마이그레이션의 적용·되돌리기 SQL 파일을 만드는 명령
+# 현재 스키마 설계안에서 테이블 정의를 생성한다. 0001 SQL은 고정하며 변경은 추가 마이그레이션으로 한다
 import sys
 from pathlib import Path
 
 from app.tools.schema_checks import problems as check_problems
-from app.tools.schema_ddl import down_statements, identifier_problems, render, up_statements
+from app.tools.schema_ddl import identifier_problems
 from app.tools.schema_doc import parse_schema_doc, validate
 from app.tools.schema_tables import render_tables
 
 MIGRATIONS = Path(__file__).resolve().parents[2] / "migrations" / "versions"
 TABLES = Path(__file__).resolve().parents[1] / "db" / "tables.py"
-HEADER = (
-    "-- app.tools.generate_ddl이 스키마 설계안에서 만든 파일이다. 직접 고치지 않는다.\n"
-    "-- 배포한 뒤에는 이 파일을 고치지 않고 새 버전을 더한다.\n\n"
-)
 
 
 def generate() -> dict[str, str]:
@@ -21,11 +17,7 @@ def generate() -> dict[str, str]:
     problems = validate(schema) + identifier_problems(schema) + check_problems(schema)
     if problems:
         raise ValueError("스키마 설계안에 문제가 있어 만들지 않는다:\n" + "\n".join(problems))
-    return {
-        "0001_initial_schema.up.sql": HEADER + render(up_statements(schema)),
-        "0001_initial_schema.down.sql": HEADER + render(down_statements(schema)),
-        "tables.py": render_tables(schema),
-    }
+    return {"tables.py": render_tables(schema)}
 
 
 def main(argv: list[str]) -> int:

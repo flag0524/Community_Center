@@ -8,6 +8,11 @@ config = context.config
 
 
 def run() -> None:
+    if context.is_offline_mode():
+        context.configure(dialect_name="mysql", literal_binds=True)
+        with context.begin_transaction():
+            context.run_migrations()
+        return
     connection = config.attributes.get("connection")
     if connection is not None:
         context.configure(connection=connection, transaction_per_migration=False)

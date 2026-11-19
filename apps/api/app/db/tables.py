@@ -2899,6 +2899,11 @@ TB_CERT_DMND = Table(
         Numeric(10, 0),
         nullable=False,
     ),
+    Column(
+        "TELNO_SRCH_HASH_VL",
+        CHAR(64),
+        nullable=True,
+    ),
 )
 
 TB_LGN_FAIL_HSTRY = Table(

@@ -48,7 +48,7 @@ interface MockAuthState {
   loginFailures: Map<string, number>;
   certs: Map<string, Cert>;
   certSeq: number;
-  lastOtpAt: Map<Schemas['OtpPurpose'], number>; // 재전송 제한은 본인확인 흐름(목적)마다 센다
+  lastOtpAt: Map<string, number>; // ADR-095: 같은 전화번호는 인증 목적과 무관하게 60초 제한
   members: Map<string, MemberBrief>;
   passwords: Map<string, string>;
   profiles: Map<string, MockProfile>;
@@ -222,11 +222,11 @@ export const authHandlers = [
     const body = (await request.json()) as OtpRequest;
     if (!PHONE.test(body.phone)) return apiError('VALIDATION_FAILED', { phone: '휴대전화 번호 형식을 확인해 주세요.' });
     const now = Date.now();
-    const last = state.lastOtpAt.get(body.purpose);
+    const last = state.lastOtpAt.get(body.phone);
     if (last !== undefined && now - last < OTP_RESEND_SECONDS * 1000) {
       return apiError('OTP_RESEND_TOO_SOON');
     }
-    state.lastOtpAt.set(body.purpose, now);
+    state.lastOtpAt.set(body.phone, now);
     state.certSeq += 1;
     const certRequestId = serialOf(state.certSeq);
     state.certs.set(certRequestId, {

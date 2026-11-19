@@ -45,6 +45,7 @@ for (const size of SIZES) {
       test.use({ viewport: { width: size.width, height: size.height } });
 
       test('아이디 찾기 → 비밀번호 재설정 → 새 비밀번호로 로그인한다', async ({ page }) => {
+        await page.clock.install();
         await page.goto(`/find-id${view.query}`);
         await expect(heading(page, '아이디 찾기')).toBeVisible();
         await verifyIdentity(page);
@@ -54,6 +55,7 @@ for (const size of SIZES) {
 
         await main(page).getByRole('link', { name: '비밀번호 찾기' }).click();
         await expect(heading(page, '비밀번호 재설정')).toBeVisible();
+        await page.clock.fastForward(60_000); // ADR-095: 인증 목적을 바꿔도 같은 번호는 60초 대기
         await verifyIdentity(page, true);
         await page.getByLabel('새 비밀번호', { exact: true }).fill(NEW_PASSWORD);
         await page.getByLabel('새 비밀번호 확인', { exact: true }).fill(NEW_PASSWORD);
