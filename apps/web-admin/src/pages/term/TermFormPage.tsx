@@ -43,7 +43,7 @@ function TermCreate({ type, base }: { type: TermType; base?: TermVersion }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const key = useIdempotencyKey();
-  const [values, setValues] = useState<Values>({ versionName: '', effectiveOn: '', essential: base?.essential ?? true, body: base?.body ?? '' });
+  const [values, setValues] = useState<Values>({ versionName: '', effectiveOn: '', essential: NOTICE_TYPES.includes(type) ? false : (base?.essential ?? true), body: base?.body ?? '' });
   const [missing, setMissing] = useState<Record<string, string>>({});
 
   const mutation = useMutation({
@@ -75,7 +75,7 @@ function TermCreate({ type, base }: { type: TermType; base?: TermVersion }) {
       <p className="adm-state">{TERM_TYPE[type]}</p>
       {base && <p className="adm-notice">이전 버전 {base.versionName}의 문안을 복사했습니다. 고쳐서 저장하면 검토 상태의 새 버전이 됩니다.</p>}
       <form className="adm-form" aria-label="약관 버전" noValidate onSubmit={submit}>
-        <TermFields values={values} setValues={setValues} err={err} />
+        <TermFields values={values} setValues={setValues} err={err} notice={NOTICE_TYPES.includes(type)} />
         {mutation.isError && Object.keys(server).length === 0 && (
           <p className="adm-message error" role="alert">
             {errorMessage(mutation.error)}
@@ -94,7 +94,10 @@ function TermCreate({ type, base }: { type: TermType; base?: TermVersion }) {
   );
 }
 
-function TermFields({ values, setValues, err, locked }: { values: Values; setValues: (update: (current: Values) => Values) => void; err: (name: string) => string | undefined; locked?: boolean }) {
+// 방침·이메일 무단수집 거부는 고지문이라 가입 동의 항목이 아니고 필수 동의가 없다(ADR-092).
+const NOTICE_TYPES: TermType[] = ['PRIVACY_POLICY', 'EMAIL_REFUSAL'];
+
+function TermFields({ values, setValues, err, locked, notice }: { values: Values; setValues: (update: (current: Values) => Values) => void; err: (name: string) => string | undefined; locked?: boolean; notice?: boolean }) {
   const set = <K extends keyof Values>(name: K, value: Values[K]) => setValues((current) => ({ ...current, [name]: value }));
   return (
     <fieldset disabled={locked}>
@@ -105,9 +108,13 @@ function TermFields({ values, setValues, err, locked }: { values: Values; setVal
         <Field id="term-effective" label="시행일" required error={err('effectiveOn')}>
           <input {...describe('term-effective', err('effectiveOn'))} type="date" value={values.effectiveOn} onChange={(event) => set('effectiveOn', event.target.value)} />
         </Field>
-        <Field id="term-essential" label="필수 동의">
-          <input {...describe('term-essential')} type="checkbox" checked={values.essential} onChange={(event) => set('essential', event.target.checked)} />
-        </Field>
+        {notice ? (
+          <p className="adm-notice">이 문안은 고지문이라 가입 동의 항목이 아니고 필수 동의가 없습니다. 버전 관리(확정·게시)는 약관과 같습니다.</p>
+        ) : (
+          <Field id="term-essential" label="필수 동의">
+            <input {...describe('term-essential')} type="checkbox" checked={values.essential} onChange={(event) => set('essential', event.target.checked)} />
+          </Field>
+        )}
         <Field id="term-body" label="문안" required error={err('body')} full>
           <textarea {...describe('term-body', err('body'))} rows={14} maxLength={50000} value={values.body} onChange={(event) => set('body', event.target.value)} />
         </Field>
@@ -171,7 +178,7 @@ function TermView({ term }: { term: TermVersion }) {
       {retired && <p className="adm-notice">게시된 문안은 고칠 수 없습니다. 고치려면 새 버전으로 개정해 주세요.</p>}
       {term.status === 'FIXED' && <p className="adm-notice">확정된 문안은 고칠 수 없습니다. 게시하면 시행일 이후 신규 가입·재동의 시점에 적용됩니다.</p>}
       <form className="adm-form" aria-label="약관 버전" noValidate onSubmit={submit}>
-        <TermFields values={values} setValues={setValues} err={err} locked={!term.canEdit} />
+        <TermFields values={values} setValues={setValues} err={err} locked={!term.canEdit} notice={NOTICE_TYPES.includes(term.termType)} />
         {message && (
           <p className="adm-message" role="status">
             {message}

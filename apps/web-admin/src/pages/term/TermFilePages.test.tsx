@@ -136,6 +136,22 @@ describe('약관 버전 진행', () => {
     expect(sent.baseVersionId).toBe(TERM(2));
   });
 
+  it('방침·이메일 무단수집 거부는 고지문이라 필수 동의 칸이 없고 안내를 보인다', async () => {
+    await signInAs('group');
+    renderApp('/mbr/terms/new?type=PRIVACY_POLICY');
+    await heading('새 버전 작성');
+    expect(screen.queryByLabelText(/^필수 동의/)).not.toBeInTheDocument();
+    expect(screen.getByText('이 문안은 고지문이라 가입 동의 항목이 아니고 필수 동의가 없습니다. 버전 관리(확정·게시)는 약관과 같습니다.')).toBeInTheDocument();
+  });
+
+  it('이용약관 등 동의문에는 필수 동의 칸이 있다', async () => {
+    await signInAs('group');
+    renderApp('/mbr/terms/new?type=TERMS_OF_USE');
+    await heading('새 버전 작성');
+    expect(field('필수 동의')).toBeChecked();
+    expect(screen.queryByText(/고지문이라/)).not.toBeInTheDocument();
+  });
+
   it('새 버전은 이름·시행일·문안이 없으면 저장하지 않고 같은 이름은 서버가 막는다', async () => {
     await signInAs('group');
     renderApp('/mbr/terms/new?type=TERMS_OF_USE');
