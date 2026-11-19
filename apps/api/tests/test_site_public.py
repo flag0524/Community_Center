@@ -60,10 +60,16 @@ def test_버전을_지정하면_그_버전을_준다(world: World) -> None:
 
 @pytest.mark.parametrize(
     ("term_type", "content_type"),
-    [("TERMS_OF_USE", "CT.TERMS"), ("PRIVACY_CONSENT", "CT.PRIVACY"), ("MARKETING_CONSENT", "CT.MARKET")],
+    [
+        ("TERMS_OF_USE", "CT.TERMS"),
+        ("PRIVACY_CONSENT", "CT.PRIVACY"),
+        ("MARKETING_CONSENT", "CT.MARKET"),
+        ("PRIVACY_POLICY", "CT.PRVPOLICY"),
+        ("EMAIL_REFUSAL", "CT.EMAILREFU"),
+    ],
 )
 def test_약관_유형마다_자기_콘텐츠_유형만_본다(world: World, term_type: str, content_type: str) -> None:
-    for code in ("CT.TERMS", "CT.PRIVACY", "CT.MARKET"):
+    for code in ("CT.TERMS", "CT.PRIVACY", "CT.MARKET", "CT.PRVPOLICY", "CT.EMAILREFU"):
         publish(world, code, code, f"{code} 본문", CONTS_TTL=code)
     body = world.client.get(f"{MEMBER}/terms/{term_type}").json()
     assert body["body"] == f"{content_type} 본문"

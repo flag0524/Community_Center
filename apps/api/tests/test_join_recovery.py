@@ -142,6 +142,27 @@ def test_가입하면_회원이_만들어지고_인증이_사용_완료로_표�
     assert "Strong-Pass-12" not in str(audit.CHG_CN)  # 감사 기록에는 비밀번호가 없다
 
 
+def test_고지문이_게시돼_있어도_가입_동의에는_나오지_않고_동의_이력도_남지_않는다(world: World) -> None:
+    publish_defaults(world)
+    publish(
+        world, "CT.PRVPOLICY", "policy", "<p>방침</p>", essential=True
+    )  # 필수로 만들어도 고지문은 동의 대상이 아니다
+    publish(world, "CT.EMAILREFU", "refusal", "<p>이메일 거부</p>", essential=True)
+    cert, code = issue_join(world)
+    response = join(world, cert, code, agreements=agreements(marketing=True))
+    assert response.status_code == 201, response.text
+    kinds = {
+        str(r[0]).strip()
+        for r in world.db.execute(
+            select(tables.TB_SITE_CONTS.c.CONTS_TYPE_CD).join(
+                tables.TB_MBR_AGRE_HSTRY,
+                tables.TB_MBR_AGRE_HSTRY.c.SITE_CONTS_SN == tables.TB_SITE_CONTS.c.SITE_CONTS_SN,
+            )
+        )
+    }
+    assert kinds == {"CT.TERMS", "CT.PRIVACY", "CT.MARKET"}
+
+
 def test_가입한_계정으로_바로_로그인할_수_있고_가입만으로는_로그인되지_않는다(world: World) -> None:
     publish_defaults(world)
     cert, code = issue_join(world)

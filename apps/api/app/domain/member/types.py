@@ -12,7 +12,7 @@ class OtpPurpose(StrEnum):
 
 
 class TermType(StrEnum):
-    """약관·동의문 유형. 개인정보처리방침과 이메일무단수집거부는 CT 코드가 없어 스키마 개정 대기다."""
+    """약관·동의문·고지문 유형. 방침과 이메일 무단수집 거부는 고지문이라 가입 동의 항목이 아니다(ADR-092)."""
 
     TERMS_OF_USE = "TERMS_OF_USE"
     PRIVACY_CONSENT = "PRIVACY_CONSENT"

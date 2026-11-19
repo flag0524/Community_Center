@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.audit import record_job
 from app.auth.admin_access import Admin, permit
-from app.auth.join import TERM_CONTENT_TYPES
+from app.auth.join import ALL_TERM_CONTENT_TYPES, TERM_CONTENT_TYPES
 from app.core.errors import ApiError, ErrorCode
 from app.core.schema import PageCriteria
 from app.core.times import kst_today, utc
@@ -27,11 +27,13 @@ from app.domain.admin.types import AdminAuthority as AU
 from app.domain.board.sanitize import clean_body, has_text
 from app.domain.member.types import TermType
 
-CODE_TYPE = {code: kind for kind, code in TERM_CONTENT_TYPES.items()}
+CODE_TYPE = {code: kind for kind, code in ALL_TERM_CONTENT_TYPES.items()}
 TITLES = {
     TermType.TERMS_OF_USE: "이용약관",
     TermType.PRIVACY_CONSENT: "개인정보 수집·이용 동의",
     TermType.MARKETING_CONSENT: "마케팅 정보 수신 동의",
+    TermType.PRIVACY_POLICY: "개인정보처리방침",
+    TermType.EMAIL_REFUSAL: "이메일 무단수집 거부",
 }
 POSTED_ON = (
     select(func.max(TB_JOB_HSTRY.c.REG_DT))
@@ -114,7 +116,7 @@ def list_versions(
     _whole(db, admin, now)
     query = _base(admin.bundle_sn)
     if term_type is not None:
-        query = query.where(TB_SITE_CONTS.c.CONTS_TYPE_CD == TERM_CONTENT_TYPES.get(term_type, ""))
+        query = query.where(TB_SITE_CONTS.c.CONTS_TYPE_CD == ALL_TERM_CONTENT_TYPES.get(term_type, ""))
     query = query.order_by(TB_SITE_CONTS.c.PSTG_BGNG_DT.desc(), TB_SITE_CONTS.c.SITE_CONTS_SN.desc())
     total = int(db.execute(select(func.count()).select_from(query.order_by(None).subquery())).scalar_one())
     rows = db.execute(query.limit(size).offset((page - 1) * size)).all()
@@ -195,9 +197,9 @@ def create_version(
 ) -> TermVersion:
     """새 버전을 검토 상태로 만든다. 복제 원본을 주고 본문을 비우면 원본 본문을 복사한다."""
     _whole(db, admin, now)
-    code = TERM_CONTENT_TYPES.get(term_type)
+    code = ALL_TERM_CONTENT_TYPES.get(term_type)
     if code is None:
-        raise _fail("termType", "이 종류는 아직 저장할 수 없습니다(스키마 개정 요청 R16 대기).")
+        raise _fail("termType", "저장할 수 없는 종류입니다.")
     # 같은 종류의 올리기를 한 줄로 세워 멱등 확인과 이름 중복 확인과 저장 사이의 틈을 막는다
     db.execute(
         select(TB_SITE_CONTS.c.SITE_CONTS_SN)
@@ -251,7 +253,9 @@ def create_version(
                 PSTG_BGNG_DT=kst_start(body.effective_on),
                 PSTG_END_DT=None,
                 PSTG_YN="N",
-                ESNTL_YN="Y" if body.essential else "N",
+                ESNTL_YN="Y"
+                if body.essential and term_type in TERM_CONTENT_TYPES
+                else "N",  # 고지문은 필수 동의가 없다
                 SORT_SEQ=0,
                 REG_DT=now,
                 RCRD_VER=1,

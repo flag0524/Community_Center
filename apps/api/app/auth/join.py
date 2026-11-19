@@ -25,6 +25,12 @@ TERM_CONTENT_TYPES = {
     TermType.PRIVACY_CONSENT: "CT.PRIVACY",
     TermType.MARKETING_CONSENT: "CT.MARKET",
 }
+# 가입 동의 항목이 아닌 고지문. 약관처럼 버전을 관리하지만 동의 이력의 대상이 아니다(R17, ADR-092)
+POLICY_CONTENT_TYPES = {
+    TermType.PRIVACY_POLICY: "CT.PRVPOLICY",
+    TermType.EMAIL_REFUSAL: "CT.EMAILREFU",
+}
+ALL_TERM_CONTENT_TYPES = {**TERM_CONTENT_TYPES, **POLICY_CONTENT_TYPES}
 
 
 @dataclass(frozen=True)

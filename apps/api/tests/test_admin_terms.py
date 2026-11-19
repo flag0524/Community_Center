@@ -135,21 +135,36 @@ def test_새_버전은_검토_상태로_만들고_본문을_정리하며_공통_
 
 
 @pytest.mark.parametrize(
-    ("kind", "code"), [("MARKETING_CONSENT", "CT.MARKET"), ("PRIVACY_CONSENT", "CT.PRIVACY")]
+    ("kind", "code"),
+    [
+        ("MARKETING_CONSENT", "CT.MARKET"),
+        ("PRIVACY_CONSENT", "CT.PRIVACY"),
+        ("PRIVACY_POLICY", "CT.PRVPOLICY"),
+        ("EMAIL_REFUSAL", "CT.EMAILREFU"),
+    ],
 )
-def test_세_종류_모두_저장할_수_있다(world: World, kind: str, code: str) -> None:
+def test_다섯_종류_모두_저장할_수_있다(world: World, kind: str, code: str) -> None:
     use(world, staff(world, "boss", "AU.SITE_W"))
     assert draft(world, kind).status_code == 201
     assert rows(world, "SELECT CONTS_TYPE_CD c, CONTS_ID i FROM TB_SITE_CONTS")[0] == {"c": code, "i": kind}
+    listed = call(world, "GET", f"/terms?type={kind}").json()["items"]
+    assert [i["termType"] for i in listed] == [kind]
 
 
 @pytest.mark.parametrize("kind", ["PRIVACY_POLICY", "EMAIL_REFUSAL"])
-def test_저장_코드가_없는_종류는_거절하고_목록은_비어_있다(world: World, kind: str) -> None:
+def test_고지문은_필수_동의가_없고_묶음_공통이며_약관과_같은_버전_관리를_따른다(
+    world: World, kind: str
+) -> None:
     use(world, staff(world, "boss", "AU.SITE_W"))
-    r = draft(world, kind)
-    assert r.status_code == 422 and "termType" in r.json()["fields"] and "R16" in r.json()["message"]
-    assert call(world, "GET", f"/terms?type={kind}").json()["items"] == []
-    assert rows(world, "SELECT COUNT(*) n FROM TB_SITE_CONTS")[0]["n"] == 0
+    made = draft(world, kind, "v1", essential=True)  # 필수로 보내도 고지문은 동의 대상이 아니라 필수가 아니다
+    assert made.status_code == 201 and made.json()["essential"] is False
+    [row] = rows(world, "SELECT DONG_SN d, ESNTL_YN e, PSTG_YN p, CONTS_TTL t FROM TB_SITE_CONTS")
+    assert (row["d"], row["e"], row["p"]) == (None, "N", "N")
+    sn = made.json()["versionId"]
+    fixed = call(world, "POST", f"/terms/versions/{sn}/fix", {"version": made.json()["version"]})
+    assert fixed.status_code == 200 and fixed.json()["contentHash"]  # 확정하면 문안 해시가 고정된다
+    published = call(world, "POST", f"/terms/versions/{sn}/publish", {"version": fixed.json()["version"]})
+    assert published.status_code == 200 and published.json()["status"] == "PUBLISHED"
     assert draft(world, "NOPE").status_code in (400, 422)
 
 

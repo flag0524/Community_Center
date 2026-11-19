@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from sqlalchemy import ColumnElement, and_, select
 from sqlalchemy.orm import Session
 
-from app.auth.join import TERM_CONTENT_TYPES
+from app.auth.join import ALL_TERM_CONTENT_TYPES
 from app.core.errors import ApiError, ErrorCode
 from app.db.tables import TB_OPER_BNDL, TB_SITE_CONTS
 from app.domain.member.schemas import TermDocument
@@ -64,7 +64,7 @@ def get_term(
     db: Session, bundle_sn: int, term_type: TermType, version: str | None, now: datetime
 ) -> TermDocument:
     row = _latest_published(
-        db, bundle_sn, TERM_CONTENT_TYPES[term_type], now, content_id=None, version=version
+        db, bundle_sn, ALL_TERM_CONTENT_TYPES[term_type], now, content_id=None, version=version
     )
     if row is None:
         raise ApiError(ErrorCode.NOT_FOUND)
