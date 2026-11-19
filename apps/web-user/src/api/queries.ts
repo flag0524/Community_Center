@@ -252,7 +252,9 @@ export const instructorApplicationQuery = (applicationId: string) =>
 export const myFilesQuery = (ownerPath: string) =>
   queryOptions({
     queryKey: ['my-files', ownerPath],
-    queryFn: ({ signal }) => getJson<Schemas['MyFileList']>(`${ownerPath}/files`, signal),
+    // 이미 받은 자료가 있으면 저절로 다시 부르는 조회(검사 대기 확인)라 유휴 시간을 늘리지 않는다
+    queryFn: ({ signal, client, queryKey }) =>
+      getJson<Schemas['MyFileList']>(`${ownerPath}/files`, signal, (client.getQueryState(queryKey)?.dataUpdateCount ?? 0) > 0),
   });
 
 export const reductionOptionsQuery = queryOptions({

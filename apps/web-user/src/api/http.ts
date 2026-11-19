@@ -46,8 +46,9 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
   return payload as T;
 }
 
-export function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  return request<T>(path, { headers: { Accept: 'application/json' }, signal });
+// background가 true면 화면이 저절로 부른 조회라는 표시(X-Background)를 붙인다. 서버는 이 요청으로 유휴 시간을 늘리지 않는다.
+export function getJson<T>(path: string, signal?: AbortSignal, background = false): Promise<T> {
+  return request<T>(path, { headers: { Accept: 'application/json', ...(background ? { 'X-Background': '1' } : {}) }, signal });
 }
 
 type SendOptions = { signal?: AbortSignal; headers?: Record<string, string> };

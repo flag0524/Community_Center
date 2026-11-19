@@ -91,4 +91,19 @@ describe('getJson', () => {
 
     expect(seen).toBe('remembered');
   });
+
+  it('background를 켠 조회만 X-Background 헤더를 보낸다', async () => {
+    const seen: Array<string | null> = [];
+    server.use(
+      http.get('/api/v1/echo', ({ request }) => {
+        seen.push(request.headers.get('X-Background'));
+        return HttpResponse.json({});
+      }),
+    );
+
+    await getJson('/echo');
+    await getJson('/echo', undefined, true);
+
+    expect(seen).toEqual([null, '1']);
+  });
 });

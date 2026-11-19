@@ -2,7 +2,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { http } from 'msw';
+import { HttpResponse, http } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
 import { ApiRequestError } from '../api/http';
 import { apiError } from '../mocks/auth';
@@ -65,6 +65,25 @@ describe('게시물·강좌 양식의 첨부 영역', () => {
     await screen.findByRole('heading', { name: '강의계획서' });
     await userEvent.upload(await chooser(), pdf('요가 계획서.pdf', 2048));
     expect((await rows('강의계획서 목록')).map((row) => cells(row).slice(0, 3))).toEqual([['요가 계획서.pdf', '2KB', '검사 대기']]);
+  });
+});
+
+describe('검사 대기 자동 확인', () => {
+  it('처음 조회에는 X-Background가 없고 저절로 다시 부르는 조회에만 붙는다', async () => {
+    const marks: Array<string | null> = [];
+    const file = { id: `31${'1'.padStart(20, '0')}`, name: '공고.pdf', size: 1024, contentType: 'application/pdf', status: 'PENDING', uploadedAt: '2026-11-19T00:00:00Z' };
+    server.use(
+      http.get(`/api/admin/v1/posts/${POST}/files`, ({ request }) => {
+        marks.push(request.headers.get('X-Background'));
+        return HttpResponse.json({ items: [file], maxCount: 10, maxBytes: 20971520, allowedExtensions: ['pdf'] });
+      }),
+    );
+    await signInAs('group');
+    renderFiles(20);
+    await screen.findByText('검사 대기');
+    await vi.waitFor(() => expect(marks.length).toBeGreaterThanOrEqual(3));
+    expect(marks[0]).toBeNull();
+    expect(marks.slice(1).every((mark) => mark === '1')).toBe(true);
   });
 });
 
