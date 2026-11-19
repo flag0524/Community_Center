@@ -1,4 +1,4 @@
-# 설계안 파서가 문서의 숫자(45·610·184·코드 182값)와 일치하고 문서 안의 참조가 맞는지 보는 시험
+# 설계안 파서가 문서의 숫자(45·610·184·코드 186값)와 일치하고 문서 안의 참조가 맞는지 보는 시험
 from collections import Counter
 
 import pytest
@@ -24,11 +24,11 @@ def test_키와_인덱스_종류별_개수(schema: SchemaDoc) -> None:
     assert kinds == {"PK": 45, "UQ": 78, "IX": 103, "UQ_FILTER": 2}
 
 
-def test_공통코드는_40집합_182값이고_12자_안이다(schema: SchemaDoc) -> None:
-    assert len(schema.codes) == 182
+def test_공통코드는_40집합_186값이고_12자_안이다(schema: SchemaDoc) -> None:
+    assert len(schema.codes) == 186
     assert len({code.group for code in schema.codes}) == 40
     assert max(len(code.code) for code in schema.codes) <= 12  # TB_COM_CD.COM_CD는 CHAR(12)
-    assert len({code.code for code in schema.codes}) == 182
+    assert len({code.code for code in schema.codes}) == 186
     assert all(code.code.startswith(f"{code.group}.") for code in schema.codes)
 
 

@@ -96,9 +96,9 @@ def test_기본값은_타입에_맞게_쓴다(statements: list[str]) -> None:
     assert re.search(r"MBR_STTS_CD CHAR\(12\) NOT NULL DEFAULT 'MS.ACTIVE'", member)
 
 
-def test_공통코드_시드는_182행이고_따옴표를_안전하게_다룬다(statements: list[str]) -> None:
+def test_공통코드_시드는_186행이고_따옴표를_안전하게_다룬다(statements: list[str]) -> None:
     seed = next(s for s in statements if s.startswith("INSERT INTO TB_COM_CD"))
-    assert seed.count("\n  (") == 182
+    assert seed.count("\n  (") == 186
     assert "('MT.GEN', 'MT', '일반회원', 1)" in seed
 
 
