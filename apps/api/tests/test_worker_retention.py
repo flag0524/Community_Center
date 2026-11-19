@@ -11,6 +11,7 @@ from app.domain.admin import retention_service
 from app.domain.admin.retention_types import RetentionTarget
 from app.worker import retention
 from tests.test_admin_refunds import refund
+from tests.test_admin_retention import session_row
 from tests.test_admin_retention_execute import cert_count, member_row, operator, otp, run, withdrawn
 from tests.world import START, World, make_member
 
@@ -46,6 +47,50 @@ def jobs(w: World) -> list[Any]:
             )
         ).mappings()
     )
+
+
+# --- 세션·로그인 실패 이력(기관 확정 2026-11-19) -------------------------------------------------
+
+
+def test_새벽_정리가_끝난_지_30일이_지난_세션과_90일이_지난_로그인_실패를_지운다(world: World) -> None:
+    me = make_member(world, "auto")
+    session_row(
+        world,
+        me,
+        "old",
+        ISSU_DT=START - timedelta(days=80),
+        LAST_ACT_DT=START - timedelta(days=50),
+        EXPRY_DT=START - timedelta(days=40),
+    )
+    kept = session_row(
+        world,
+        me,
+        "live",
+        ISSU_DT=START - timedelta(days=2),
+        LAST_ACT_DT=START,
+        EXPRY_DT=START + timedelta(minutes=30),
+    )
+    for n, days in enumerate((120, 20)):
+        world.factory.make(
+            "TB_LGN_FAIL_HSTRY",
+            OPER_BNDL_SN=world.bundle,
+            MBR_SN=me["MBR_SN"],
+            FAIL_DT=START - timedelta(days=days),
+            DMND_ID=f"auto-{n}",
+        )
+    assert sweep(world) == 2
+    sessions = [
+        int(s)
+        for s in world.db.execute(
+            text("SELECT LGN_SSN_SN FROM TB_LGN_SSN WHERE MBR_SN=:m"), {"m": me["MBR_SN"]}
+        ).scalars()
+    ]
+    fails = world.db.execute(
+        text("SELECT COUNT(*) FROM TB_LGN_FAIL_HSTRY WHERE MBR_SN=:m"), {"m": me["MBR_SN"]}
+    ).scalar()
+    assert sessions == [int(kept["LGN_SSN_SN"])] and fails == 1
+    assert sorted(j["t"] for j in jobs(world)) == ["TB_LGN_FAIL_HSTRY", "TB_LGN_SSN"]
+    assert sweep(world) == 0
 
 
 # --- 이체 완료한 환불의 계좌정보 ------------------------------------------------------------------

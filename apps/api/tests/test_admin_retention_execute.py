@@ -8,7 +8,8 @@ from sqlalchemy import text
 
 from tests.test_admin_access import dong
 from tests.test_admin_refunds import Actor, call, staff, use
-from tests.world import START, World, make_member
+from tests.test_admin_retention import session_row
+from tests.world import START, World, make_admin, make_member
 
 pytestmark = pytest.mark.db
 
@@ -223,6 +224,119 @@ def test_30일이_지난_인증번호_요청만_지우고_문자_기록이_가�
     assert remaining == {int(kept["CERT_DMND_SN"]), int(pinned["CERT_DMND_SN"])}
     assert res.json()["executions"][0]["processed"] == 2
     assert run(world, 2, 2).status_code == 409
+
+
+def test_끝난_지_30일이_지난_세션만_지우고_쓰고_있는_세션과_내_세션은_남긴다(world: World) -> None:
+    me = make_member(world, "ses")
+    old = session_row(
+        world,
+        me,
+        "old",
+        ISSU_DT=START - timedelta(days=80),
+        LAST_ACT_DT=START - timedelta(days=50),
+        EXPRY_DT=START - timedelta(days=40),
+    )
+    closed = session_row(
+        world,
+        me,
+        "closed",
+        ISSU_DT=START - timedelta(days=60),
+        LAST_ACT_DT=START - timedelta(days=45),
+        EXPRY_DT=START + timedelta(days=5),
+        DSCD_DT=START - timedelta(days=31),
+        DSCD_RSN="로그아웃",
+    )
+    recent = session_row(
+        world,
+        me,
+        "recent",
+        ISSU_DT=START - timedelta(days=20),
+        LAST_ACT_DT=START - timedelta(days=10),
+        EXPRY_DT=START - timedelta(days=10),
+    )
+    live = session_row(
+        world,
+        me,
+        "live",
+        ISSU_DT=START - timedelta(days=90),
+        LAST_ACT_DT=START,
+        EXPRY_DT=START + timedelta(minutes=30),
+    )
+    # 관리자 세션은 운영묶음이 비어 있다. 자치회마다 DB가 따로라 이 DB의 것으로 보고 정리한다
+    ghost = world.factory.make(
+        "TB_LGN_SSN",
+        MNGR_SN=make_admin(world, "oldadmin")["MNGR_SN"],
+        TKN_HASH_VL="ghost".ljust(64, "0"),
+        ISSU_DT=START - timedelta(days=60),
+        LAST_ACT_DT=START - timedelta(days=50),
+        EXPRY_DT=START - timedelta(days=50),
+    )
+    other = world.factory.make("TB_OPER_BNDL")
+    other_member = world.factory.make("TB_MBR", OPER_BNDL_SN=other["OPER_BNDL_SN"], LGN_ID="otherses")
+    foreign = world.factory.make(
+        "TB_LGN_SSN",
+        OPER_BNDL_SN=other["OPER_BNDL_SN"],
+        MBR_SN=other_member["MBR_SN"],
+        TKN_HASH_VL="foreign".ljust(64, "0"),
+        ISSU_DT=START - timedelta(days=60),
+        LAST_ACT_DT=START - timedelta(days=50),
+        EXPRY_DT=START - timedelta(days=50),
+    )
+    operator(world)
+    res = run(world, 6, 3)
+    assert res.status_code == 200, res.text
+    mine = ",".join(
+        str(int(x["LGN_SSN_SN"])) for x in (old, closed, recent, live, ghost, foreign)
+    )  # 시험이 만든 행의 번호뿐이다
+    left = {
+        int(r)
+        for r in world.db.execute(
+            text(f"SELECT LGN_SSN_SN FROM TB_LGN_SSN WHERE LGN_SSN_SN IN ({mine})")
+        ).scalars()
+    }
+    assert left == {int(recent["LGN_SSN_SN"]), int(live["LGN_SSN_SN"]), int(foreign["LGN_SSN_SN"])}, (
+        old,
+        closed,
+    )
+    assert res.json()["executions"][0]["processed"] == 3
+    assert run(world, 6, 3).status_code == 409  # 더 처리할 대상이 없다
+    me_after = call(world, "GET", "/me/permissions")
+    assert me_after.status_code == 200  # 지금 로그인한 관리자의 세션은 그대로다
+
+
+def test_90일이_지난_로그인_실패_이력만_지운다(world: World) -> None:
+    me = make_member(world, "fail")
+    for n, days in enumerate((100, 91, 30, 1)):
+        world.factory.make(
+            "TB_LGN_FAIL_HSTRY",
+            OPER_BNDL_SN=world.bundle,
+            MBR_SN=me["MBR_SN"],
+            FAIL_DT=START - timedelta(days=days),
+            DMND_ID=f"fail-{n}",
+        )
+    other = world.factory.make("TB_OPER_BNDL")
+    other_member = world.factory.make("TB_MBR", OPER_BNDL_SN=other["OPER_BNDL_SN"], LGN_ID="otherfail")
+    foreign = world.factory.make(
+        "TB_LGN_FAIL_HSTRY",
+        OPER_BNDL_SN=other["OPER_BNDL_SN"],
+        MBR_SN=other_member["MBR_SN"],
+        FAIL_DT=START - timedelta(days=200),
+        DMND_ID="fail-foreign",
+    )  # 다른 묶음의 것은 세지도 지우지도 않는다
+    operator(world)
+    res = run(world, 7, 2)
+    assert res.status_code == 200, res.text
+    left = world.db.execute(
+        text("SELECT COUNT(*) FROM TB_LGN_FAIL_HSTRY WHERE MBR_SN=:m"), {"m": me["MBR_SN"]}
+    ).scalar()
+    assert left == 2
+    assert (
+        world.db.execute(
+            text("SELECT COUNT(*) FROM TB_LGN_FAIL_HSTRY WHERE LGN_FAIL_HSTRY_SN=:s"),
+            {"s": foreign["LGN_FAIL_HSTRY_SN"]},
+        ).scalar()
+        == 1
+    )
 
 
 def test_상세의_실행_가능은_실행_권한과_대상이_있을_때만_true이다(world: World) -> None:

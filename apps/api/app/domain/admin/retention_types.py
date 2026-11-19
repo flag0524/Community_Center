@@ -4,10 +4,12 @@ from enum import StrEnum
 
 class RetentionTarget(StrEnum):
     WITHDRAWN_MEMBER = "WITHDRAWN_MEMBER"  # 탈퇴 회원 일반 개인정보 (탈퇴 후 30일)
-    AUTH_RECORDS = "AUTH_RECORDS"  # 만료된 OTP 요청·세션·로그인 실패 이력
+    AUTH_RECORDS = "AUTH_RECORDS"  # 인증번호(OTP) 요청 (30일)
     AUDIT_HISTORY = "AUDIT_HISTORY"  # 업무 감사이력 (3년)
-    REFUND_ACCOUNT = "REFUND_ACCOUNT"  # 수동환불 계좌정보 (보존기간 TBD)
-    SMS_RECORDS = "SMS_RECORDS"  # 문자 문안·수신명단 (보존기간 TBD)
+    REFUND_ACCOUNT = "REFUND_ACCOUNT"  # 수동환불 계좌정보 (이체 확인 직후)
+    SMS_RECORDS = "SMS_RECORDS"  # 문자 문안·수신명단 (결과 확정 직후)
+    SESSION_RECORDS = "SESSION_RECORDS"  # 만료·폐기된 로그인 세션 기록 (끝난 뒤 30일, 기관 확정 2026-11-19)
+    LOGIN_FAILURES = "LOGIN_FAILURES"  # 로그인 실패 이력 (90일, 기관 확정 2026-11-19)
 
 
 class RetentionState(StrEnum):

@@ -15,6 +15,8 @@ from app.core.times import kst_today, utc
 from app.db.tables import (
     TB_CERT_DMND,
     TB_JOB_HSTRY,
+    TB_LGN_FAIL_HSTRY,
+    TB_LGN_SSN,
     TB_MBR,
     TB_MNGR,
     TB_RFND,
@@ -33,6 +35,8 @@ from app.domain.admin.sms_purge import pending_conditions, purge_request
 from app.domain.admin.types import AdminAuthority as AU
 
 OTP_DAYS = 30  # 기관 확정(2026-11-17)
+SESSION_DAYS = 30  # 기관 확정(2026-11-19): 만료되거나 폐기된 세션 기록
+LOGIN_FAIL_DAYS = 90  # 기관 확정(2026-11-19)
 WITHDRAWN_DAYS = 30
 AUDIT_YEARS = 3
 ANON_NAME = (
@@ -45,6 +49,8 @@ EXECUTABLE = (
     RetentionTarget.AUTH_RECORDS,
     RetentionTarget.REFUND_ACCOUNT,
     RetentionTarget.SMS_RECORDS,
+    RetentionTarget.SESSION_RECORDS,
+    RetentionTarget.LOGIN_FAILURES,
 )
 # 매일 새벽 시스템이 자동으로 처리하는 대상(기관 확정 2026-11-17: 기간이 지나면 자동 파기)
 AUTO_TARGETS = EXECUTABLE
@@ -75,7 +81,7 @@ _ORDER = (
     ),
     _Rule(
         RetentionTarget.AUTH_RECORDS,
-        "인증번호 요청은 30일이 지나면 정리한다(기관 확정). 세션과 로그인 실패 이력의 기간은 정해지지 않아 세지 않는다.",
+        "인증번호 요청은 30일이 지나면 정리한다(기관 확정). 세션과 로그인 실패 이력은 아래 별도 항목이다.",
         ("인증번호 요청 기록",),
     ),
     _Rule(
@@ -92,6 +98,16 @@ _ORDER = (
         RetentionTarget.SMS_RECORDS,
         "문자 문안·수신번호는 발송 결과가 확정되는 순간 파기한다(기관 확정). 이력 행과 상태·건수·실패 사유는 남기고 값만 '(파기됨)'으로 바꾼다. 확정 때 파기하지 못하고 남은 문자가 있으면 이 항목에서 처리한다.",
         ("문안", "수신번호"),
+    ),
+    _Rule(
+        RetentionTarget.SESSION_RECORDS,
+        "로그인 세션 기록은 만료되거나 로그아웃·폐기된 뒤 30일이 지나면 삭제한다(기관 확정 2026-11-19). 아직 쓰고 있는 세션은 대상이 아니다.",
+        ("세션 발급·만료·폐기 기록",),
+    ),
+    _Rule(
+        RetentionTarget.LOGIN_FAILURES,
+        "로그인 실패 이력은 90일이 지나면 삭제한다(기관 확정 2026-11-19). 잠금 판정에는 최근 구간만 쓰므로 영향이 없다.",
+        ("로그인 실패 기록",),
     ),
 )
 
@@ -150,13 +166,32 @@ def _refund_account_conditions(bundle: int) -> list[ColumnElement[bool]]:
     ]
 
 
+def _session_ended() -> ColumnElement[datetime]:
+    """세션이 끝난 시각. 폐기했으면 폐기 시각이고 아니면 만료 시각이다. 쓰고 있는 세션은 미래 시각이라 기한이 지나지 않는다."""
+    return func.coalesce(TB_LGN_SSN.c.DSCD_DT, TB_LGN_SSN.c.EXPRY_DT)
+
+
+def _session_conditions(bundle: int) -> list[ColumnElement[bool]]:
+    # 관리자 세션은 운영묶음이 비어 있을 수 있다. 자치회마다 DB가 따로라 그 DB의 묶음 것으로 본다(ADR-002)
+    return [or_(TB_LGN_SSN.c.OPER_BNDL_SN == bundle, TB_LGN_SSN.c.OPER_BNDL_SN.is_(None))]
+
+
+def _login_fail_conditions(bundle: int) -> list[ColumnElement[bool]]:
+    return [or_(TB_LGN_FAIL_HSTRY.c.OPER_BNDL_SN == bundle, TB_LGN_FAIL_HSTRY.c.OPER_BNDL_SN.is_(None))]
+
+
 def _count_and_oldest(
-    db: Session, column: Column[Any], *conditions: ColumnElement[bool], due_before: datetime | None
+    db: Session,
+    column: Column[Any] | ColumnElement[Any],
+    *conditions: ColumnElement[bool],
+    due_before: datetime | None,
+    table: Any = None,
 ) -> tuple[int, datetime | None]:
-    """조건에 맞는 전체의 가장 오래된 시각과 건수를 구한다. 기준 시각을 주면 그 이전인 건수만 센다."""
+    """조건에 맞는 전체의 가장 오래된 시각과 건수를 구한다. 기준 시각을 주면 그 이전인 건수만 센다. 식을 기준으로 삼으면 table을 준다."""
+    source = column.table if table is None else table
     oldest = db.execute(select(func.min(column)).where(*conditions)).scalar()
     counted = conditions if due_before is None else (*conditions, column <= due_before)
-    total = db.execute(select(func.count()).select_from(column.table).where(*counted)).scalar()
+    total = db.execute(select(func.count()).select_from(source).where(*counted)).scalar()
     return int(total or 0), oldest
 
 
@@ -197,6 +232,24 @@ def _item(db: Session, admin: Admin, now: datetime, index: int) -> RetentionItem
             due_before=now,  # 이체 완료를 확인한 때부터 바로 대상이다
         )
         period = (0, "d")
+    elif target is RetentionTarget.SESSION_RECORDS:
+        count, oldest = _count_and_oldest(
+            db,
+            _session_ended(),
+            *_session_conditions(bundle),
+            _session_ended() <= now,  # 아직 쓰고 있는 세션은 기준일을 흐리지 않게 뺀다
+            due_before=now - timedelta(days=SESSION_DAYS),
+            table=TB_LGN_SSN,
+        )
+        period = (SESSION_DAYS, "d")
+    elif target is RetentionTarget.LOGIN_FAILURES:
+        count, oldest = _count_and_oldest(
+            db,
+            TB_LGN_FAIL_HSTRY.c.FAIL_DT,
+            *_login_fail_conditions(bundle),
+            due_before=now - timedelta(days=LOGIN_FAIL_DAYS),
+        )
+        period = (LOGIN_FAIL_DAYS, "d")
     else:
         count, oldest = _count_and_oldest(
             db,
@@ -347,6 +400,8 @@ _TABLE = {
     RetentionTarget.AUTH_RECORDS: "TB_CERT_DMND",
     RetentionTarget.REFUND_ACCOUNT: "TB_RFND",
     RetentionTarget.SMS_RECORDS: "TB_SMS_DMND",
+    RetentionTarget.SESSION_RECORDS: "TB_LGN_SSN",
+    RetentionTarget.LOGIN_FAILURES: "TB_LGN_FAIL_HSTRY",
 }
 
 
@@ -368,6 +423,21 @@ def _due_keys(db: Session, bundle: int, target: RetentionTarget, now: datetime) 
             .where(*_otp_conditions(bundle), TB_CERT_DMND.c.REG_DT <= now - timedelta(days=OTP_DAYS))
             .order_by(TB_CERT_DMND.c.CERT_DMND_SN)
         )
+    elif target is RetentionTarget.SESSION_RECORDS:
+        query = (
+            select(TB_LGN_SSN.c.LGN_SSN_SN)
+            .where(*_session_conditions(bundle), _session_ended() <= now - timedelta(days=SESSION_DAYS))
+            .order_by(TB_LGN_SSN.c.LGN_SSN_SN)
+        )
+    elif target is RetentionTarget.LOGIN_FAILURES:
+        query = (
+            select(TB_LGN_FAIL_HSTRY.c.LGN_FAIL_HSTRY_SN)
+            .where(
+                *_login_fail_conditions(bundle),
+                TB_LGN_FAIL_HSTRY.c.FAIL_DT <= now - timedelta(days=LOGIN_FAIL_DAYS),
+            )
+            .order_by(TB_LGN_FAIL_HSTRY.c.LGN_FAIL_HSTRY_SN)
+        )
     elif target is RetentionTarget.SMS_RECORDS:
         query = (
             select(TB_SMS_DMND.c.SMS_DMND_SN)
@@ -388,6 +458,10 @@ def _apply(db: Session, bundle: int, target: RetentionTarget, keys: list[int], n
         _anonymize(db, bundle, keys, now)
     elif target is RetentionTarget.AUTH_RECORDS:
         db.execute(delete(TB_CERT_DMND).where(TB_CERT_DMND.c.CERT_DMND_SN.in_(keys)))
+    elif target is RetentionTarget.SESSION_RECORDS:
+        db.execute(delete(TB_LGN_SSN).where(TB_LGN_SSN.c.LGN_SSN_SN.in_(keys)))
+    elif target is RetentionTarget.LOGIN_FAILURES:
+        db.execute(delete(TB_LGN_FAIL_HSTRY).where(TB_LGN_FAIL_HSTRY.c.LGN_FAIL_HSTRY_SN.in_(keys)))
     elif target is RetentionTarget.SMS_RECORDS:
         for sn in keys:
             purge_request(db, sn, now=now)

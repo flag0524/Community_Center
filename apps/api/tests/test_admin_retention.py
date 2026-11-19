@@ -44,6 +44,8 @@ def test_자료가_없으면_모두_0건이고_정산자료는_제외한다고_�
         ("3", "AUDIT_HISTORY"),
         ("4", "REFUND_ACCOUNT"),
         ("5", "SMS_RECORDS"),
+        ("6", "SESSION_RECORDS"),
+        ("7", "LOGIN_FAILURES"),
     ]
     assert all(i["count"] == 0 and i["baseDate"] is None and i["dueOn"] is None for i in res["items"])
     assert [e["label"] for e in res["exclusions"]][0] == "정산자료(결제·환불 원장)"
@@ -87,6 +89,74 @@ def test_인증번호_요청은_30일이_지난_것만_세고_다른_묶음은_�
     viewer(world)
     item = items(world)["AUTH_RECORDS"]
     assert (item["count"], item["state"]) == (2, "DUE")
+
+
+def session_row(world: World, member: dict[str, Any], tag: str, **values: Any) -> dict[str, Any]:
+    return world.factory.make(
+        "TB_LGN_SSN",
+        OPER_BNDL_SN=world.bundle,
+        MBR_SN=member["MBR_SN"],
+        TKN_HASH_VL=tag.ljust(64, "0"),
+        **values,
+    )
+
+
+def test_세션은_끝난_지_30일이_지난_것만_세고_쓰고_있는_세션은_세지_않는다(world: World) -> None:
+    me = make_member(world, "ses")
+    session_row(
+        world,
+        me,
+        "a",
+        ISSU_DT=START - timedelta(days=80),
+        LAST_ACT_DT=START - timedelta(days=50),
+        EXPRY_DT=START - timedelta(days=40),
+    )  # 만료 40일 전
+    session_row(
+        world,
+        me,
+        "b",
+        ISSU_DT=START - timedelta(days=50),
+        LAST_ACT_DT=START - timedelta(days=45),
+        EXPRY_DT=START + timedelta(days=5),
+        DSCD_DT=START - timedelta(days=31),
+        DSCD_RSN="로그아웃",
+    )  # 폐기 31일 전
+    session_row(
+        world,
+        me,
+        "c",
+        ISSU_DT=START - timedelta(days=20),
+        LAST_ACT_DT=START - timedelta(days=10),
+        EXPRY_DT=START - timedelta(days=10),
+    )  # 만료 10일 전
+    session_row(
+        world,
+        me,
+        "d",
+        ISSU_DT=START - timedelta(days=90),
+        LAST_ACT_DT=START,
+        EXPRY_DT=START + timedelta(minutes=30),
+    )  # 쓰고 있다
+    viewer(world)
+    item = items(world)["SESSION_RECORDS"]
+    assert (item["count"], item["state"]) == (2, "DUE")
+
+
+def test_로그인_실패_이력은_90일이_지난_것만_센다(world: World) -> None:
+    me = make_member(world, "fail")
+    for n, days in enumerate((100, 91, 30)):
+        world.factory.make(
+            "TB_LGN_FAIL_HSTRY",
+            OPER_BNDL_SN=world.bundle,
+            MBR_SN=me["MBR_SN"],
+            FAIL_DT=START - timedelta(days=days),
+            DMND_ID=f"fail-{n}",
+        )
+    viewer(world)
+    item = items(world)["LOGIN_FAILURES"]
+    assert (item["count"], item["state"]) == (2, "DUE")
+    base = (START - timedelta(days=100) + timedelta(hours=9)).date()
+    assert (item["baseDate"], item["dueOn"]) == (base.isoformat(), (base + timedelta(days=90)).isoformat())
 
 
 def test_감사이력은_3년이_지난_건수만_보이고_실행하지_않는_검토_상태다(world: World) -> None:
@@ -143,5 +213,5 @@ def test_상세는_규칙과_처리_항목을_주고_실행_가능은_아직_fal
     assert one["target"] == "WITHDRAWN_MEMBER" and one["count"] == 1 and one["state"] == "DUE"
     assert one["fields"] == ["이름", "휴대전화", "이메일"] and "30일" in one["rule"]
     assert one["executions"] == [] and one["canExecute"] is False
-    for bad in ("0", "6", "9999999999"):
+    for bad in ("0", "8", "9999999999"):
         assert call(world, "GET", f"/retention/{bad}").status_code == 404
