@@ -13,7 +13,8 @@ from app.core.config import get_settings
 from app.db.session import get_db
 from app.worker import consistency
 from app.worker.consistency import find_stale
-from app.worker.status import record_run
+from app.worker.schedule import INTERVAL_SECONDS
+from app.worker.status import initialize_status, record_run
 from tests.test_admin_refunds import refund
 from tests.test_admin_transactions import pending
 from tests.test_worker_sms import outbox
@@ -170,6 +171,12 @@ def health(w: World) -> Any:
     return w.client.get("/api/health")
 
 
+def ready_worker(path: Path) -> None:
+    initialize_status(path, START)
+    for name in INTERVAL_SECONDS:
+        record_run(path, name, ok=True, now=START)
+
+
 def test_상태_파일이_없으면_워커가_정지한_것으로_보고_503이다(world: World, tmp_path: Path) -> None:
     with_status_file(world, tmp_path / "none.json")
     r = health(world)
@@ -180,12 +187,15 @@ def test_상태_파일이_없으면_워커가_정지한_것으로_보고_503이�
 def test_워커가_최근에_일했고_모두_성공이면_200이다(world: World, tmp_path: Path) -> None:
     path = tmp_path / "s.json"
     with_status_file(world, path)
+    ready_worker(path)
     record_run(path, "expire_payments", ok=True, now=START - timedelta(seconds=10), handled=0)
     r = health(world)
     assert r.status_code == 200 and r.json()["status"] == "ok"
-    assert r.json()["worker"] == {
-        "running": True,
-        "jobs": {"expire_payments": {"lastRun": "2026-11-09T08:59:50+00:00", "ok": True}},
+    assert r.json()["worker"]["running"] is True
+    assert set(r.json()["worker"]["jobs"]) == set(INTERVAL_SECONDS)
+    assert r.json()["worker"]["jobs"]["expire_payments"] == {
+        "lastRun": "2026-11-09T08:59:50+00:00",
+        "ok": True,
     }
 
 
@@ -194,6 +204,7 @@ def test_마지막_실행이_실패한_작업이_있으면_503이고_오류_내�
 ) -> None:
     path = tmp_path / "s.json"
     with_status_file(world, path)
+    ready_worker(path)
     record_run(path, "expire_payments", ok=True, now=START)
     record_run(path, "sms_dispatch", ok=False, now=START, error="OperationalError", handled=None)
     r = health(world)
@@ -205,6 +216,7 @@ def test_마지막_실행이_실패한_작업이_있으면_503이고_오류_내�
 def test_5분_넘게_아무_작업도_돌지_않으면_503이다(world: World, tmp_path: Path) -> None:
     path = tmp_path / "s.json"
     with_status_file(world, path)
+    ready_worker(path)
     record_run(path, "expire_payments", ok=True, now=START)
     world.clock.advance(minutes=5)
     assert health(world).status_code == 200  # 정확히 5분은 정지가 아니다
@@ -216,6 +228,7 @@ def test_5분_넘게_아무_작업도_돌지_않으면_503이다(world: World, t
 def test_DB에_닿지_않으면_503이다(world: World, tmp_path: Path) -> None:
     path = tmp_path / "s.json"
     with_status_file(world, path)
+    ready_worker(path)
     record_run(path, "expire_payments", ok=True, now=START)
 
     class Broken:

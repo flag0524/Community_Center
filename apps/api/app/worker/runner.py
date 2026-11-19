@@ -14,6 +14,7 @@ from app.adapters.sms.base import SmsSender
 from app.core.config import Settings
 from app.db.session import open_session
 from app.worker import consistency, jobs, retention
+from app.worker.schedule import DAILY_HOURS, INTERVAL_SECONDS
 from app.worker.status import record_run
 
 log = logging.getLogger("app.worker")
@@ -39,30 +40,48 @@ def build_jobs(
     return [
         Job(
             "sms_dispatch",
-            5,
+            INTERVAL_SECONDS["sms_dispatch"],
             lambda db: (
                 jobs.dispatch_sms(db, settings, sender, bundle_sn, clock)
                 + jobs.recheck_sms(db, sender, bundle_sn, clock)
             ),
         ),
-        Job("file_scan", 10, lambda db: jobs.scan_files(db, settings, scanner, bundle_sn, clock)),
-        Job("expire_payments", 10, lambda db: jobs.expire_payments(db, settings, bundle_sn, clock)),
         Job(
-            "recheck_payments", 30, lambda db: jobs.recheck_payments(db, settings, gateway, bundle_sn, clock)
+            "file_scan",
+            INTERVAL_SECONDS["file_scan"],
+            lambda db: jobs.scan_files(db, settings, scanner, bundle_sn, clock),
         ),
-        Job("retry_webhooks", 30, lambda db: jobs.retry_webhooks(db, settings, gateway, bundle_sn, clock)),
-        Job("recheck_refunds", 30, lambda db: jobs.recheck_refunds(db, gateway, bundle_sn, clock)),
+        Job(
+            "expire_payments",
+            INTERVAL_SECONDS["expire_payments"],
+            lambda db: jobs.expire_payments(db, settings, bundle_sn, clock),
+        ),
+        Job(
+            "recheck_payments",
+            INTERVAL_SECONDS["recheck_payments"],
+            lambda db: jobs.recheck_payments(db, settings, gateway, bundle_sn, clock),
+        ),
+        Job(
+            "retry_webhooks",
+            INTERVAL_SECONDS["retry_webhooks"],
+            lambda db: jobs.retry_webhooks(db, settings, gateway, bundle_sn, clock),
+        ),
+        Job(
+            "recheck_refunds",
+            INTERVAL_SECONDS["recheck_refunds"],
+            lambda db: jobs.recheck_refunds(db, gateway, bundle_sn, clock),
+        ),
         Job(
             "consistency_check",
             0,
             lambda db: consistency.consistency_check(db, bundle_sn, clock),
-            cron=(3, 0),  # TDD 7.5: 매일 03:00
+            cron=(DAILY_HOURS["consistency_check"], 0),  # TDD 7.5: 매일 03:00
         ),
         Job(
             "retention",
             0,
             lambda db: retention.purge_due(db, bundle_sn, clock),
-            cron=(4, 0),  # TDD 7: 매일 04:00. 기간이 지난 개인정보를 자동으로 파기한다
+            cron=(DAILY_HOURS["retention"], 0),  # TDD 7: 매일 04:00. 기간이 지난 개인정보를 자동으로 파기한다
         ),
     ]
 
@@ -77,7 +96,8 @@ def run_guarded(job: Job, engine: Engine, status_file: Path, clock: Callable[[],
             log.info("작업 %s 처리 %d건", job.name, handled)
     except Exception as error:
         session.rollback()
-        log.exception("작업 %s 실패", job.name)  # 로그에는 예외 종류와 위치만 남는다(개인정보는 담지 않는다)
+        # SQLAlchemy 예외 전문에는 SQL과 입력값이 있어 스택·메시지를 기록하지 않는다.
+        log.error("작업 %s 실패 type=%s", job.name, type(error).__name__)
         record_run(status_file, job.name, ok=False, now=clock(), error=type(error).__name__)
     finally:
         session.close()

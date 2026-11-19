@@ -16,6 +16,7 @@ from app.core.times import KST
 from app.db.bundle import BundleResolver
 from app.db.session import create_db_engine, open_session
 from app.worker.runner import build_jobs, run_guarded
+from app.worker.status import initialize_status
 
 
 def utc_now() -> datetime:
@@ -29,6 +30,7 @@ def main() -> None:
     with Session(engine) as session:
         bundle_sn = BundleResolver(settings.site_id).resolve(session)
     status_file = Path(settings.worker_status_file)
+    initialize_status(status_file, utc_now())
     scheduler = BlockingScheduler(timezone=UTC)
     for job in build_jobs(
         settings, build_gateway(settings), build_sender(settings), build_scanner(settings), bundle_sn, utc_now

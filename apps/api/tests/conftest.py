@@ -8,8 +8,26 @@ from typing import Any
 import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL, Engine, make_url
+from sqlalchemy.exc import SQLAlchemyError
 
 DEFAULT_CREDENTIALS = Path.home() / "dev-tools" / "mariadb-credentials.json"
+
+
+def assert_test_database(url: URL, *, actual_name: str | None = None) -> None:
+    """시험 DB만 초기화하며 앱이 쓰는 DB와 같은 연결 대상이면 시험 이름이어도 거절한다."""
+    if url.database != "jori_test" or (actual_name is not None and actual_name != "jori_test"):
+        raise pytest.UsageError("시험은 jori_test DB에서만 실행할 수 있습니다. 초기화를 거부합니다.")
+    app_url = os.environ.get("JORI_DATABASE_URL")
+    if app_url:
+        app = make_url(app_url)
+        local = {"localhost", "127.0.0.1", "::1"}
+        app_host, test_host = (app.host or "").lower(), (url.host or "").lower()
+        if ("localhost" if app_host in local else app_host, app.port or 3306, app.database) == (
+            "localhost" if test_host in local else test_host,
+            url.port or 3306,
+            url.database,
+        ):
+            raise pytest.UsageError("앱과 같은 DB에서는 시험할 수 없습니다. 초기화를 거부합니다.")
 
 
 def database_url(database: str = "jori_test") -> URL:
@@ -34,10 +52,12 @@ def database_url(database: str = "jori_test") -> URL:
 def db_engine() -> Iterator[Engine]:
     """시험 전용 DB(jori_test)에 연결한다. 연결할 수 없으면 건너뛰거나 실패시킨다."""
     try:
-        engine = create_engine(database_url(), pool_pre_ping=True)
+        url = database_url()
+        assert_test_database(url)
+        engine = create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 5})
         with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
-    except Exception as error:
+            assert_test_database(url, actual_name=str(connection.execute(text("SELECT DATABASE()")).scalar()))
+    except (OSError, SQLAlchemyError) as error:
         if os.environ.get("JORI_REQUIRE_DB") == "1":
             raise
         pytest.skip(f"MariaDB에 연결할 수 없습니다(scripts/db/mariadb-dev.ps1 start): {type(error).__name__}")
@@ -55,6 +75,9 @@ def migrated_engine(db_engine: Engine) -> Iterator[Engine]:
     from alembic.config import Config
 
     with db_engine.connect() as connection:
+        assert_test_database(
+            db_engine.url, actual_name=str(connection.execute(text("SELECT DATABASE()")).scalar())
+        )
         connection.execute(text("SET FOREIGN_KEY_CHECKS=0"))
         # MariaDB는 시퀀스를 information_schema.TABLES에 TABLE_TYPE=SEQUENCE로 보여 준다
         for name, kind in connection.execute(

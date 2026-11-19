@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.auth.deps import Clock, get_clock
 from app.core.config import Settings, get_settings
 from app.db.session import get_db
-from app.worker.status import is_stale, read_state
+from app.worker.status import is_stale, jobs_healthy, read_state
 
 router = APIRouter()
 
@@ -20,7 +20,7 @@ def _jobs(state: dict[str, Any]) -> dict[str, Any]:
     return {
         name: {"lastRun": item.get("lastRun"), "ok": item.get("ok") is True}
         for name, item in state.items()
-        if isinstance(item, dict)
+        if isinstance(item, dict) and "lastRun" in item
     }
 
 
@@ -30,16 +30,17 @@ def health(
     settings: Annotated[Settings, Depends(get_settings)],
     clock: Annotated[Clock, Depends(get_clock)],
 ) -> JSONResponse:
-    """DB에 닿고 워커가 5분 안에 일했고 마지막 실행이 모두 성공이면 200, 아니면 503이다. 인증 없이 부른다."""
+    """DB 연결·워커 생존·작업별 성공과 지연을 함께 확인해 200 또는 503을 준다. 인증 없이 부른다."""
     try:
         db.execute(text("SELECT 1"))
         database = True
     except Exception:
         database = False
     path = Path(settings.worker_status_file)
-    jobs = _jobs(read_state(path))
+    state = read_state(path)
+    jobs = _jobs(state)
     running = not is_stale(path, clock())
-    healthy = database and running and all(job["ok"] for job in jobs.values())
+    healthy = database and running and jobs_healthy(state, clock())
     body = {
         "status": "ok" if healthy else "degraded",
         "database": database,

@@ -16,6 +16,7 @@ class ConfigError(RuntimeError):
 class Settings:
     database_url: str
     site_id: str  # 이 배포가 맡는 운영묶음의 TB_OPER_BNDL.SITE_ID. 요청이 아니라 배포 설정이 정한다(R26)
+    environment: str = "development"  # 운영 배포는 JORI_ENVIRONMENT=production을 명시한다
     secret_key: str = "x" * MIN_SECRET_LENGTH  # CSRF·OTP 검증값용 비밀키(용도별로 파생)
     pbkdf2_iterations: int = 600_000  # 비밀번호 해시 반복 횟수. 해시마다 값이 같이 저장돼 나중에 올려도 된다
     cookie_secure: bool = True  # 로컬 http 개발에서만 끈다
@@ -35,6 +36,15 @@ class Settings:
     worker_status_file: str = (
         "/var/run/jori/worker-status.json"  # 워커가 작업별 마지막 실행을 쓰고 /api/health가 읽는다
     )
+
+    def __post_init__(self) -> None:
+        if self.environment not in {"development", "test", "production"}:
+            raise ConfigError("JORI_ENVIRONMENT는 development, test, production 중 하나여야 합니다.")
+        if self.environment == "production":
+            if "mock" in (self.pg_provider, self.sms_provider, self.file_scanner):
+                raise ConfigError("운영 환경에서는 PG·SMS·파일 검사에 mock을 사용할 수 없습니다.")
+            if not self.cookie_secure:
+                raise ConfigError("운영 환경에서는 보안 쿠키를 사용해야 합니다.")
 
 
 def _int(env: dict[str, str], name: str) -> int | None:
@@ -61,6 +71,7 @@ def load_settings(environ: dict[str, str] | None = None) -> Settings:
     return Settings(
         database_url=env["JORI_DATABASE_URL"],
         site_id=env["JORI_SITE_ID"],
+        environment=env.get("JORI_ENVIRONMENT", "development"),
         secret_key=env["JORI_SECRET_KEY"],
         pbkdf2_iterations=_int(env, "JORI_PBKDF2_ITERATIONS") or 600_000,
         cookie_secure=env.get("JORI_COOKIE_SECURE", "1") != "0",
