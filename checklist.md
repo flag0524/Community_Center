@@ -233,3 +233,12 @@
 - [x] 배포 파일을 가정한 환경 값으로 작성(ADR-098): systemd 유닛 2개(워커 watchdog), Nginx 사이트·보안 헤더, MariaDB 설정, 환경 예시, `deploy/README.md`. 업체 값은 TBD 유지. 워커 systemd 알림(READY·WATCHDOG) 구현, 시험 12건과 변이 검사 17건
 - [ ] 실제 Ubuntu 서버에서 확인: `systemd-analyze verify`, watchdog 재시작, `nginx -t`, 관리자 API 차단·20MB 첨부, `/api/health`, 바이너리 로그를 켠 DB 시험, 실제 ClamAV
 - [ ] 배포 후속(범위 밖으로 둠): DB 계정 분리와 권한 SQL, 백업·복구 스크립트, `/api/health/version`, 배포 자동화
+
+
+## 2026-11-19 코드 리뷰 P1 → P2 → P3 후속
+
+- [x] P1 공통 lock_bundle으로 발급·소비·인증기록 파기의 잠금 순서 통일. 실제 가입·복구·파기 혼합 경합 시험 추가
+- [x] P2 READ COMMITTED·REPEATABLE READ 각각 명시, 연결의 실제 격리 수준 확인
+- [x] P3 REG_DT DATETIME(6), 0003 추가 이행, 스키마 v0.7·생성 정의·소수초 경계 시험 반영
+- [x] 관련 Python 72건, 전체 Ruff·변경 서식·mypy 338파일 통과, 독립 후속 리뷰 완료
+- [ ] 실제 MariaDB에서 0003 이행·소수초 왕복·두 격리 수준 혼합 경합 검증(연결 제한으로 관련 시험 140건 건너뜀)
