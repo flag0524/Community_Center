@@ -18,7 +18,7 @@ def sql_type(logical: str) -> str:
         return logical.replace("NUMERIC", "DECIMAL", 1)
     if logical == "CLOB":
         return "LONGTEXT"
-    if re.fullmatch(r"(VARCHAR|CHAR)\(\d+\)|DATETIME", logical):
+    if re.fullmatch(r"(VARCHAR|CHAR)\(\d+\)|DATETIME(?:\(6\))?", logical):
         return logical
     raise ValueError(f"알 수 없는 타입 {logical}")
 
@@ -37,7 +37,9 @@ def column_sql(table: Table, column: Column) -> str:
     if sequence and column.name == table.primary_key.columns[0]:
         parts.append(f"DEFAULT NEXTVAL({sequence})")
     elif column.default == "SERVER_NOW":
-        parts.append("DEFAULT CURRENT_TIMESTAMP")  # 서버 시간대가 UTC라 곧 UTC 시각이다(스키마 N07)
+        parts.append(
+            "DEFAULT CURRENT_TIMESTAMP(6)" if column.type == "DATETIME(6)" else "DEFAULT CURRENT_TIMESTAMP"
+        )  # 서버 시간대가 UTC라 곧 UTC 시각이다(스키마 N07)
     elif column.default is not None:
         parts.append(
             f"DEFAULT {column.default}"

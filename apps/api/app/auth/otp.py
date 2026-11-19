@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import insert, select, update
+from sqlalchemy import insert, select, true, update
 from sqlalchemy.orm import Session
 
 from app.adapters.sms.base import SendOutcome, SmsSender
@@ -17,6 +17,7 @@ from app.auth.crypto import encrypt
 from app.auth.tokens import derived_key, same
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
+from app.db.locks import lock_bundle
 from app.db.tables import TB_CERT_DMND, TB_MBR, TB_OPER_BNDL, TB_SMS_DMND, TB_SMS_SNDNG_HSTRY, TB_SMS_TRGT
 from app.domain.admin.sms_purge import purge_sent_now
 from app.domain.member.schemas import PHONE_PATTERN
@@ -114,9 +115,7 @@ def _find_member(
 
 def _check_phone_limit(db: Session, bundle_sn: int, digest: str, now: datetime) -> None:
     # 첫 요청에는 잠글 인증 행이 없으므로 묶음 행으로 판단·발급을 직렬화한다. SMS 호출 전에 커밋한다.
-    db.execute(
-        select(TB_OPER_BNDL.c.OPER_BNDL_SN).where(TB_OPER_BNDL.c.OPER_BNDL_SN == bundle_sn).with_for_update()
-    ).scalar_one()
+    lock_bundle(db, bundle_sn)
     latest = db.execute(
         select(TB_CERT_DMND.c.REG_DT)
         .where(
@@ -260,7 +259,7 @@ class Verification:
     remaining_attempts: int | None
 
 
-def load_for_update(db: Session, cert_sn: int) -> Any:
+def load_for_update(db: Session, cert_sn: int, *, bundle_sn: int | None = None) -> Any:
     return db.execute(
         select(
             TB_CERT_DMND.c.CERT_DMND_SN,
@@ -275,6 +274,7 @@ def load_for_update(db: Session, cert_sn: int) -> Any:
             TB_CERT_DMND.c.FAIL_NMTM,
         )
         .where(TB_CERT_DMND.c.CERT_DMND_SN == cert_sn)
+        .where(true() if bundle_sn is None else TB_CERT_DMND.c.OPER_BNDL_SN == bundle_sn)
         .with_for_update()  # 성공·실패 횟수 갱신을 원자적으로 한다(AUTH-02)
     ).first()
 
@@ -312,7 +312,8 @@ def consume_otp(
 ) -> Any:
     """업무 확정 API가 인증을 소비하기 전에 다시 검증한다. 인증 행을 잠근 채 돌려주므로 같은 트랜잭션에서
     사용 완료(mark_used)와 업무 변경을 함께 확정한다. 틀린 코드는 횟수를 올리고 커밋한 뒤 거절한다."""
-    row = load_for_update(db, cert_sn)
+    lock_bundle(db, bundle_sn)
+    row = load_for_update(db, cert_sn, bundle_sn=bundle_sn)
     if row is not None and (row.CERT_PRPS_CD != PURPOSE_CODES[purpose] or int(row.OPER_BNDL_SN) != bundle_sn):
         row = None  # 다른 목적·다른 묶음의 인증은 없는 것과 같다
     if not check_code(db, settings, row, code, now).verified:

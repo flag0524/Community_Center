@@ -164,3 +164,18 @@ def test_SMS는_발급_커밋_뒤에_호출한다(world: World, monkeypatch: pyt
     monkeypatch.setattr(sender, "send", checked_send)
     issue(world)
     assert len(sender.outbox) == 1
+
+
+@pytest.mark.parametrize("seconds", [59.1, 59.999999, 60])
+def test_소수초에_발급해도_실제_60초를_채워야_한다(world: World, seconds: float) -> None:
+    origin = NOW + timedelta(microseconds=900000)
+    issue(world, now=origin)
+    stored = world[0].execute(select(tables.TB_CERT_DMND.c.REG_DT)).scalar_one()
+    assert stored == origin
+    if seconds < 60:
+        with pytest.raises(ApiError) as caught:
+            issue(world, now=origin + timedelta(seconds=seconds))
+        assert caught.value.code is ErrorCode.OTP_RESEND_TOO_SOON
+    else:
+        issue(world, now=origin + timedelta(seconds=seconds))
+        assert len(world[2].outbox) == 2

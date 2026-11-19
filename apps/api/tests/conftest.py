@@ -119,3 +119,16 @@ def arena(migrated_engine: Engine, schema_doc: Any) -> Iterator[Any]:
     from tests.arena import build_arena
 
     yield from build_arena(migrated_engine, schema_doc)
+
+
+@pytest.fixture(params=["READ COMMITTED", "REPEATABLE READ"])
+def otp_arena(arena: Any, request: pytest.FixtureRequest) -> Iterator[Any]:
+    """OTP 경합은 두 격리 수준을 실제 연결에서 확인하고 각각 실행한다."""
+    previous = arena.engine
+    arena.engine = previous.execution_options(isolation_level=str(request.param))
+    try:
+        with arena.engine.connect() as connection:
+            assert connection.get_isolation_level() == request.param
+        yield arena
+    finally:
+        arena.engine = previous  # 풀은 공유한다. 원본 엔진의 정리는 arena가 맡는다.

@@ -1,6 +1,7 @@
 # 스키마 설계안에서 app.tools.generate_ddl이 만든 SQLAlchemy 테이블 정의. 직접 고치지 않는다
 # 기본값(SERVER_NOW, 시퀀스 NEXTVAL)은 DB가 채우므로 여기에 두지 않는다. ZF_* 생성 컬럼도 뺐다.
 from sqlalchemy import CHAR, Column, DateTime, MetaData, Numeric, String, Table, Text, text
+from sqlalchemy.dialects.mysql import DATETIME as MySQLDateTime
 
 metadata = MetaData()
 
@@ -2891,7 +2892,7 @@ TB_CERT_DMND = Table(
     ),
     Column(
         "REG_DT",
-        DateTime(),
+        MySQLDateTime(fsp=6),
         nullable=False,
     ),
     Column(

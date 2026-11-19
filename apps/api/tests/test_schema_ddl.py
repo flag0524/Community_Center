@@ -67,6 +67,12 @@ def test_일련번호_22자리를_BIGINT로_줄이지_않는다(statements: list
     assert sql_type("CLOB") == "LONGTEXT"
 
 
+def test_OTP_발급_시각은_마이크로초_정밀도를_보존한다(statements: list[str]) -> None:
+    cert = next(s for s in statements if s.startswith("CREATE TABLE TB_CERT_DMND "))
+    assert "REG_DT DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)" in cert
+    assert sql_type("DATETIME(6)") == "DATETIME(6)"
+
+
 def test_조건부_UNIQUE는_IN_없이_OR로_푼_생성_컬럼이다(statements: list[str]) -> None:
     apply = next(s for s in statements if s.startswith("CREATE TABLE TB_ATNLC_APLY"))
     assert (

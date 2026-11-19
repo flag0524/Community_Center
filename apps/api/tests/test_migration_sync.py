@@ -25,7 +25,7 @@ def test_0002는_DB에_접속하지_않고_데이터를_유지하는_추가_SQL�
     output = io.StringIO()
     config = Config(str(API_DIR / "alembic.ini"), output_buffer=output)
     config.set_main_option("script_location", str(API_DIR / "migrations"))
-    command.upgrade(config, "0001:head", sql=True)
+    command.upgrade(config, "0001:0002", sql=True)
     sql = output.getvalue()
     assert "ALTER TABLE `TB_CERT_DMND` ADD COLUMN `TELNO_SRCH_HASH_VL` CHAR(64)" in sql
     assert "IX_CERT_DMND_03" in sql and "OPER_BNDL_SN" in sql and "REG_DT" in sql
@@ -40,3 +40,23 @@ def test_0002를_되돌려도_기존_테이블과_데이터는_지우지_않는�
     sql = output.getvalue()
     assert "DROP INDEX `IX_CERT_DMND_03`" in sql and "DROP COLUMN `TELNO_SRCH_HASH_VL`" in sql
     assert "DROP TABLE" not in sql and "DELETE FROM" not in sql
+
+
+@pytest.mark.parametrize(
+    ("direction", "revision", "precision"),
+    [
+        ("upgrade", "0002:0003", "DATETIME(6)"),
+        ("downgrade", "0003:0002", "DATETIME"),
+    ],
+)
+def test_0003은_발급_시각의_정밀도만_변경한다(direction: str, revision: str, precision: str) -> None:
+    output = io.StringIO()
+    config = Config(str(API_DIR / "alembic.ini"), output_buffer=output)
+    config.set_main_option("script_location", str(API_DIR / "migrations"))
+    getattr(command, direction)(config, revision, sql=True)
+    sql = output.getvalue()
+    assert f"CHANGE `REG_DT` `REG_DT` {precision} NOT NULL" in sql
+    assert "COMMENT '등록일시'" in sql
+    assert "CURRENT_TIMESTAMP(6)" in sql if direction == "upgrade" else "CURRENT_TIMESTAMP(6)" not in sql
+    assert "DROP TABLE" not in sql and "DELETE FROM" not in sql and "ADD COLUMN" not in sql
+    assert "DROP INDEX" not in sql and "DROP COLUMN" not in sql

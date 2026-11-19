@@ -13,6 +13,7 @@ from app.auth.admin_access import Admin, permit, scope_for
 from app.core.config import get_settings
 from app.core.errors import ApiError, ErrorCode
 from app.core.times import kst_today, utc
+from app.db.locks import lock_bundle
 from app.db.tables import (
     TB_CERT_DMND,
     TB_FILE,
@@ -485,6 +486,8 @@ def _due_keys(db: Session, bundle: int, target: RetentionTarget, now: datetime) 
             .order_by(TB_MBR.c.MBR_SN)
         )
     elif target is RetentionTarget.AUTH_RECORDS:
+        # 발급·소비와 같은 묶음 → 인증 행 순서. 삭제 후 감사 FK 잠금과 역전하지 않는다.
+        lock_bundle(db, bundle)
         query = (
             select(TB_CERT_DMND.c.CERT_DMND_SN)
             .where(*_otp_conditions(bundle), TB_CERT_DMND.c.REG_DT <= now - timedelta(days=OTP_DAYS))

@@ -5,6 +5,7 @@ from app.tools.schema_doc import Column, SchemaDoc, Table
 HEADER = """# 스키마 설계안에서 app.tools.generate_ddl이 만든 SQLAlchemy 테이블 정의. 직접 고치지 않는다
 # 기본값(SERVER_NOW, 시퀀스 NEXTVAL)은 DB가 채우므로 여기에 두지 않는다. ZF_* 생성 컬럼도 뺐다.
 from sqlalchemy import CHAR, Column, DateTime, MetaData, Numeric, String, Table, Text, text
+from sqlalchemy.dialects.mysql import DATETIME as MySQLDateTime
 
 metadata = MetaData()
 """
@@ -17,6 +18,8 @@ def sa_type(logical: str) -> str:
         return logical.replace("VARCHAR", "String", 1)
     if logical.startswith("CHAR"):
         return logical.replace("CHAR", "CHAR", 1)
+    if logical == "DATETIME(6)":
+        return "MySQLDateTime(fsp=6)"
     if logical == "DATETIME":
         return "DateTime()"
     if logical == "CLOB":
