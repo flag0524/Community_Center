@@ -119,6 +119,47 @@ def test_Nginx는_첨부_한도보다_큰_본문을_받고_관리자_API를_주�
     )  # 예시 도메인을 그대로 두지 않는다
 
 
+def _limited_locations(server: str) -> list[tuple[str, str]]:
+    """server 블록에서 limit_req를 건 정규식 location의 (정규식, 본문)을 모은다."""
+    found = []
+    for match in re.finditer(r"location ~ (\S+) \{(.*?)\n    \}", server, re.S):
+        if "limit_req" in match.group(2):
+            found.append((match.group(1), match.group(2)))
+    return found
+
+
+def test_Nginx는_로그인_인증번호_경로에만_IP당_분당_20회_제한을_건다() -> None:
+    conf = (DEPLOY / "nginx/jori.conf.template").read_text(encoding="utf-8")
+    assert re.search(r"^limit_req_zone \$binary_remote_addr zone=jori_auth:\d+m rate=20r/m;$", conf, re.M)
+    assert re.search(r"^limit_req_status 429;$", conf, re.M)
+    user_server, admin_server = conf.split("# 관리자\n")
+    user, admin = _limited_locations(user_server), _limited_locations(admin_server)
+    assert len(user) == 1 and len(admin) == 1
+    must_limit = [
+        (user[0][0], "/api/v1/auth/login"),
+        (user[0][0], "/api/v1/auth/otp"),
+        (user[0][0], "/api/v1/auth/otp/verify"),
+        (user[0][0], "/api/v1/auth/find-id"),
+        (user[0][0], "/api/v1/auth/password-reset"),
+        (user[0][0], "/api/v1/join"),
+        (admin[0][0], "/api/admin/v1/auth/login"),
+    ]
+    for pattern, path in must_limit:
+        assert re.fullmatch(pattern, path), f"{path}는 제한 대상이어야 한다"
+    # 화면을 열 때마다 부르는 경로와 일반 업무 경로는 제한하지 않는다
+    for pattern, path in [
+        (user[0][0], "/api/v1/auth/session"),
+        (user[0][0], "/api/v1/auth/logout"),
+        (user[0][0], "/api/v1/courses"),
+        (user[0][0], "/api/v1/join/check-id"),
+        (admin[0][0], "/api/admin/v1/auth/session"),
+        (admin[0][0], "/api/admin/v1/auth/extend"),
+    ]:
+        assert not re.fullmatch(pattern, path), f"{path}는 제한하지 않는다"
+    for _, body in user + admin:
+        assert "limit_req zone=jori_auth" in body and "proxy_pass http://jori_api;" in body
+
+
 def test_MariaDB_설정은_READ_COMMITTED와_행_기반_바이너리_로그다() -> None:
     cnf = (DEPLOY / "mariadb/jori.cnf").read_text(encoding="utf-8")
     assert re.search(r"^transaction_isolation\s*=\s*READ-COMMITTED$", cnf, re.M)

@@ -179,3 +179,112 @@ def test_소수초에_발급해도_실제_60초를_채워야_한다(world: World
     else:
         issue(world, now=origin + timedelta(seconds=seconds))
         assert len(world[2].outbox) == 2
+
+
+# --- 번호당 하루 상한(코드 리뷰 보안 중-2) --------------------------------------------------------
+
+STEP = timedelta(seconds=61)  # 재전송 제한(60초)에 걸리지 않는 간격
+
+
+def with_limit(world: World, limit: int) -> World:
+    db, settings, sender = world
+    return (
+        db,
+        Settings(
+            database_url="unused", site_id="test", secret_key=settings.secret_key, otp_daily_limit=limit
+        ),
+        sender,
+    )
+
+
+def test_하루_상한은_기본_10건이고_초과하면_429로_거절한다(world: World) -> None:
+    for i in range(10):
+        issue(world, now=NOW + i * STEP)
+    with pytest.raises(ApiError) as caught:
+        issue(world, now=NOW + 10 * STEP)
+    assert caught.value.code is ErrorCode.TOO_MANY_REQUESTS
+    assert len(world[2].outbox) == 10
+
+
+def test_상한_메시지는_잠시_후가_아니라_오늘_횟수_초과를_알린다(world: World) -> None:
+    for i in range(10):
+        issue(world, now=NOW + i * STEP)
+    with pytest.raises(ApiError) as caught:
+        issue(world, now=NOW + 10 * STEP)
+    assert "오늘" in caught.value.message and "잠시" not in caught.value.message
+    assert PHONE not in caught.value.message
+
+
+def test_24시간이_지나면_상한이_풀린다(world: World) -> None:
+    for i in range(10):
+        issue(world, now=NOW + i * STEP)
+    issue(world, now=NOW + timedelta(hours=24, seconds=1))  # 맨 처음 발급만 창 밖으로 나간다
+    assert len(world[2].outbox) == 11
+
+
+@pytest.mark.parametrize("seconds,blocked", [(-1, True), (0, False), (1, False)])
+def test_24시간_경계는_정확히_24시간부터_허용한다(world: World, seconds: int, blocked: bool) -> None:
+    one = with_limit(world, 1)
+    issue(one)
+    later = NOW + timedelta(hours=24, seconds=seconds)
+    if blocked:
+        with pytest.raises(ApiError) as caught:
+            issue(one, now=later)
+        assert caught.value.code is ErrorCode.TOO_MANY_REQUESTS
+    else:
+        issue(one, now=later)
+
+
+def test_회원이_없는_가짜_요청도_하루_횟수에_센다(world: World) -> None:
+    for i in range(10):
+        issue(world, purpose=OtpPurpose.ID_FIND, now=NOW + i * STEP)
+    assert world[2].outbox == []
+    with pytest.raises(ApiError) as caught:
+        issue(world, now=NOW + 10 * STEP)
+    assert (
+        caught.value.code is ErrorCode.TOO_MANY_REQUESTS
+    )  # 회원이 있든 없든 같은 응답이어야 존재를 알 수 없다
+
+
+def test_다른_번호와_다른_묶음은_하루_횟수를_따로_센다(world: World) -> None:
+    for i in range(10):
+        issue(world, now=NOW + i * STEP)
+    issue(world, phone="01099998888", now=NOW + 10 * STEP)
+    issue(world, bundle=2, now=NOW + 10 * STEP)
+
+
+def test_상한은_설정으로_바꾼다(world: World) -> None:
+    two = with_limit(world, 2)
+    issue(two)
+    issue(two, now=NOW + STEP)
+    with pytest.raises(ApiError) as caught:
+        issue(two, now=NOW + 2 * STEP)
+    assert caught.value.code is ErrorCode.TOO_MANY_REQUESTS
+
+
+def test_60초_이내_재요청은_상한보다_먼저_재전송_제한으로_거절한다(world: World) -> None:
+    one = with_limit(world, 1)
+    issue(one)
+    with pytest.raises(ApiError) as caught:
+        issue(one, now=NOW + timedelta(seconds=10))
+    assert caught.value.code is ErrorCode.OTP_RESEND_TOO_SOON
+
+
+def test_거절된_요청은_인증_행을_남기지_않는다(world: World) -> None:
+    one = with_limit(world, 1)
+    issue(one)
+    with pytest.raises(ApiError):
+        issue(one, now=NOW + STEP)
+    db = world[0]
+    assert db.execute(select(tables.TB_CERT_DMND.c.CERT_DMND_SN)).all().__len__() == 1
+
+
+def test_하루_상한은_환경변수로_읽고_1_미만은_거절한다() -> None:
+    from app.core.config import ConfigError, load_settings
+
+    base = {"JORI_DATABASE_URL": "mysql+pymysql://u:p@h/x", "JORI_SITE_ID": "t", "JORI_SECRET_KEY": "k" * 40}
+    assert load_settings(base).otp_daily_limit == 10
+    assert load_settings({**base, "JORI_OTP_DAILY_LIMIT": "3"}).otp_daily_limit == 3
+    for bad in ("0", "-2"):
+        with pytest.raises(ConfigError):
+            load_settings({**base, "JORI_OTP_DAILY_LIMIT": bad})

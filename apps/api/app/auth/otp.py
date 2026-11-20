@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import insert, select, true, update
+from sqlalchemy import func, insert, select, true, update
 from sqlalchemy.orm import Session
 
 from app.adapters.sms.base import SendOutcome, SmsSender
@@ -25,6 +25,7 @@ from app.domain.member.types import OtpPurpose
 
 OTP_VALID = timedelta(minutes=5)  # 유효 5분(AUTH-02)
 RESEND_INTERVAL = timedelta(seconds=60)  # 재전송 60초
+DAILY_WINDOW = timedelta(hours=24)  # 번호당 하루 상한을 세는 구간(상한 값은 Settings.otp_daily_limit)
 MAX_FAILURES = 5  # 입력 오류 5회 무효
 KEY_VERSION = "v1"  # 검증값을 만든 비밀키의 버전. 키를 바꿀 때 옛 검증값을 구별한다
 PURPOSE_CODES = {
@@ -113,7 +114,7 @@ def _find_member(
     return None if found is None else int(found)
 
 
-def _check_phone_limit(db: Session, bundle_sn: int, digest: str, now: datetime) -> None:
+def _check_phone_limit(db: Session, bundle_sn: int, digest: str, now: datetime, daily_limit: int) -> None:
     # 첫 요청에는 잠글 인증 행이 없으므로 묶음 행으로 판단·발급을 직렬화한다. SMS 호출 전에 커밋한다.
     lock_bundle(db, bundle_sn)
     latest = db.execute(
@@ -128,6 +129,22 @@ def _check_phone_limit(db: Session, bundle_sn: int, digest: str, now: datetime) 
     ).scalar_one_or_none()
     if latest is not None and now - latest < RESEND_INTERVAL:
         raise ApiError(ErrorCode.OTP_RESEND_TOO_SOON)
+    # 하루 상한. 회원이 없어 문자를 보내지 않은 요청도 같이 센다(존재 여부로 응답이 달라지지 않게).
+    # 묶음 행을 이미 잠갔으므로 센 뒤 발급하는 사이에 다른 요청이 끼어들지 못한다
+    issued_today = db.execute(
+        select(func.count())
+        .select_from(TB_CERT_DMND)
+        .where(
+            TB_CERT_DMND.c.OPER_BNDL_SN == bundle_sn,
+            TB_CERT_DMND.c.TELNO_SRCH_HASH_VL == digest,
+            TB_CERT_DMND.c.REG_DT > now - DAILY_WINDOW,
+        )
+    ).scalar_one()
+    if issued_today >= daily_limit:
+        raise ApiError(
+            ErrorCode.TOO_MANY_REQUESTS,
+            "오늘 인증번호를 요청할 수 있는 횟수를 넘었습니다. 내일 다시 시도하거나 센터에 문의해 주세요.",
+        )
 
 
 # --- 발급 ----------------------------------------------------------------------------
@@ -154,7 +171,7 @@ def issue_otp(
         # 가입 요청에는 이름이 없어서 인증 단계에서 받아 암호문에 담아 둔다
         raise ApiError(ErrorCode.VALIDATION_FAILED, fields={"name": "이름을 입력해 주세요."})
     digest = phone_hash(settings.secret_key, phone)
-    _check_phone_limit(db, bundle_sn, digest, now)
+    _check_phone_limit(db, bundle_sn, digest, now, settings.otp_daily_limit)
     target = (
         None if purpose is OtpPurpose.JOIN else _find_member(db, bundle_sn, purpose, phone, name, login_id)
     )

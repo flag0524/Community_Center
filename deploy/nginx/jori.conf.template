@@ -7,6 +7,12 @@ upstream jori_api {
     keepalive 16;
 }
 
+# 로그인·인증번호 경로는 IP당 분당 20회로 제한한다(코드 리뷰 보안 중-2, 사용자 확정 2026-11-20).
+# 크리덴셜 대입과 인증 문자 남용을 막는 층이다. 번호당 하루 상한은 API가 따로 센다.
+# 센터처럼 한 공인 IP를 여럿이 쓰는 곳을 위해 순간 10회까지는 더 받는다(burst).
+limit_req_zone $binary_remote_addr zone=jori_auth:10m rate=20r/m;
+limit_req_status 429;
+
 server {
     listen 80;
     server_name user.{{DOMAIN}} admin.{{DOMAIN}};
@@ -30,6 +36,17 @@ server {
     include /etc/nginx/snippets/jori-security-headers.conf;
 
     location /api/ {
+        proxy_pass http://jori_api;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+    # 속도 제한을 거는 경로. 화면을 열 때마다 부르는 /auth/session은 제외한다
+    location ~ ^/api/v1/(auth/(login|otp|otp/verify|find-id|password-reset)|join)$ {
+        limit_req zone=jori_auth burst=10 nodelay;
         proxy_pass http://jori_api;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
@@ -67,6 +84,17 @@ server {
     include /etc/nginx/snippets/jori-security-headers.conf;
 
     location /api/admin/ {
+        proxy_pass http://jori_api;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+    # 관리자 로그인도 같은 제한을 건다
+    location ~ ^/api/admin/v1/auth/login$ {
+        limit_req zone=jori_auth burst=10 nodelay;
         proxy_pass http://jori_api;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
