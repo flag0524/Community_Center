@@ -12,3 +12,9 @@ expire_logs_days = 7
 lower_case_table_names = 0
 # 앱 세션이 UTC로 쓰고 읽는다(TDD 11장)
 default_time_zone = +00:00
+
+# 성능. 서버 사양이 정해지지 않아(가비아 클라우드, 기관 확정 전) 아래는 가정값이다. 사양이 정해지면 고친다
+# 버퍼풀은 이 서버에서 DB만 쓰는 경우 메모리의 50~70%를 잡는다. 가정은 메모리 4GB 서버의 약 50%다
+innodb_buffer_pool_size = 2G
+# 앱 풀 총합 (10+10) x (API 4+워커 1) = 100에 관리·백업 접속 여유를 더해 정했다(jori.env.example의 풀 크기와 함께 본다)
+max_connections = 200

@@ -37,10 +37,18 @@ class Settings:
         "/var/run/jori/worker-status.json"  # 워커가 작업별 마지막 실행을 쓰고 /api/health가 읽는다
     )
     build_commit: str = "unknown"  # 배포한 빌드의 커밋 해시. 배포 절차가 넣고 /api/health/version이 보인다
+    # DB 커넥션 풀. 프로세스마다 따로 갖는다. 실제 동시 처리 상한은 요청 스레드 수가 아니라
+    # (풀 + 초과) x (API 프로세스 수 + 워커 1)이므로 MariaDB max_connections와 함께 정한다.
+    # 부하 시험 전의 가정값이며 시험 결과로 조정한다. 풀 대기 시간(초)은 길게 막히지 않게 짧게 둔다.
+    db_pool_size: int = 10
+    db_max_overflow: int = 10
+    db_pool_timeout: int = 10
 
     def __post_init__(self) -> None:
         if self.environment not in {"development", "test", "production"}:
             raise ConfigError("JORI_ENVIRONMENT는 development, test, production 중 하나여야 합니다.")
+        if self.db_pool_size < 1 or self.db_pool_timeout < 1 or self.db_max_overflow < 0:
+            raise ConfigError("DB 풀 크기와 대기 시간은 1 이상, 초과 허용은 0 이상이어야 합니다.")
         if self.environment == "production":
             if "mock" in (self.pg_provider, self.sms_provider, self.file_scanner):
                 raise ConfigError("운영 환경에서는 PG·SMS·파일 검사에 mock을 사용할 수 없습니다.")
@@ -56,6 +64,12 @@ def _int(env: dict[str, str], name: str) -> int | None:
         return int(raw)
     except ValueError:
         raise ConfigError(f"{name}은 정수여야 합니다.") from None
+
+
+def _int_or(env: dict[str, str], name: str, default: int) -> int:
+    """값이 없을 때만 기본값을 쓴다. 0도 사용자가 준 값이라 검사에서 걸러야 한다."""
+    value = _int(env, name)
+    return default if value is None else value
 
 
 def load_settings(environ: dict[str, str] | None = None) -> Settings:
@@ -88,6 +102,9 @@ def load_settings(environ: dict[str, str] | None = None) -> Settings:
         pg_merchant_id=env.get("JORI_PG_MERCHANT_ID", "TBD"),
         worker_status_file=env.get("JORI_WORKER_STATUS_FILE") or "/var/run/jori/worker-status.json",
         build_commit=env.get("JORI_BUILD_COMMIT") or "unknown",
+        db_pool_size=_int_or(env, "JORI_DB_POOL_SIZE", 10),
+        db_max_overflow=_int_or(env, "JORI_DB_MAX_OVERFLOW", 10),
+        db_pool_timeout=_int_or(env, "JORI_DB_POOL_TIMEOUT", 10),
     )
 
 

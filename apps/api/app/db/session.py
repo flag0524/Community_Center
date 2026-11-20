@@ -18,6 +18,9 @@ def create_db_engine(settings: Settings) -> Engine:
     return create_engine(
         settings.database_url,
         isolation_level="READ COMMITTED",
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+        pool_timeout=settings.db_pool_timeout,
         pool_pre_ping=True,
         pool_recycle=1800,
         connect_args={"init_command": "SET time_zone = '+00:00'"},
