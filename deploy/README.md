@@ -72,10 +72,11 @@
 | `systemd/jori-backup@.service·.timer` | 매일 02:30 백업(워커 03:00 작업보다 앞) |
 | `systemd/jori-binlog-sync@.service·.timer` | 15분마다 로그 전송 |
 | `env/jori.backup.env.example` | 백업 스크립트 설정(`/etc/jori/jori.backup.env`, 0600) |
+| `build-release.sh` | 빌드 PC에서 커밋 한 벌의 산출물(`jori-<해시12>.tar.gz`와 `.sha256`)을 만든다. 작업 트리가 깨끗해야 하고 git에 있는 파일(`apps/api`, `deploy`)과 웹 앱 dist만 담아 비밀값·node_modules가 들어가지 않는다. `--skip-build`, `--dry-run` |
 | `deploy.sh` | 배포 7단계: 백업 → 풀기 → 파이썬 환경 → 커밋 해시 기록 → 마이그레이션 → 전환·재시작 → 건강 확인. 실패하면 이전 버전으로 되돌리고 DB는 되돌리지 않는다 |
 
 서버에서 먼저 확인할 것:
-- `deploy.sh <인스턴스> <커밋> <빌드.tar.gz> --dry-run`과 `backup.sh <인스턴스> --dry-run`으로 순서를 본다.
+- 빌드 PC에서 `build-release.sh`로 실제 산출물을 한 번 만들어 보고(`pnpm install --frozen-lockfile`, 운영 빌드), `deploy.sh <인스턴스> <커밋> <산출물.tar.gz> --dry-run`과 `backup.sh <인스턴스> --dry-run`으로 순서를 본다.
 - `mariabackup`·`mbstream`·`mariadbd`·`rsync`·`openssl`·`uv`가 설치되어 있는지, `backup_jori`의 권한(`RELOAD, PROCESS, LOCK TABLES, BINLOG MONITOR`)으로 백업이 되는지
 - 백업 유닛을 root로 돌리는 것을 줄일 수 있는지, 별도 저장소(`JORI_BACKUP_DEST`)와 암호화 키의 별도 보관 방법
 - `accounts.sql`을 적용한 뒤 API·워커가 필요한 권한만으로 동작하는지(권한이 모자라면 시퀀스·작업 이력부터 본다)
@@ -85,4 +86,3 @@
 ## 6. 아직 하지 않은 것
 
 - 새 자치회를 추가하는 절차(DB·계정·백업 세트·사이트 생성)
-- 웹 앱 빌드와 산출물 묶음을 만드는 절차(`deploy.sh`는 만들어진 `.tar.gz`를 받는다)

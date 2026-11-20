@@ -248,3 +248,4 @@
 - [x] `/api/health/version` 구현(ADR-101): 커밋 해시·마이그레이션 리비전·코드표 체크섬·설정 해시. 배포 절차는 `JORI_BUILD_COMMIT`를 넣어야 함
 - [x] 배포 후속 초안(ADR-102): DB 계정 권한 SQL(생성기+시험), 백업·로그 전송·복구시험 스크립트와 타이머, deploy.sh(롤백 포함). 서버 확인 전 미검증
 - [ ] 서버에서 초안 확인: `--dry-run` 순서, mariabackup·권한·복구시험 실제 실행, root 백업 권한 축소, 별도 저장소·암호화 키 보관
+- [x] 배포 산출물 만들기(ADR-103): `deploy/build-release.sh`(깨끗한 커밋, git 파일+웹 dist, 해시). 실제 웹 빌드는 빌드 PC에서 확인 필요
