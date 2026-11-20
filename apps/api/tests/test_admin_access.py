@@ -14,7 +14,7 @@ pytestmark = pytest.mark.db
 
 
 def who(w: World, admin: dict[str, Any]) -> Admin:
-    record = SessionRecord(1, None, None, int(admin["MNGR_SN"]), "h", START, START)
+    record = SessionRecord(1, None, None, int(admin["MNGR_SN"]), "h", START, START, START)
     return Admin(int(admin["MNGR_SN"]), w.bundle, record)
 
 

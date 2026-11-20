@@ -12,6 +12,13 @@ from app.db.tables import TB_LGN_SSN
 Kind = Literal["member", "admin"]
 MEMBER_IDLE_SECONDS = 30 * 60  # 회원 유휴 30분(AUTH-05)
 ADMIN_IDLE_SECONDS = 15 * 60  # 관리자 유휴 15분(RQ-SER-NF-008)
+# 절대 만료. 유휴 연장만으로는 탈취된 세션을 무기한 쓸 수 있어 발급 시각 기준 상한을 둔다
+# (코드 리뷰 보안 중-3, 사용자 확정 2026-11-20). 이 시간이 지나면 활동 중이어도 다시 로그인한다
+MEMBER_ABSOLUTE_SECONDS = 12 * 3600
+ADMIN_ABSOLUTE_SECONDS = 8 * 3600
+# 마지막 갱신에서 이 시간이 지나지 않았으면 세션 행을 다시 쓰지 않는다. 요청마다 쓰면 같은 화면의
+# 병렬 요청이 세션 행 잠금에서 줄을 서고 쓰기 부하가 늘어난다. 유휴 만료는 최대 이 시간만큼 일찍 온다
+TOUCH_MIN_INTERVAL = timedelta(seconds=30)
 
 
 @dataclass(frozen=True)
@@ -23,10 +30,15 @@ class SessionRecord:
     token_hash: str
     last_activity: datetime
     expires_at: datetime
+    issued_at: datetime
 
 
 def idle_seconds(kind: Kind) -> int:
     return MEMBER_IDLE_SECONDS if kind == "member" else ADMIN_IDLE_SECONDS
+
+
+def absolute_seconds(kind: Kind) -> int:
+    return MEMBER_ABSOLUTE_SECONDS if kind == "member" else ADMIN_ABSOLUTE_SECONDS
 
 
 def issue_session(
@@ -54,11 +66,11 @@ def issue_session(
         )
         .returning(TB_LGN_SSN.c.LGN_SSN_SN)
     ).scalar_one()
-    return token, SessionRecord(int(serial), bundle_sn, member_sn, admin_sn, token_hash, now, expires_at)
+    return token, SessionRecord(int(serial), bundle_sn, member_sn, admin_sn, token_hash, now, expires_at, now)
 
 
 def find_active(db: Session, token: str | None, kind: Kind, now: datetime) -> SessionRecord | None:
-    """폐기되지 않았고 유휴 만료 전이며 종류(회원·관리자)가 맞는 세션만 돌려준다. 만료는 매번 검사한다."""
+    """폐기되지 않았고 유휴·절대 만료 전이며 종류가 맞는 세션만 돌려준다. 만료는 매번 검사한다."""
     if not token:
         return None
     subject = TB_LGN_SSN.c.MBR_SN if kind == "member" else TB_LGN_SSN.c.MNGR_SN
@@ -71,10 +83,12 @@ def find_active(db: Session, token: str | None, kind: Kind, now: datetime) -> Se
             TB_LGN_SSN.c.TKN_HASH_VL,
             TB_LGN_SSN.c.LAST_ACT_DT,
             TB_LGN_SSN.c.EXPRY_DT,
+            TB_LGN_SSN.c.ISSU_DT,
         ).where(
             TB_LGN_SSN.c.TKN_HASH_VL == hash_token(token),
             TB_LGN_SSN.c.DSCD_DT.is_(None),
             TB_LGN_SSN.c.EXPRY_DT > now,
+            TB_LGN_SSN.c.ISSU_DT > now - timedelta(seconds=absolute_seconds(kind)),
             subject.is_not(None),
         )
     ).first()
@@ -88,12 +102,23 @@ def find_active(db: Session, token: str | None, kind: Kind, now: datetime) -> Se
         str(row.TKN_HASH_VL),
         row.LAST_ACT_DT,
         row.EXPRY_DT,
+        row.ISSU_DT,
     )
 
 
-def touch(db: Session, record: SessionRecord, kind: Kind, now: datetime) -> SessionRecord:
-    """사용자 조작이 있을 때만 부른다. 유휴 시간을 처음부터 다시 센다."""
-    expires_at = now + timedelta(seconds=idle_seconds(kind))
+def touch(
+    db: Session, record: SessionRecord, kind: Kind, now: datetime, *, force: bool = False
+) -> SessionRecord:
+    """사용자 조작이 있을 때만 부른다. 유휴 시간을 처음부터 다시 세되 발급 기준 절대 상한을 넘지 않는다.
+
+    마지막 갱신에서 30초가 지나지 않았으면 쓰지 않는다. 사용자가 직접 연장을 누른 경우는 force로 항상 쓴다.
+    """
+    if not force and now - record.last_activity < TOUCH_MIN_INTERVAL:
+        return record
+    expires_at = min(
+        now + timedelta(seconds=idle_seconds(kind)),
+        record.issued_at + timedelta(seconds=absolute_seconds(kind)),
+    )
     db.execute(
         update(TB_LGN_SSN)
         .where(TB_LGN_SSN.c.LGN_SSN_SN == record.session_sn)
@@ -107,6 +132,7 @@ def touch(db: Session, record: SessionRecord, kind: Kind, now: datetime) -> Sess
         record.token_hash,
         now,
         expires_at,
+        record.issued_at,
     )
 
 

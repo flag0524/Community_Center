@@ -146,7 +146,7 @@ def extend_admin_session(
     if record is None or record.admin_sn is None or not active_admin(db, record.admin_sn):
         raise ApiError(ErrorCode.UNAUTHENTICATED)
     verify_csrf(request, settings, "admin", record)
-    record = touch(db, record, "admin", now)
+    record = touch(db, record, "admin", now, force=True)  # 사용자가 직접 누른 연장은 갱신 생략 없이 쓴다
     profile = db.execute(
         select(TB_MNGR.c.MNGR_NM, TB_MNGR.c.LGN_ID).where(TB_MNGR.c.MNGR_SN == record.admin_sn)
     ).one()
