@@ -37,6 +37,21 @@ def count_by_status(db: Session, bundle_sn: int, course_sn: int, statuses: tuple
     )
 
 
+def seat_counts(db: Session, bundle_sn: int, course_sn: int) -> tuple[int, int]:
+    """(자리를 점유한 신청 수, 대기 수). 한 쿼리로 센다. 강좌 행 잠금 아래에서 불러야 맞는 값이다(ADR-028)."""
+    rows = db.execute(
+        select(TB_ATNLC_APLY.c.APLY_STTS_CD, func.count())
+        .where(
+            TB_ATNLC_APLY.c.OPER_BNDL_SN == bundle_sn,
+            TB_ATNLC_APLY.c.CORS_SN == course_sn,
+            TB_ATNLC_APLY.c.APLY_STTS_CD.in_((*SEAT_STATUSES, "ES.WAIT")),
+        )
+        .group_by(TB_ATNLC_APLY.c.APLY_STTS_CD)
+    ).all()
+    counts = {str(code): int(number) for code, number in rows}
+    return sum(counts.get(status, 0) for status in SEAT_STATUSES), counts.get("ES.WAIT", 0)
+
+
 def next_wait_seq(db: Session, bundle_sn: int, course_sn: int) -> int:
     last = db.execute(
         select(func.max(TB_ATNLC_APLY.c.WTNG_SEQ)).where(

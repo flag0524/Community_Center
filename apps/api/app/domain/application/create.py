@@ -11,10 +11,9 @@ from app.core.errors import ApiError, ErrorCode
 from app.db.tables import TB_ATNLC_APLY, TB_MBR, TB_RDCT_HSTRY
 from app.domain.application.pricing import REDUCTION_REASON, quote
 from app.domain.application.schemas import Application
-from app.domain.application.seats import count_by_status, lock_course, next_wait_seq
+from app.domain.application.seats import lock_course, next_wait_seq, seat_counts
 from app.domain.application.service import (
     PAYMENT_WINDOW_SECONDS,
-    SEAT_STATUSES,
     first_blocker,
     get_mine,
     has_active_application,
@@ -64,10 +63,10 @@ def create_application(
     if prior is not None:
         if (int(prior.MBR_SN), int(prior.CORS_SN)) != (member_sn, course_sn):
             raise ApiError(ErrorCode.IDEMPOTENCY_CONFLICT)
+        db.commit()  # 쓴 것이 없다. 강좌·회원 행 잠금을 풀고 응답을 만든다
         return get_mine(db, member_sn, bundle_sn, str(int(prior.ATNLC_APLY_SN)), now)
 
-    occupied = count_by_status(db, bundle_sn, course_sn, SEAT_STATUSES)
-    waiting = count_by_status(db, bundle_sn, course_sn, ("ES.WAIT",))
+    occupied, waiting = seat_counts(db, bundle_sn, course_sn)
     blocker = first_blocker(
         member=member,
         course=course,
@@ -142,6 +141,10 @@ def create_application(
         member_sn=member_sn,
         change=f"신청 생성({values['APLY_STTS_CD']})",
     )
+    # 잠금 구간은 여기까지다. 신청·감면 이력·감사 기록은 함께 확정하고, 읽기뿐인 응답 조립은 잠금 밖에서 한다.
+    # 인기 강좌에서는 같은 강좌 신청이 이 잠금에서 줄을 서므로 잠금을 쥐는 시간이 곧 처리량 상한이다(ADR-108).
+    # 응답을 만들다 실패해도 신청은 남고, 같은 키로 다시 보내면 위의 재전송 경로가 이전 결과를 돌려준다
+    db.commit()
     return get_mine(db, member_sn, bundle_sn, str(application_sn), now)
 
 
