@@ -8,7 +8,8 @@ from typing import Any
 import pytest
 from sqlalchemy import text
 
-from app.domain.admin import file_service
+from app.domain.file import owner as file_owner
+from app.files.storage import write_blob
 from tests.arena import Arena, Staff, parallel
 from tests.factory import RowFactory
 from tests.test_admin_access import dong
@@ -202,13 +203,13 @@ def test_동시에_여러_파일을_올려도_개수_한도를_넘지_않는다(
                 WRT_MNGR_SN=who.admin_sn,
             )["PST_SN"]
         )
-    real = file_service.write_blob  # type: ignore[attr-defined]
+    real = write_blob
 
     def slow(*args: Any) -> None:
         time.sleep(0.2)  # 개수를 센 뒤 저장하기 전의 틈을 넓혀 잠금이 없으면 겹치게 한다
         real(*args)
 
-    monkeypatch.setattr(file_service, "write_blob", slow)
+    monkeypatch.setattr(file_owner, "write_blob", slow)  # 저장은 파일 코어가 한다
 
     def sender(n: int, s: Staff) -> Callable[[], Any]:
         return lambda: s.client.post(

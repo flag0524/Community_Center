@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 
 from app.domain.admin import file_service
+from app.domain.file import owner as file_owner
 from tests.arena import Arena, Staff, parallel
 
 pytestmark = pytest.mark.db
@@ -44,7 +45,7 @@ def test_다른_키로_동시에_올려도_배너_이미지는_한_장만_남는
     bundle, banner = arena.build(build)
     arena.settings = replace(arena.settings, file_root=str(tmp_path))
     arena.serve(bundle)
-    real = file_service.lock_owner
+    real = file_owner.lock_owner  # 관리자 서비스가 이 이름으로 부르므로 관리자 모듈 쪽을 바꿔 끼운다
 
     def slow(*args: Any) -> Any:
         real(*args)

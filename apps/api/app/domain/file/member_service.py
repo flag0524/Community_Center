@@ -12,17 +12,17 @@ from app.audit import record_job
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
 from app.db.tables import TB_BBS, TB_FILE, TB_INSTR_APLY, TB_PST, TB_RDCT_BFHD_SRNG
-from app.domain.admin.file_service import (
+from app.domain.file.owner import (
     INSTRUCTOR_EDITABLE,
     KINDS,
     Owner,
-    _live,
-    _owner_file,
+    live_files,
     lock_owner,
+    owner_file,
     store_upload,
 )
-from app.domain.admin.term_types import FileOwnerKind
 from app.domain.file.schemas import MyFile, MyFileList
+from app.domain.file.types import FileOwnerKind
 from app.domain.file.upload import ALLOWED_EXTENSIONS, MAX_BYTES, validate_upload
 from app.files.storage import StorageError, read_blob
 
@@ -114,7 +114,7 @@ def _instructor_owner(db: Session, member_sn: int, bundle_sn: int, application_i
 
 
 def _my_file(row: Any) -> MyFile:
-    return MyFile(**_owner_file(row).model_dump())
+    return MyFile(**owner_file(row).model_dump())
 
 
 def list_reduction_files(db: Session, *, member_sn: int, bundle_sn: int, review_id: str) -> MyFileList:
@@ -227,7 +227,7 @@ def list_files(db: Session, *, member_sn: int, bundle_sn: int, post_id: str) -> 
 def _list(db: Session, bundle_sn: int, owner: Owner) -> MyFileList:
     rows = db.execute(
         select(TB_FILE)
-        .where(TB_FILE.c.OPER_BNDL_SN == bundle_sn, _live(owner))
+        .where(TB_FILE.c.OPER_BNDL_SN == bundle_sn, live_files(owner))
         .order_by(TB_FILE.c.SORT_SEQ, TB_FILE.c.FILE_SN)
     ).all()
     return MyFileList(

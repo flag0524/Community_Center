@@ -27,7 +27,6 @@ from app.db.tables import (
 )
 from app.db.versioned import update_versioned
 from app.domain.admin.file_service import EVIDENCE_VIEW_JOB
-from app.domain.admin.file_service import STATUS as FILE_STATUS
 from app.domain.admin.reduction_schemas import (
     EvidenceView,
     ReductionDecisionRequest,
@@ -40,6 +39,7 @@ from app.domain.admin.reduction_schemas import (
 )
 from app.domain.admin.refund_service import kst_start
 from app.domain.admin.types import AdminAuthority as AU
+from app.domain.file.owner import STATUS as FILE_STATUS
 from app.domain.reduction.common import CODE_STATUS, CODE_TYPE, STATUS_CODE, evidence_count
 from app.domain.reduction.types import ReductionDecision, ReductionStatus
 

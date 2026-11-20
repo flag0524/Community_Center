@@ -10,8 +10,9 @@ from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
 from app.db.session import get_db
 from app.domain.admin import file_service as service
-from app.domain.admin.file_schemas import AdminFile, AdminFilePage, OwnerFile, OwnerFileList
-from app.domain.admin.term_types import FileOwnerKind, FileStatus
+from app.domain.admin.file_schemas import AdminFile, AdminFilePage
+from app.domain.file.schemas import OwnerFile, OwnerFileList
+from app.domain.file.types import FileOwnerKind, FileStatus
 from app.domain.file.upload import MAX_BYTES
 from app.routers.deps import MEMBER_ERRORS, IdempotencyKey, admin_session, csrf_header, error_responses
 
