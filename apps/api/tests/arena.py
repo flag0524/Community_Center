@@ -53,6 +53,7 @@ class Arena:
     roles: list[int] = field(default_factory=list)
     pg: MockPaymentGateway = field(default_factory=MockPaymentGateway)  # 모든 요청이 같은 PG를 쓴다
     app: Any = None
+    mngr_baseline: int = 0  # 시험을 시작할 때 이미 있던 가장 큰 관리자 번호
 
     def build(self, make: Callable[[RowFactory], Any]) -> Any:
         with self.migrated.begin() as connection:
@@ -137,6 +138,12 @@ class Arena:
             for admin in self.admins:
                 for table in ("TB_LGN_SSN", "TB_MNGR_SCP", "TB_MNGR"):
                     connection.execute(text(f"DELETE FROM {table} WHERE MNGR_SN = :a"), {"a": admin})
+            # 공장이 부모로 저절로 만든 관리자(작성자·심사자 등)는 추적하지 않으므로 새로 생긴 것을 지운다.
+            # 남겨 두면 관리자가 없다고 전제하는 시험(최초 설정)이 걸린다
+            for table in ("TB_LGN_SSN", "TB_MNGR_SCP", "TB_MNGR"):
+                connection.execute(
+                    text(f"DELETE FROM {table} WHERE MNGR_SN > :base"), {"base": self.mngr_baseline}
+                )
             for role in self.roles:
                 connection.execute(text("DELETE FROM TB_ROLE_AUTHRT WHERE ROLE_SN = :r"), {"r": role})
                 connection.execute(text("DELETE FROM TB_MNGR_ROLE WHERE ROLE_SN = :r"), {"r": role})
@@ -153,6 +160,10 @@ def build_arena(migrated_engine: Engine, schema_doc: Any) -> Iterator[Arena]:
     )
     engine = create_db_engine(settings)  # 운영과 같은 설정(READ COMMITTED)으로 만든 엔진
     place = Arena(migrated_engine, schema_doc, settings, engine)
+    with migrated_engine.connect() as connection:
+        place.mngr_baseline = int(
+            connection.execute(text("SELECT COALESCE(MAX(MNGR_SN), 0) FROM TB_MNGR")).scalar_one()
+        )
     yield place
     place.cleanup()
     engine.dispose()

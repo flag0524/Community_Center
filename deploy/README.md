@@ -39,7 +39,10 @@
 1. 계정·폴더: `useradd --system --home /opt/jori --shell /usr/sbin/nologin jori`, `install -d -o jori -g jori /data/jori/jori/files /opt/jori`, `install -d -m 0750 -o root -g jori /etc/jori`
 2. MariaDB: 설정 파일을 두고 재시작한 뒤 `SELECT @@transaction_isolation, @@binlog_format`로 확인한다. 스키마와 `app_jori` 계정을 만든다.
 3. 코드: 검수 통과 빌드를 `/opt/jori/releases/<해시>`에 풀고 `current`를 바꾼 뒤 `UV_PROJECT_ENVIRONMENT=/opt/jori/venv uv sync --frozen --no-dev`로 파이썬 환경을 맞춘다. 웹 앱은 `apps/web-user/dist`, `apps/web-admin/dist` 빌드 결과를 둔다.
-4. 마이그레이션: 백업 후 `alembic upgrade head`. 운영묶음 행(`TB_OPER_BNDL.SITE_ID` = `JORI_SITE_ID`)과 초기 코드는 시드 절차로 넣는다.
+4. 마이그레이션: 백업 후 `alembic upgrade head`(코드표 초기값은 마이그레이션이 넣는다).
+   그다음 **최초 설정**을 한 번 한다. 운영묶음·행정동·최초 관리자를 한 트랜잭션으로 만들고, 이미 관리자가 있으면 거부한다(ADR-104).
+   `uv run python -m app.tools.bootstrap --site-id jori --bundle-name <묶음명> --site-name <사이트명> --url https://user.<도메인> --dongs-file <기관 행정동 명단.txt> --admin-id <아이디> --admin-name <이름>`
+   (`JORI_DATABASE_URL`은 API 계정 주소, 비밀번호는 프롬프트로 두 번 입력한다. 자동화는 `--password-stdin`.) 행정동 명단은 기관이 확정한 것만 쓴다. 최초 관리자는 모든 권한을 가지므로 담당자를 위임한 뒤 사용 중지를 권장한다.
 5. 설정: `/etc/jori/jori.env`의 비밀값을 채운다. `JORI_SECRET_KEY`는 서버에서 무작위로 만든다(32자 이상).
 6. 서비스: `systemctl daemon-reload && systemctl enable --now jori-api@jori jori-worker@jori`
 7. Nginx: `nginx -t && systemctl reload nginx`
@@ -83,6 +86,20 @@
 - 복구시험을 스테이징 서버에서 한 번 실제로 돌려 결과 보고서를 확인한다
 - 이 초안은 `retention_{자치회}` 계정을 두지 않았다. 파기는 워커 계정으로 돈다
 
-## 6. 아직 하지 않은 것
+## 6. 새 자치회 추가(초안, 서버에서 확인 전)
 
-- 새 자치회를 추가하는 절차(DB·계정·백업 세트·사이트 생성)
+자치회마다 WAS·DB·DB 계정을 따로 둔다(ADR-002). 같은 서버에 더하는 경우의 순서다. `<이름>`은 영소문자·숫자 2~16자(예: `hwaseong`)이고 유닛·설정 파일·DB·계정 이름이 모두 이 이름을 따른다.
+
+1. **정할 것**: 인스턴스 이름, 사이트 식별자(`SITE_ID`, 소문자·숫자·하이픈), 다른 자치회와 겹치지 않는 API 포트(`JORI_API_PORT`), 도메인
+2. **DB·계정**: `uv run python -m app.tools.generate_grants --instance <이름> > accounts-<이름>.sql`로 만들고 `{{…_PASSWORD}}`를 서버에서 바꿔 적용한다
+3. **폴더·설정**: `install -d -o jori -g jori /data/jori/<이름>/files`, `/etc/jori/<이름>.env`(`jori.env.example`을 복사해 `JORI_DATABASE_URL`·`JORI_SITE_ID`·`JORI_FILE_ROOT`·`JORI_WORKER_STATUS_FILE=/run/jori/<이름>/worker-status.json`·`JORI_API_PORT`를 이 자치회 값으로, `JORI_SECRET_KEY`는 **새로 만든다**), `<이름>.migrate.env`, `<이름>.backup.env`. 비밀키·계정 비밀번호를 다른 자치회와 같게 쓰지 않는다
+4. **마이그레이션과 최초 설정**: 3장 4번과 같다(`migrate_<이름>` 계정, 이어서 `bootstrap`)
+5. **Nginx**: `nginx/jori.conf.template`의 `{{DOMAIN}}`·`{{API_PORT}}`를 바꿔 새 사이트 파일로 둔다
+6. **서비스**: `systemctl enable --now jori-api@<이름> jori-worker@<이름> jori-backup@<이름>.timer jori-binlog-sync@<이름>.timer`
+7. **확인**: 최초 관리자로 로그인, `/api/health`, `/api/health/version`(커밋·리비전·코드표 체크섬이 다른 자치회와 같은지, R24), 백업 한 번 실행과 복구시험
+
+다른 자치회의 DB와 연결하거나 데이터를 옮기지 않는다. 이 절차는 스크립트로 묶지 않았다(서버 확인 뒤 반복되는 부분만 자동화한다).
+
+## 7. 아직 하지 않은 것
+
+- 6장 절차를 스크립트로 묶는 일(실제 서버에서 한 번 해 본 뒤)

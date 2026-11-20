@@ -77,6 +77,15 @@ def test_구조_변경_권한은_마이그레이션_계정에만_있고_백업_�
     assert "'backup_jori'@'127.0.0.1' IDENTIFIED" in sql and "`jori`" in sql
 
 
+def test_다른_자치회_이름으로도_같은_모양의_계정_SQL을_만든다() -> None:
+    base, other = generate(), generate("hwaseong")
+    assert other == base.replace("jori", "hwaseong")  # 이름만 다르고 권한 구조는 같다
+    assert "CREATE DATABASE IF NOT EXISTS `hwaseong`" in other and "app_hwaseong" in other
+    for bad in ("Jori", "a", "1abc", "has-dash", "x" * 17, ""):
+        with pytest.raises(ValueError, match="인스턴스 이름"):
+            generate(bad)
+
+
 def test_계정_SQL에는_실제_비밀번호가_없고_자리표시만_있다() -> None:
     sql = generate()
     secrets = re.findall(r"IDENTIFIED BY '([^']*)'", sql)
