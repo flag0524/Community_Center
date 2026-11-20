@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.audit import record_job
 from app.auth.admin_access import Admin, Scope, permit
 from app.auth.crypto import DecryptError, decrypt, encrypt
+from app.auth.member_phone import reveal
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
 from app.core.schema import PageCriteria
@@ -91,7 +92,7 @@ def _bytes(content: str) -> int:
         raise _fail("content", "문자로 보낼 수 없는 글자가 있습니다.") from None
 
 
-def _audience(db: Session, admin: Admin, scope: Scope, body: SmsAudience) -> Audience:
+def _audience(db: Session, settings: Settings, admin: Admin, scope: Scope, body: SmsAudience) -> Audience:
     if body.scope is SmsScope.EVENT:
         raise _fail("scope", "센터 전체 또는 선택 강좌만 고를 수 있습니다.")
     content = body.content.strip()
@@ -104,7 +105,7 @@ def _audience(db: Session, admin: Admin, scope: Scope, body: SmsAudience) -> Aud
             f"문안은 {SMS_MAX_BYTES}바이트(한글 {SMS_MAX_BYTES // 2}자)까지입니다. 지금 {size}바이트입니다.",
         )
     query = (
-        select(TB_ATNLC_APLY.c.MBR_SN, TB_ATNLC_APLY.c.CORS_SN, TB_MBR.c.MBR_NM, TB_MBR.c.MBL_TELNO)
+        select(TB_ATNLC_APLY.c.MBR_SN, TB_ATNLC_APLY.c.CORS_SN, TB_MBR.c.MBR_NM, TB_MBR.c.MBL_TELNO_ENCPT_VL)
         .select_from(TB_ATNLC_APLY)
         .join(
             TB_MBR,
@@ -120,7 +121,7 @@ def _audience(db: Session, admin: Admin, scope: Scope, body: SmsAudience) -> Aud
             TB_ATNLC_APLY.c.OPER_BNDL_SN == admin.bundle_sn,
             TB_ATNLC_APLY.c.APLY_STTS_CD.in_([STATUS_CODE[s] for s in set(body.statuses)]),
             TB_MBR.c.MBR_STTS_CD == "MS.ACTIVE",
-            TB_MBR.c.MBL_TELNO.is_not(None),
+            TB_MBR.c.MBL_TELNO_ENCPT_VL.is_not(None),
         )
         .order_by(TB_ATNLC_APLY.c.MBR_SN, TB_ATNLC_APLY.c.CORS_SN)
     )
@@ -148,7 +149,9 @@ def _audience(db: Session, admin: Admin, scope: Scope, body: SmsAudience) -> Aud
     rows = db.execute(query).all()
     members: dict[int, tuple[str, str]] = {}
     for row in rows:
-        members.setdefault(int(row.MBR_SN), (str(row.MBR_NM), str(row.MBL_TELNO)))
+        members.setdefault(
+            int(row.MBR_SN), (str(row.MBR_NM), str(reveal(settings.secret_key, row.MBL_TELNO_ENCPT_VL)))
+        )
     return Audience(
         course_ids=course_ids,
         recipients=[(sn, name, phone) for sn, (name, phone) in members.items()],
@@ -158,10 +161,10 @@ def _audience(db: Session, admin: Admin, scope: Scope, body: SmsAudience) -> Aud
     )
 
 
-def preview(db: Session, admin: Admin, *, now: datetime, body: SmsAudience) -> SmsPreview:
+def preview(db: Session, settings: Settings, admin: Admin, *, now: datetime, body: SmsAudience) -> SmsPreview:
     """대상을 산정해 수신자 수를 알려 준다. 저장하지 않는다. 회원 한 명은 한 번만 센다."""
     scope = permit(db, admin, AU.SMS_SEND, now)
-    audience = _audience(db, admin, scope, body)
+    audience = _audience(db, settings, admin, scope, body)
     center = db.execute(
         select(TB_OPER_BNDL.c.OPER_BNDL_NM).where(TB_OPER_BNDL.c.OPER_BNDL_SN == admin.bundle_sn)
     ).scalar_one()
@@ -214,7 +217,7 @@ def send(
         if prior.DMND_HASH_VL != digest:
             raise ApiError(ErrorCode.IDEMPOTENCY_CONFLICT)
         return get(db, settings, admin, now=now, sms_id=str(int(prior.SMS_DMND_SN)))
-    audience = _audience(db, admin, scope, body)
+    audience = _audience(db, settings, admin, scope, body)
     if not body.confirmed:
         raise _fail("confirmed", "수신 대상과 문안을 최종 확인해야 발송할 수 있습니다.")
     if not audience.recipients:

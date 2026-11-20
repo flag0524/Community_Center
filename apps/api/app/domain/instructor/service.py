@@ -7,7 +7,6 @@ from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.audit import record_job
-from app.auth.crypto import encrypt
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
 from app.core.schema import PageCriteria
@@ -332,7 +331,7 @@ def get_mine(db: Session, bundle_sn: int, member_sn: int, application_id: str) -
 
 def _lock_member(db: Session, bundle_sn: int, member_sn: int) -> Any:
     return db.execute(
-        select(TB_MBR.c.MBL_TELNO)
+        select(TB_MBR.c.MBL_TELNO_ENCPT_VL)
         .where(TB_MBR.c.OPER_BNDL_SN == bundle_sn, TB_MBR.c.MBR_SN == member_sn)
         .with_for_update()
     ).one()
@@ -400,7 +399,7 @@ def create_mine(
     if _applied(db, bundle_sn, member_sn, int(body.recruitment_id)):
         raise _fail("recruitmentId", "이미 지원한 공고입니다.")
     category = _category(db, bundle_sn, body.category_name)
-    if not member.MBL_TELNO:
+    if not member.MBL_TELNO_ENCPT_VL:
         raise ApiError(
             ErrorCode.RULE_REJECTED, "회원정보에 휴대전화가 없어 지원할 수 없습니다. 먼저 등록해 주세요."
         )
@@ -414,7 +413,7 @@ def create_mine(
                 RCPT_CHNL_CD="IC.ONLINE",
                 MBR_SN=member_sn,
                 APLCT_NM=str(profile.MBR_NM),
-                TELNO_ENCPT_VL=encrypt(settings.secret_key, str(member.MBL_TELNO)),
+                TELNO_ENCPT_VL=member.MBL_TELNO_ENCPT_VL,  # 같은 키·결합 데이터의 암호문을 그대로 옮긴다
                 HOPE_CORS_NM=course,
                 HOPE_FLD_NM=category,
                 CRR_CN=career,

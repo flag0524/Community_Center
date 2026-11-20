@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.audit import record_job
 from app.auth.deps import Member
+from app.auth.member_phone import reveal
 from app.auth.passwords import hash_password, verify_password
 from app.auth.sessions import discard
 from app.core.config import Settings
@@ -34,13 +35,13 @@ def _lock(db: Session, member: Member) -> object:
     return row
 
 
-def _profile(row: object) -> MemberProfile:
+def _profile(settings: Settings, row: object) -> MemberProfile:
     return MemberProfile(
         member_id=str(row.MBR_SN),  # type: ignore[attr-defined]
         name=str(row.MBR_NM),  # type: ignore[attr-defined]
         login_id=str(row.LGN_ID),  # type: ignore[attr-defined]
         email=row.EML_ADDR,  # type: ignore[attr-defined]
-        phone_masked=mask_phone(row.MBL_TELNO) or None,  # type: ignore[attr-defined]
+        phone_masked=mask_phone(reveal(settings.secret_key, row.MBL_TELNO_ENCPT_VL)) or None,  # type: ignore[attr-defined]
         joined_on=kst_today(row.MBR_JOIN_DT),  # type: ignore[attr-defined]
         residence_declared=None,  # 회원이 입력한 거주 구분을 담는 컬럼이 없다(개정 요청 R10·R33)
         residence_status=ResidenceStatus.VERIFIED
@@ -49,17 +50,17 @@ def _profile(row: object) -> MemberProfile:
     )
 
 
-def get_profile(db: Session, member: Member) -> MemberProfile:
+def get_profile(db: Session, settings: Settings, member: Member) -> MemberProfile:
     row = db.execute(
         select(TB_MBR).where(TB_MBR.c.MBR_SN == member.member_sn, TB_MBR.c.OPER_BNDL_SN == member.bundle_sn)
     ).first()
     if row is None:
         raise ApiError(ErrorCode.UNAUTHENTICATED)
-    return _profile(row)
+    return _profile(settings, row)
 
 
 def update_profile(
-    db: Session, member: Member, body: ProfileUpdate, *, request_id: str, now: datetime
+    db: Session, settings: Settings, member: Member, body: ProfileUpdate, *, request_id: str, now: datetime
 ) -> MemberProfile:
     """이메일만 저장한다. 거주지역 값은 저장할 곳이 없어 받아도 버리고, 센터 확인 거주구분은 건드리지 않는다."""
     _lock(db, member)
@@ -80,7 +81,7 @@ def update_profile(
         member_sn=member.member_sn,
         change="이메일 변경(값은 기록하지 않음)",
     )
-    return get_profile(db, member)
+    return get_profile(db, settings, member)
 
 
 def _check_password(row: object, password: str, field: str) -> None:

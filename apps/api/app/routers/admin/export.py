@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.admin_access import Admin, require_admin
 from app.auth.deps import Clock, get_clock, request_id_of
+from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
 from app.db.session import get_db
 from app.domain.admin import pii_export
@@ -42,6 +43,7 @@ def export_pii(
     body: PiiExportRequest,
     idempotency_key: IdempotencyKey,
     db: Annotated[Session, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_settings)],
     admin: Annotated[Admin, Depends(require_admin)],
     clock: Annotated[Clock, Depends(get_clock)],
 ) -> Response:
@@ -51,7 +53,13 @@ def export_pii(
     생성 사실(누가·무엇을·몇 건)만 감사기록에 남긴다.
     """
     made = pii_export.export_pii(
-        db, admin, now=clock(), request_id=request_id_of(request), idem_key=idempotency_key, body=body
+        db,
+        settings,
+        admin,
+        now=clock(),
+        request_id=request_id_of(request),
+        idem_key=idempotency_key,
+        body=body,
     )
     return Response(
         made.content,

@@ -60,10 +60,13 @@ trap rollback ERR
 
 say "5/7 마이그레이션(구조 변경 계정으로)"
 if [[ "$DRY_RUN" == 1 ]]; then
-  echo "[dry-run] (cd ${RELEASE}/apps/api && JORI_DATABASE_URL=\$JORI_MIGRATE_DATABASE_URL ${BASE}/venv/bin/alembic upgrade head)"
+  echo "[dry-run] (JORI_SECRET_KEY는 ${ENV_FILE}의 값. cd ${RELEASE}/apps/api && JORI_DATABASE_URL=\$JORI_MIGRATE_DATABASE_URL ${BASE}/venv/bin/alembic upgrade head)"
 else
   # shellcheck disable=SC1090
   source "$MIGRATE_ENV"
+  # 0005(휴대전화번호 암호화)처럼 데이터를 바꾸는 이행은 운영과 같은 비밀키가 필요하다. 앱 설정 파일에서 그 값만 읽는다
+  JORI_SECRET_KEY="$(grep -m1 '^JORI_SECRET_KEY=' "$ENV_FILE" | cut -d= -f2-)"
+  export JORI_SECRET_KEY
   (cd "${RELEASE}/apps/api" && JORI_DATABASE_URL="$JORI_MIGRATE_DATABASE_URL" "${BASE}/venv/bin/alembic" upgrade head)
 fi
 

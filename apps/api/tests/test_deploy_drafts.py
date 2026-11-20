@@ -205,6 +205,13 @@ def test_배포_스크립트는_구조_변경에_마이그레이션_계정을_�
     assert "migrate_jori" in example and "CHANGE_ME" in example
 
 
+def test_배포_스크립트는_데이터_이행에_쓸_비밀키를_앱_설정에서_읽어_마이그레이션에_준다() -> None:
+    # 0005(휴대전화번호 암호화)는 운영과 같은 JORI_SECRET_KEY가 있어야 평문을 바꿀 수 있다
+    text = (DEPLOY / "deploy.sh").read_text(encoding="utf-8")
+    read = text.index('JORI_SECRET_KEY="$(grep -m1 \'^JORI_SECRET_KEY=\' "$ENV_FILE"')
+    assert read < text.index("export JORI_SECRET_KEY") < text.index('"${BASE}/venv/bin/alembic" upgrade head')
+
+
 # --- 타이머와 환경 예시 -----------------------------------------------------------------------
 
 

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.audit import record_job
 from app.auth.crypto import DecryptError, decrypt
+from app.auth.member_phone import sealed_columns
 from app.auth.otp import consume_otp, mark_used
 from app.auth.passwords import hash_password
 from app.core.config import Settings
@@ -135,7 +136,7 @@ def join_member(
                     LGN_ID=login_id,
                     PSWD_HASH_VL=hash_password(password, settings.pbkdf2_iterations),
                     MBR_NM=name,
-                    MBL_TELNO=phone,
+                    **sealed_columns(settings.secret_key, phone),
                     EML_ADDR=email,
                     MBR_JOIN_DT=now,
                 )

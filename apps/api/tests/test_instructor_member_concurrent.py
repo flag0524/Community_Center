@@ -6,10 +6,11 @@ from typing import Any
 import pytest
 from sqlalchemy import text
 
+from app.auth.member_phone import sealed_columns
 from app.domain.admin import instructor_review_service
 from app.domain.instructor import service
 from tests.arena import Applicant, Arena, make_member, parallel
-from tests.factory import RowFactory
+from tests.factory import TEST_SECRET, RowFactory
 from tests.world import START
 
 pytestmark = pytest.mark.db
@@ -56,8 +57,12 @@ def build(f: RowFactory) -> tuple[int, int, int, int]:
 def prepare(arena: Arena, member: int, writer: int) -> None:
     """회원에게 휴대전화를 주고, 팩토리가 만든 작성자 관리자를 시험이 끝날 때 지우도록 등록한다."""
     arena.admins.append(writer)
+    sealed = sealed_columns(TEST_SECRET, "01055556666")
     with arena.migrated.begin() as connection:
-        connection.execute(text("UPDATE TB_MBR SET MBL_TELNO='01055556666' WHERE MBR_SN=:m"), {"m": member})
+        connection.execute(
+            text("UPDATE TB_MBR SET MBL_TELNO_ENCPT_VL=:e, MBL_TELNO_SRCH_HASH_VL=:h WHERE MBR_SN=:m"),
+            {"e": sealed["MBL_TELNO_ENCPT_VL"], "h": sealed["MBL_TELNO_SRCH_HASH_VL"], "m": member},
+        )
 
 
 def form(rcrt: int, **values: Any) -> dict[str, Any]:

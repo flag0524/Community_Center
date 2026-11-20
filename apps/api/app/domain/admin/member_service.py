@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import record_job
 from app.auth.admin_access import Admin, Scope, permit
+from app.auth.member_phone import reveal
+from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
 from app.core.schema import PageCriteria
 from app.core.times import kst_today, utc
@@ -178,7 +180,9 @@ def _review_mark(idem_key: str, body: MemberReviewCreate) -> str:
 # --- 조회 -------------------------------------------------------------------------------------
 
 
-def _detail(db: Session, admin: Admin, now: datetime, row: Any, scope: Scope) -> AdminMember:
+def _detail(
+    db: Session, settings: Settings, admin: Admin, now: datetime, row: Any, scope: Scope
+) -> AdminMember:
     sn = int(row.MBR_SN)
     mine = scoped(applications._base(admin.bundle_sn).where(TB_ATNLC_APLY.c.MBR_SN == sn), scope)
     shown = db.execute(
@@ -213,7 +217,7 @@ def _detail(db: Session, admin: Admin, now: datetime, row: Any, scope: Scope) ->
     base = _summary(row)
     return AdminMember(
         **base.model_dump(),
-        phone_masked=mask_phone(row.MBL_TELNO),
+        phone_masked=mask_phone(reveal(settings.secret_key, row.MBL_TELNO_ENCPT_VL)),
         email_masked=mask_email(row.EML_ADDR),
         application_count=count,
         paid_total=int(paid),
@@ -231,9 +235,11 @@ def _detail(db: Session, admin: Admin, now: datetime, row: Any, scope: Scope) ->
     )
 
 
-def get_member(db: Session, admin: Admin, *, now: datetime, member_id: str) -> AdminMember:
+def get_member(
+    db: Session, settings: Settings, admin: Admin, *, now: datetime, member_id: str
+) -> AdminMember:
     row, scope = _member(db, admin, now, member_id)
-    return _detail(db, admin, now, row, scope)
+    return _detail(db, settings, admin, now, row, scope)
 
 
 def _audit(
@@ -254,12 +260,21 @@ def _audit(
 
 
 def reveal_contact(
-    db: Session, admin: Admin, *, now: datetime, request_id: str, member_id: str, body: RevealRequest
+    db: Session,
+    settings: Settings,
+    admin: Admin,
+    *,
+    now: datetime,
+    request_id: str,
+    member_id: str,
+    body: RevealRequest,
 ) -> MemberContact:
     """사유를 적어야 원문을 주고 열람할 때마다 누가·누구의·왜를 기록한다. 연락처 값은 기록하지 않는다."""
     row, _ = _member(db, admin, now, member_id)
     _audit(db, admin, "MBR_REVEAL", int(row.MBR_SN), request_id, now, f"연락처 열람 사유: {body.reason}")
-    return MemberContact(phone=str(row.MBL_TELNO or ""), email=str(row.EML_ADDR or ""))
+    return MemberContact(
+        phone=reveal(settings.secret_key, row.MBL_TELNO_ENCPT_VL) or "", email=str(row.EML_ADDR or "")
+    )
 
 
 def _closed_to_withdrawn(row: Any) -> None:
@@ -361,6 +376,7 @@ def close_review(
 
 def record_residence(
     db: Session,
+    settings: Settings,
     admin: Admin,
     *,
     now: datetime,
@@ -396,4 +412,4 @@ def record_residence(
         f"거주지 {body.result.value}: {body.note}",
     )
     fresh = db.execute(select(TB_MBR).where(TB_MBR.c.MBR_SN == row.MBR_SN)).one()
-    return _detail(db, admin, now, fresh, scope)
+    return _detail(db, settings, admin, now, fresh, scope)

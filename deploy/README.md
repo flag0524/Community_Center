@@ -39,7 +39,7 @@
 1. 계정·폴더: `useradd --system --home /opt/jori --shell /usr/sbin/nologin jori`, `install -d -o jori -g jori /data/jori/jori/files /opt/jori`, `install -d -m 0750 -o root -g jori /etc/jori`
 2. MariaDB: 설정 파일을 두고 재시작한 뒤 `SELECT @@transaction_isolation, @@binlog_format`로 확인한다. 스키마와 `app_jori` 계정을 만든다.
 3. 코드: 검수 통과 빌드를 `/opt/jori/releases/<해시>`에 풀고 `current`를 바꾼 뒤 `UV_PROJECT_ENVIRONMENT=/opt/jori/venv uv sync --frozen --no-dev`로 파이썬 환경을 맞춘다. 웹 앱은 `apps/web-user/dist`, `apps/web-admin/dist` 빌드 결과를 둔다.
-4. 마이그레이션: 백업 후 `alembic upgrade head`(코드표 초기값은 마이그레이션이 넣는다).
+4. 마이그레이션: 백업 후 `alembic upgrade head`(코드표 초기값은 마이그레이션이 넣는다). 0005(휴대전화번호 암호화)는 평문을 암호문으로 바꾸므로 운영과 같은 `JORI_SECRET_KEY`가 환경에 있어야 하고(deploy.sh가 앱 설정 파일에서 읽어 준다), 번호가 있는 행이 있는데 키가 없거나 32자 미만이면 아무것도 바꾸지 않고 중단한다. 이행 뒤 이 키를 바꾸면 모든 번호를 읽을 수 없게 되므로 키를 바꾸지 않는다(교체 도구는 만들지 않았다).
    그다음 **최초 설정**을 한 번 한다. 운영묶음·행정동·최초 관리자를 한 트랜잭션으로 만들고, 이미 관리자가 있으면 거부한다(ADR-104).
    `uv run python -m app.tools.bootstrap --site-id jori --bundle-name <묶음명> --site-name <사이트명> --url https://user.<도메인> --dongs-file <기관 행정동 명단.txt> --admin-id <아이디> --admin-name <이름>`
    (`JORI_DATABASE_URL`은 API 계정 주소, 비밀번호는 프롬프트로 두 번 입력한다. 자동화는 `--password-stdin`.) 행정동 명단은 기관이 확정한 것만 쓴다. 최초 관리자는 모든 권한을 가지므로 담당자를 위임한 뒤 사용 중지를 권장한다.

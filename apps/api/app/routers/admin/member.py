@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.admin_access import Admin, require_admin
 from app.auth.deps import Clock, get_clock, request_id_of
+from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
 from app.db.session import get_db
 from app.domain.admin import member_service as service
@@ -30,6 +31,7 @@ WRITE_ERRORS = error_responses(ErrorCode.NOT_FOUND, ErrorCode.CONFLICT_STATE, Er
 Db = Annotated[Session, Depends(get_db)]
 Me = Annotated[Admin, Depends(require_admin)]
 Now = Annotated[Clock, Depends(get_clock)]
+Config = Annotated[Settings, Depends(get_settings)]
 
 
 @router.get("/members")
@@ -47,17 +49,17 @@ def list_members(
 
 
 @router.get("/members/{member_id}", responses=NOT_FOUND)
-def get_member(member_id: Serial, db: Db, admin: Me, clock: Now) -> AdminMember:
-    return service.get_member(db, admin, now=clock(), member_id=member_id)
+def get_member(member_id: Serial, db: Db, settings: Config, admin: Me, clock: Now) -> AdminMember:
+    return service.get_member(db, settings, admin, now=clock(), member_id=member_id)
 
 
 @router.post("/members/{member_id}/reveal", responses=NOT_FOUND, dependencies=[Depends(csrf_header)])
 def reveal_member_contact(
-    member_id: Serial, body: RevealRequest, request: Request, db: Db, admin: Me, clock: Now
+    member_id: Serial, body: RevealRequest, request: Request, db: Db, settings: Config, admin: Me, clock: Now
 ) -> MemberContact:
     """사유와 함께 감사기록을 남기고 가려진 연락처를 준다."""
     return service.reveal_contact(
-        db, admin, now=clock(), request_id=request_id_of(request), member_id=member_id, body=body
+        db, settings, admin, now=clock(), request_id=request_id_of(request), member_id=member_id, body=body
     )
 
 
@@ -116,9 +118,15 @@ def close_member_review(
 
 @router.post("/members/{member_id}/residence", responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)])
 def record_residence(
-    member_id: Serial, body: ResidenceRecord, request: Request, db: Db, admin: Me, clock: Now
+    member_id: Serial,
+    body: ResidenceRecord,
+    request: Request,
+    db: Db,
+    settings: Config,
+    admin: Me,
+    clock: Now,
 ) -> AdminMember:
     """거주지 확인 결과를 기록한다(RM.MANUAL). 확인 완료는 조리읍 거주로 본다(권한 코드는 PRD Q5)."""
     return service.record_residence(
-        db, admin, now=clock(), request_id=request_id_of(request), member_id=member_id, body=body
+        db, settings, admin, now=clock(), request_id=request_id_of(request), member_id=member_id, body=body
     )

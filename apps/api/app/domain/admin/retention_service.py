@@ -151,7 +151,7 @@ def _member_conditions(bundle: int) -> list[ColumnElement[bool]]:
         TB_MBR.c.OPER_BNDL_SN == bundle,
         TB_MBR.c.MBR_STTS_CD == "MS.WITHDRAW",
         TB_MBR.c.WHDWL_DT.is_not(None),
-        not_(and_(TB_MBR.c.MBR_NM == ANON_NAME, TB_MBR.c.MBL_TELNO.is_(None))),
+        not_(and_(TB_MBR.c.MBR_NM == ANON_NAME, TB_MBR.c.MBL_TELNO_ENCPT_VL.is_(None))),
     ]
 
 
@@ -453,7 +453,8 @@ def _anonymize(db: Session, bundle: int, member_sns: list[int], now: datetime) -
             .where(TB_MBR.c.OPER_BNDL_SN == bundle, TB_MBR.c.MBR_SN == sn)
             .values(
                 MBR_NM=ANON_NAME,
-                MBL_TELNO=None,
+                MBL_TELNO_ENCPT_VL=None,
+                MBL_TELNO_SRCH_HASH_VL=None,  # 번호를 다시 찾을 수 있는 검색키도 함께 지운다
                 EML_ADDR=None,
                 LGN_ID=login,
                 RCRD_VER=TB_MBR.c.RCRD_VER + 1,

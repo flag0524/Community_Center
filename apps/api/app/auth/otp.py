@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.adapters.sms.base import SendOutcome, SmsSender
 from app.auth.crypto import encrypt
+from app.auth.member_phone import search_hash
 from app.auth.tokens import derived_key, same
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
@@ -92,12 +93,18 @@ def gate_blocks(secret: str, value: str | None, now: datetime) -> bool:
 
 
 def _find_member(
-    db: Session, bundle_sn: int, purpose: OtpPurpose, phone: str, name: str | None, login_id: str | None
+    db: Session,
+    secret: str,
+    bundle_sn: int,
+    purpose: OtpPurpose,
+    phone: str,
+    name: str | None,
+    login_id: str | None,
 ) -> int | None:
     """아이디 찾기·비밀번호 재설정의 대상 회원. 일치하는 정상 회원이 없으면 None이다."""
     conditions = [
         TB_MBR.c.OPER_BNDL_SN == bundle_sn,
-        TB_MBR.c.MBL_TELNO == phone,
+        TB_MBR.c.MBL_TELNO_SRCH_HASH_VL == search_hash(secret, phone),
         TB_MBR.c.MBR_STTS_CD != "MS.WITHDRAW",
     ]
     if purpose is OtpPurpose.ID_FIND:
@@ -173,7 +180,9 @@ def issue_otp(
     digest = phone_hash(settings.secret_key, phone)
     _check_phone_limit(db, bundle_sn, digest, now, settings.otp_daily_limit)
     target = (
-        None if purpose is OtpPurpose.JOIN else _find_member(db, bundle_sn, purpose, phone, name, login_id)
+        None
+        if purpose is OtpPurpose.JOIN
+        else _find_member(db, settings.secret_key, bundle_sn, purpose, phone, name, login_id)
     )
 
     code = new_code()

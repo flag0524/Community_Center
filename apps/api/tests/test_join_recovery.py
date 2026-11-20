@@ -6,8 +6,10 @@ from typing import Any
 import pytest
 from sqlalchemy import func, select, text
 
+from app.auth.member_phone import reveal
 from app.auth.passwords import verify_password
 from app.db import tables
+from tests.factory import TEST_SECRET
 from tests.test_otp import PHONE, cert_row, request_otp, sent_code
 from tests.world import ITERATIONS, MEMBER, PASSWORD, START, World, login, make_member
 
@@ -115,7 +117,12 @@ def test_가입하면_회원이_만들어지고_인증이_사용_완료로_표�
     assert (body["name"], body["loginId"]) == ("김가입", "newbie") and re.fullmatch(r"\d+", body["memberId"])
 
     member = world.db.execute(select(tables.TB_MBR).where(tables.TB_MBR.c.LGN_ID == "newbie")).one()
-    assert (member.MBL_TELNO, member.EML_ADDR, member.MBR_STTS_CD, member.MBR_TYPE_CD) == (
+    assert (
+        reveal(TEST_SECRET, member.MBL_TELNO_ENCPT_VL),
+        member.EML_ADDR,
+        member.MBR_STTS_CD,
+        member.MBR_TYPE_CD,
+    ) == (
         PHONE,
         "new@example.com",
         "MS.ACTIVE",

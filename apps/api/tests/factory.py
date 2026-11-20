@@ -6,10 +6,15 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
+from app.auth.crypto import encrypt
+from app.auth.member_phone import ENCRYPTED, sealed_columns
 from app.tools.schema_ddl import sequence_name
 from app.tools.schema_doc import Column, SchemaDoc, Table
 
 BUNDLE = "OPER_BNDL_SN"
+TEST_SECRET = (
+    "s" * 40
+)  # tests/world.py·arena.py의 앱 설정과 같은 비밀키. 시험이 넘긴 평문 번호를 이 키로 봉한다
 
 # 서술형 DB 검사(R05·R08·R09·R21 등)를 만족하는 표 별 기본값. 시험이 같은 컬럼을 넘기면 그 값이 우선한다.
 PRESETS: dict[str, dict[str, Any]] = {
@@ -67,6 +72,15 @@ class RowFactory:
             raise RuntimeError(f"필수 외래키가 순환한다: {' > '.join((*stack, table_name))}")
         table = self.schema.table(table_name)
         names = {column.name for column in table.columns}
+        if "MBL_TELNO" in provided and table_name in (
+            "TB_MBR",
+            "TB_MNGR",
+        ):  # 평문 컬럼은 없어졌다(스키마 v0.8)
+            phone = provided.pop("MBL_TELNO")
+            if table_name == "TB_MBR":
+                provided.update(sealed_columns(TEST_SECRET, phone))
+            else:
+                provided[ENCRYPTED] = None if phone is None else encrypt(TEST_SECRET, phone)
         for name, value in PRESETS.get(table_name, {}).items():
             provided.setdefault(name, value)
         if table_name == "TB_COM_CD":  # R01: 코드의 앞부분이 그룹과 같아야 한다

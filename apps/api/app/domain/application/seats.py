@@ -7,7 +7,6 @@ from sqlalchemy import func, insert, select, update
 from sqlalchemy.orm import Session
 
 from app.audit import record_job
-from app.auth.crypto import encrypt
 from app.core.config import Settings
 from app.core.times import KST, kst_ymd, utc
 from app.db.tables import (
@@ -99,7 +98,7 @@ def _enqueue_promotion_sms(
     now: datetime,
 ) -> bool:
     """승격 안내를 아웃박스에만 쌓는다. 실제 발송은 커밋 뒤 워커가 한다(FN-028). 번호가 없으면 쌓지 않는다."""
-    if not member.MBL_TELNO:
+    if not member.MBL_TELNO_ENCPT_VL:
         return False
     bundle = db.execute(
         select(TB_OPER_BNDL.c.OPER_BNDL_NM, TB_OPER_BNDL.c.URL_ADDR).where(
@@ -130,7 +129,8 @@ def _enqueue_promotion_sms(
             OPER_BNDL_SN=bundle_sn,
             SMS_DMND_SN=request_sn,
             MBR_SN=member.MBR_SN,
-            RCPTN_TELNO_ENCPT_VL=encrypt(settings.secret_key, str(member.MBL_TELNO)),
+            # 같은 키·같은 결합 데이터의 암호문이라 복호화 없이 그대로 옮긴다(스키마 v0.8)
+            RCPTN_TELNO_ENCPT_VL=member.MBL_TELNO_ENCPT_VL,
             REG_DT=now,
         )
     )
@@ -164,7 +164,7 @@ def promote_waiters(
             break
         application_sn = int(waiter.ATNLC_APLY_SN)
         member = db.execute(
-            select(TB_MBR.c.MBR_SN, TB_MBR.c.MBR_STTS_CD, TB_MBR.c.MBL_TELNO).where(
+            select(TB_MBR.c.MBR_SN, TB_MBR.c.MBR_STTS_CD, TB_MBR.c.MBL_TELNO_ENCPT_VL).where(
                 TB_MBR.c.MBR_SN == waiter.MBR_SN
             )
         ).one()

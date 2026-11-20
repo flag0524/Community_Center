@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import record_job
 from app.auth.admin_access import Admin, Scope, permit
+from app.auth.member_phone import reveal
+from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
 from app.core.times import kst_today
 from app.db.tables import TB_JOB_HSTRY, TB_MBR, TB_MNGR
@@ -98,7 +100,7 @@ def _fetch(db: Session, query: Any) -> list[Any]:
 
 
 def _application_table(
-    db: Session, admin: Admin, now: datetime, body: PiiExportRequest, export_scope: Scope
+    db: Session, settings: Settings, admin: Admin, now: datetime, body: PiiExportRequest, export_scope: Scope
 ) -> tuple[list[str], list[list[Any]], str]:
     query = applications._filtered(  # 목록 권한(AU.APLY_R)과 범위를 목록과 같은 곳에서 적용한다
         db,
@@ -112,7 +114,7 @@ def _application_table(
         from_date=_date(body.from_date),
         to_date=_date(body.to_date),
     )
-    rows = _fetch(db, scoped(query, export_scope).add_columns(TB_MBR.c.MBL_TELNO))
+    rows = _fetch(db, scoped(query, export_scope).add_columns(TB_MBR.c.MBL_TELNO_ENCPT_VL))
     items = applications._summaries(db, admin, rows, now)
     return (
         ["신청번호", "강좌", "신청자", "휴대전화", "신청 상태", "결제 상태", "신청일시"],
@@ -121,7 +123,7 @@ def _application_table(
                 i.application_no,
                 i.course_name,
                 str(r.MBR_NM),  # 목록과 달리 가리지 않은 실제 값이다
-                None if r.MBL_TELNO is None else str(r.MBL_TELNO),
+                reveal(settings.secret_key, r.MBL_TELNO_ENCPT_VL),
                 i.status.value,
                 None if i.payment_status is None else i.payment_status.value,
                 i.applied_at,
@@ -133,7 +135,7 @@ def _application_table(
 
 
 def _member_table(
-    db: Session, admin: Admin, now: datetime, body: PiiExportRequest, export_scope: Scope
+    db: Session, settings: Settings, admin: Admin, now: datetime, body: PiiExportRequest, export_scope: Scope
 ) -> tuple[list[str], list[list[Any]], str]:
     query = members._filtered(  # 목록 권한(AU.MBR_R)과 범위를 목록과 같은 곳에서 적용한다
         db, admin, now, q=body.q, status=_enum(MemberStatus, body.status)
@@ -146,7 +148,7 @@ def _member_table(
                 str(int(r.MBR_SN)),
                 r.LGN_ID,
                 r.MBR_NM,  # 목록과 달리 가리지 않은 실제 값이다
-                r.MBL_TELNO,
+                reveal(settings.secret_key, r.MBL_TELNO_ENCPT_VL),
                 r.EML_ADDR,
                 members.STATUS[str(r.MBR_STTS_CD)].value,
                 "VERIFIED" if r.HAB_IDNTY_STTS_CD == "RV.OK" else "UNVERIFIED",
@@ -159,7 +161,14 @@ def _member_table(
 
 
 def export_pii(
-    db: Session, admin: Admin, *, now: datetime, request_id: str, idem_key: str, body: PiiExportRequest
+    db: Session,
+    settings: Settings,
+    admin: Admin,
+    *,
+    now: datetime,
+    request_id: str,
+    idem_key: str,
+    body: PiiExportRequest,
 ) -> PiiFile:
     export_scope = permit(db, admin, AU.EXPORT, now)  # 내보내기 권한이 먼저다. 없으면 목록 권한이 있어도 403
     # 같은 담당자의 요청을 한 줄로 세워 멱등키 조회와 기록 사이의 틈을 막는다
@@ -171,7 +180,7 @@ def export_pii(
             "같은 요청 키로 이미 파일을 만들었고 암호는 다시 줄 수 없습니다. 새로 요청해 주세요.",
         )
     build = _member_table if body.target is PiiExportTarget.MEMBERS else _application_table
-    header, table, source = build(db, admin, now, body, export_scope)
+    header, table, source = build(db, settings, admin, now, body, export_scope)
     entry = "members.csv" if body.target is PiiExportTarget.MEMBERS else "applicants.csv"
     password = new_password()
     zipped = build_zip(entry, build_csv(header, table), password)

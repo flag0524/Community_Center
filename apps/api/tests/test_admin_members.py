@@ -6,7 +6,9 @@ from typing import Any
 import pytest
 from sqlalchemy import text
 
+from app.auth.member_phone import reveal
 from app.domain.admin.member_service import mask_email, mask_phone
+from tests.factory import TEST_SECRET
 from tests.test_admin_access import dong
 from tests.test_admin_refunds import call, staff, use
 from tests.test_applications_read import RESIDENT, application, payment
@@ -431,9 +433,10 @@ def test_거주지_기록은_사유가_필요하고_회원의_다른_정보는_�
     assert jobs(world, "MBR_RESIDENCE") == []
     residence(world, who)
     row = world.db.execute(
-        text("SELECT MBL_TELNO p, MBR_NM n, MBR_STTS_CD s FROM TB_MBR WHERE MBR_SN=:m"), {"m": who["MBR_SN"]}
+        text("SELECT MBL_TELNO_ENCPT_VL p, MBR_NM n, MBR_STTS_CD s FROM TB_MBR WHERE MBR_SN=:m"),
+        {"m": who["MBR_SN"]},
     ).one()
-    assert (row.p, row.n, row.s) == ("01011112222", "홍길동", "MS.ACTIVE")
+    assert (reveal(TEST_SECRET, row.p), row.n, row.s) == ("01011112222", "홍길동", "MS.ACTIVE")
 
 
 def test_결제완료가_아닌_결제는_합계에_넣지_않는다(world: World) -> None:

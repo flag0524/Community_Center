@@ -59,7 +59,7 @@ def test_컬럼의_이름_타입_널여부가_문서와_같다(migrated_engine: 
         for index in table.indexes:
             if index.kind == "UQ_FILTER":
                 expected[(table.name, filter_column(index))] = ("tinyint(4)", "YES")
-    assert len(expected) == 611 + 2  # 문서 컬럼 611 + 조건부 UNIQUE용 생성 컬럼 2
+    assert len(expected) == 612 + 2  # 문서 컬럼 612 + 조건부 UNIQUE용 생성 컬럼 2
     assert actual == expected
 
 
@@ -160,8 +160,8 @@ def test_공통코드_시드가_문서와_같다(migrated_engine: Engine, schema
     assert re.fullmatch(r"\d+", str(rows(migrated_engine, "SELECT COUNT(*) FROM TB_COM_CD")[0][0]))
 
 
-def test_마이그레이션_버전은_0004이다(migrated_engine: Engine) -> None:
-    assert rows(migrated_engine, "SELECT version_num FROM alembic_version") == [("0004",)]
+def test_마이그레이션_버전은_0005이다(migrated_engine: Engine) -> None:
+    assert rows(migrated_engine, "SELECT version_num FROM alembic_version") == [("0005",)]
 
 
 def test_되돌리면_테이블과_시퀀스가_모두_사라지고_다시_올릴_수_있다(migrated_engine: Engine) -> None:

@@ -53,9 +53,9 @@ def get_sms_request(sms_id: Serial, db: Db, admin: Me, clock: Now, settings: Con
 
 
 @router.post("/sms/preview", responses=PREVIEW_ERRORS, dependencies=[Depends(csrf_header)])
-def preview_sms(body: SmsAudience, db: Db, admin: Me, clock: Now) -> SmsPreview:
+def preview_sms(body: SmsAudience, db: Db, settings: Config, admin: Me, clock: Now) -> SmsPreview:
     """대상을 산정해 수신자 수를 알려준다. 저장하지 않는다. 센터 전체는 센터 전체 범위 권한이 필요하다."""
-    return service.preview(db, admin, now=clock(), body=body)
+    return service.preview(db, settings, admin, now=clock(), body=body)
 
 
 @router.post("/sms", status_code=201, responses=SEND_ERRORS, dependencies=[Depends(csrf_header)])

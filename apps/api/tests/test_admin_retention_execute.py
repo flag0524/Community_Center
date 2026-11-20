@@ -6,6 +6,8 @@ from typing import Any
 import pytest
 from sqlalchemy import text
 
+from app.auth.member_phone import reveal
+from tests.factory import TEST_SECRET
 from tests.test_admin_access import dong
 from tests.test_admin_refunds import Actor, call, staff, use
 from tests.test_admin_retention import session_row
@@ -49,7 +51,8 @@ def member_row(w: World, sn: Any) -> Any:
     return (
         w.db.execute(
             text(
-                "SELECT MBR_NM n, MBL_TELNO p, EML_ADDR e, LGN_ID l, MBR_STTS_CD s FROM TB_MBR WHERE MBR_SN=:m"
+                "SELECT MBR_NM n, MBL_TELNO_ENCPT_VL p, MBL_TELNO_SRCH_HASH_VL h, EML_ADDR e, LGN_ID l, "
+                "MBR_STTS_CD s FROM TB_MBR WHERE MBR_SN=:m"
             ),
             {"m": sn},
         )
@@ -125,10 +128,16 @@ def test_30일이_지난_탈퇴_회원만_비식별하고_회원_번호는_그�
     assert out["executions"][0]["processed"] == 2 and out["canExecute"] is False
     for row in (old1, old2):
         got = member_row(world, row["MBR_SN"])
-        assert (got["n"], got["p"], got["e"], got["s"].strip()) == ("탈퇴회원", None, None, "MS.WITHDRAW")
+        assert (got["n"], got["p"], got["h"], got["e"], got["s"].strip()) == (
+            "탈퇴회원",
+            None,
+            None,  # 번호를 다시 찾을 수 있는 검색해시도 함께 지운다
+            None,
+            "MS.WITHDRAW",
+        )
         assert got["l"] == f"withdrawn-{row['MBR_SN']}"
     assert member_row(world, young["MBR_SN"])["n"] == "이름young"
-    assert member_row(world, active["MBR_SN"])["p"] == "01099998888"
+    assert reveal(TEST_SECRET, member_row(world, active["MBR_SN"])["p"]) == "01099998888"
     assert member_row(world, done["MBR_SN"])["l"] == "done"  # 이미 처리한 회원은 다시 건드리지 않는다
     job = (
         world.db.execute(

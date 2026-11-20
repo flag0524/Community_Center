@@ -7,9 +7,11 @@ import pytest
 from sqlalchemy import text
 
 from app.auth.crypto import encrypt
+from app.auth.member_phone import reveal
 from app.domain.admin import retention_service
 from app.domain.admin.retention_types import RetentionTarget
 from app.worker import retention
+from tests.factory import TEST_SECRET
 from tests.test_admin_refunds import refund
 from tests.test_admin_retention import session_row
 from tests.test_admin_retention_execute import cert_count, member_row, operator, otp, run, withdrawn
@@ -166,7 +168,7 @@ def test_자동_정리는_기간이_지난_세_종류를_처리하고_시스템_
     assert sweep(world) == 3  # 회원 1 + 인증번호 요청 1 + 환불 계좌 1
     assert member_row(world, old["MBR_SN"])["n"] == "탈퇴회원"
     assert member_row(world, young["MBR_SN"])["n"] == "이름young"
-    assert member_row(world, active["MBR_SN"])["p"] == "01099998888"
+    assert reveal(TEST_SECRET, member_row(world, active["MBR_SN"])["p"]) == "01099998888"
     assert cert_count(world) == 1
     assert accounts(world, done) == (None, None, None)
     assert accounts(world, waiting) == ("004", "enc-account", "enc-holder")

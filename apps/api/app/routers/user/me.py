@@ -39,16 +39,16 @@ Config = Annotated[Settings, Depends(get_settings)]
 
 
 @router.get("/me/profile")
-def get_my_profile(db: Db, me: Me) -> MemberProfile:
-    return service.get_profile(db, me)
+def get_my_profile(db: Db, settings: Config, me: Me) -> MemberProfile:
+    return service.get_profile(db, settings, me)
 
 
 @router.put("/me/profile", dependencies=[Depends(csrf_header)])
 def update_my_profile(
-    body: ProfileUpdate, request: Request, db: Db, me: MeWrite, clock: Now
+    body: ProfileUpdate, request: Request, db: Db, settings: Config, me: MeWrite, clock: Now
 ) -> MemberProfile:
     """이메일과 본인 입력 거주지역만 고칠 수 있다. 센터 확인 거주구분과 확인 상태는 바꿀 수 없다."""
-    return service.update_profile(db, me, body, request_id=request_id_of(request), now=clock())
+    return service.update_profile(db, settings, me, body, request_id=request_id_of(request), now=clock())
 
 
 @router.put("/me/password", status_code=204, response_class=Response, dependencies=[Depends(csrf_header)])

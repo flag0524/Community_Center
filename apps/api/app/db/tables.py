@@ -221,8 +221,8 @@ TB_MBR = Table(
         nullable=False,
     ),
     Column(
-        "MBL_TELNO",
-        String(11),
+        "MBL_TELNO_ENCPT_VL",
+        String(1024),
         nullable=True,
     ),
     Column(
@@ -298,6 +298,11 @@ TB_MBR = Table(
     Column(
         "HAB_IDNTY_BSS_ID",
         String(128),
+        nullable=True,
+    ),
+    Column(
+        "MBL_TELNO_SRCH_HASH_VL",
+        CHAR(64),
         nullable=True,
     ),
 )
@@ -1487,8 +1492,8 @@ TB_MNGR = Table(
         nullable=True,
     ),
     Column(
-        "MBL_TELNO",
-        String(11),
+        "MBL_TELNO_ENCPT_VL",
+        String(1024),
         nullable=True,
     ),
     Column(
