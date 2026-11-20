@@ -16,7 +16,7 @@ from app.domain.admin.reduction_schemas import (
     ReductionReview,
     ReductionReviewPage,
 )
-from app.domain.admin.reduction_types import ReductionDecision, ReductionStatus
+from app.domain.reduction.types import ReductionDecision, ReductionStatus
 from app.routers.deps import MEMBER_ERRORS, IdempotencyKey, admin_session, csrf_header, error_responses
 
 router = APIRouter(tags=["admin-reduction"], responses=MEMBER_ERRORS, dependencies=[Security(admin_session)])

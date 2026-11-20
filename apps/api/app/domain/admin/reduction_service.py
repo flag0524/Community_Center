@@ -38,23 +38,11 @@ from app.domain.admin.reduction_schemas import (
     ReductionReviewPage,
     ReductionReviewSummary,
 )
-from app.domain.admin.reduction_types import ReductionDecision, ReductionStatus, ReductionType
 from app.domain.admin.refund_service import kst_start
 from app.domain.admin.types import AdminAuthority as AU
+from app.domain.reduction.common import CODE_STATUS, CODE_TYPE, STATUS_CODE, evidence_count
+from app.domain.reduction.types import ReductionDecision, ReductionStatus
 
-TYPE_CODE = {
-    ReductionType.LIVELIHOOD: "DR.LIVELIHD",
-    ReductionType.VETERAN: "DR.VETERAN",
-    ReductionType.DISABLED: "DR.DISABLED",
-}
-CODE_TYPE = {code: kind for kind, code in TYPE_CODE.items()}
-STATUS_CODE = {
-    ReductionStatus.RECEIVED: "DS.RECEIVED",
-    ReductionStatus.APPROVED: "DS.APPROVED",
-    ReductionStatus.REJECTED: "DS.REJECTED",
-    ReductionStatus.REVOKED: "DS.REVOKED",
-}
-CODE_STATUS = {code: status for status, code in STATUS_CODE.items()}
 RESULT = {"DR.APPROVE": ReductionDecision.APPROVE, "DR.REJECT": ReductionDecision.REJECT}
 RESULT_CODE = {value: code for code, value in RESULT.items()}
 DECIDED = (ReductionStatus.APPROVED, ReductionStatus.REJECTED)
@@ -77,18 +65,6 @@ def _valid_end(day: date) -> datetime:
     return kst_start(day + timedelta(days=1)) - timedelta(seconds=1)
 
 
-def _evidence_count() -> Any:
-    return (
-        select(func.count())
-        .where(
-            TB_FILE.c.OPER_BNDL_SN == TB_RDCT_BFHD_SRNG.c.OPER_BNDL_SN,
-            TB_FILE.c.RDCT_BFHD_SRNG_SN == TB_RDCT_BFHD_SRNG.c.RDCT_BFHD_SRNG_SN,
-            TB_FILE.c.FILE_STTS_CD != "FS.DELETE",
-        )
-        .scalar_subquery()
-    )
-
-
 def _base(bundle_sn: int) -> Select[Any]:
     return (
         select(
@@ -99,7 +75,7 @@ def _base(bundle_sn: int) -> Select[Any]:
             TB_MBR.c.HAB_IDNTY_STTS_CD,
             TB_EDU_CYCL.c.EDU_CYCL_NM,
             TB_MNGR.c.MNGR_NM.label("REVIEWER_NM"),
-            _evidence_count().label("EVIDENCE_CNT"),
+            evidence_count().label("EVIDENCE_CNT"),
         )
         .select_from(TB_RDCT_BFHD_SRNG)
         .join(

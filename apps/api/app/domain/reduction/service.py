@@ -3,16 +3,15 @@ import hashlib
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, or_, select
 from sqlalchemy.orm import Session
 
 from app.audit import record_job
 from app.core.errors import ApiError, ErrorCode
 from app.core.times import kst_today, kst_ymd
-from app.db.tables import TB_EDU_CYCL, TB_FILE, TB_JOB_HSTRY, TB_MBR, TB_RDCT_BFHD_SRNG
+from app.db.tables import TB_EDU_CYCL, TB_JOB_HSTRY, TB_MBR, TB_RDCT_BFHD_SRNG
 from app.db.versioned import update_versioned
-from app.domain.admin.reduction_service import CODE_STATUS, CODE_TYPE, STATUS_CODE, TYPE_CODE
-from app.domain.admin.reduction_types import ReductionStatus
+from app.domain.reduction.common import CODE_STATUS, CODE_TYPE, STATUS_CODE, TYPE_CODE, evidence_count
 from app.domain.reduction.schemas import (
     MyReduction,
     MyReductionCreate,
@@ -21,6 +20,7 @@ from app.domain.reduction.schemas import (
     MyReductionSummary,
     ReductionCycleOption,
 )
+from app.domain.reduction.types import ReductionStatus
 
 APPLY_JOB = "RDCT_APPLY"
 BLOCK_NOT_RESIDENT = (
@@ -43,22 +43,10 @@ def _resident(member: Any) -> bool:
     return bool(member.HAB_RGN_CD == "RA.JORI" and member.HAB_IDNTY_STTS_CD == "RV.OK")
 
 
-def _evidence_count() -> Any:
-    return (
-        select(func.count())
-        .where(
-            TB_FILE.c.OPER_BNDL_SN == TB_RDCT_BFHD_SRNG.c.OPER_BNDL_SN,
-            TB_FILE.c.RDCT_BFHD_SRNG_SN == TB_RDCT_BFHD_SRNG.c.RDCT_BFHD_SRNG_SN,
-            TB_FILE.c.FILE_STTS_CD != "FS.DELETE",
-        )
-        .scalar_subquery()
-    )
-
-
 def _base(bundle_sn: int, member_sn: int) -> Select[Any]:
     """내 심사만이다. 남의 심사는 없는 것과 같다."""
     return (
-        select(TB_RDCT_BFHD_SRNG, TB_EDU_CYCL.c.EDU_CYCL_NM, _evidence_count().label("EVIDENCE_CNT"))
+        select(TB_RDCT_BFHD_SRNG, TB_EDU_CYCL.c.EDU_CYCL_NM, evidence_count().label("EVIDENCE_CNT"))
         .join(
             TB_EDU_CYCL,
             (TB_EDU_CYCL.c.OPER_BNDL_SN == TB_RDCT_BFHD_SRNG.c.OPER_BNDL_SN)

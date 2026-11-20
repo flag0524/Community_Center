@@ -4,7 +4,7 @@ from datetime import date
 from pydantic import Field
 
 from app.core.schema import ApiModel, SerialId
-from app.domain.admin.reduction_types import ReductionStatus, ReductionType
+from app.domain.reduction.types import ReductionStatus, ReductionType
 
 
 class MyReductionSummary(ApiModel):

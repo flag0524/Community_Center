@@ -4,8 +4,8 @@ from datetime import date
 from pydantic import AwareDatetime, Field
 
 from app.core.schema import ApiModel, Page, SerialId, Won
-from app.domain.admin.reduction_types import ReductionDecision, ReductionStatus, ReductionType
 from app.domain.admin.term_types import FileStatus
+from app.domain.reduction.types import ReductionDecision, ReductionStatus, ReductionType
 
 
 class ReductionReviewSummary(ApiModel):
