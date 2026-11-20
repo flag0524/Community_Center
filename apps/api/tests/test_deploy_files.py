@@ -160,6 +160,56 @@ def test_Nginx는_로그인_인증번호_경로에만_IP당_분당_20회_제한�
         assert "limit_req zone=jori_auth" in body and "proxy_pass http://jori_api;" in body
 
 
+def _csp() -> dict[str, list[str]]:
+    snippet = (DEPLOY / "nginx/jori-security-headers.conf").read_text(encoding="utf-8")
+    match = re.search(r'^add_header Content-Security-Policy "([^"]+)" always;$', snippet, re.M)
+    assert match, "보안 헤더 스니펫에 Content-Security-Policy가 있어야 한다"
+    policy = {}
+    for part in match.group(1).split(";"):
+        name, *sources = part.split()
+        policy[name] = sources
+    return policy
+
+
+def test_CSP는_자기_출처로_좁히고_인라인_실행과_외부_출처를_허용하지_않는다() -> None:
+    policy = _csp()
+    assert policy["default-src"] == ["'self'"]
+    assert policy["script-src"] == ["'self'"] and policy["style-src"] == ["'self'"]
+    assert policy["object-src"] == ["'none'"] and policy["frame-ancestors"] == ["'none'"]
+    assert policy["base-uri"] == ["'self'"] and policy["form-action"] == ["'self'"]
+    every = [source for sources in policy.values() for source in sources]
+    assert not {"'unsafe-inline'", "'unsafe-eval'", "*", "http:", "https:"} & set(every)
+    # 도메인이 정해지기 전이라 외부 주소를 지어내지 않는다
+    assert not [source for source in every if "://" in source]
+
+
+def test_Nginx는_정적_location에서도_보안_헤더를_다시_넣는다() -> None:
+    # location 안에 add_header가 있으면 서버 수준 add_header를 물려받지 못한다
+    conf = (DEPLOY / "nginx/jori.conf.template").read_text(encoding="utf-8")
+    include = "include /etc/nginx/snippets/jori-security-headers.conf;"
+    for server in conf.split("\nserver {")[2:]:  # 80번 포트 리다이렉트 서버는 헤더가 필요 없다
+        assert server.count(include) >= 1
+        for match in re.finditer(r"    location (?:~ )?\S+ \{(.*?)\n    \}", server, re.S):
+            if "add_header" in match.group(1):
+                assert include in match.group(1), "add_header가 있는 location은 보안 헤더를 포함해야 한다"
+
+
+def test_CI는_정적_검사와_DB_필수_시험과_커버리지와_웹_검사를_돌린다() -> None:
+    ci = (DEPLOY.parent / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    for command in (
+        "uv run ruff check .",
+        "uv run mypy app tests",
+        "uv run pytest -q --cov=app",
+        "pnpm lint",
+        "pnpm typecheck",
+        "pnpm test",
+        "pnpm build",
+    ):
+        assert command in ci, f"CI에 {command}가 있어야 한다"
+    assert 'JORI_REQUIRE_DB: "1"' in ci  # DB 없는 시험 결과를 통과로 보고하지 않는다
+    assert '-v "$PWD/deploy/mariadb/jori.cnf:' in ci  # 운영과 같은 MariaDB 설정으로 시험한다
+
+
 def test_MariaDB_설정은_READ_COMMITTED와_행_기반_바이너리_로그다() -> None:
     cnf = (DEPLOY / "mariadb/jori.cnf").read_text(encoding="utf-8")
     assert re.search(r"^transaction_isolation\s*=\s*READ-COMMITTED$", cnf, re.M)

@@ -9,6 +9,8 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 coverage/
+.coverage
+coverage.xml
 
 # 비밀값과 로컬 설정
 .env

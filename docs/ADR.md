@@ -1429,3 +1429,15 @@
   4. **지키는 것.** 잠금 순서(강좌 → 회원 → 신청), 대기자가 있으면 새 신청이 빈자리를 가로채지 못한다는 규칙, 멱등성, 정원 초과 0건은 그대로다.
 - **알아둘 것**: 확정 뒤 응답 조립이 실패하면 신청은 남아 있고 요청은 오류로 끝난다. 같은 멱등키로 다시 보내면 이전 결과를 돌려주므로 이중 신청은 생기지 않는다. 응답은 확정 이후 시점의 상태를 읽으므로(예: 직후 승격) 신청 순간이 아니라 응답 순간의 상태가 보일 수 있다. 이 변경이 실제 처리량을 얼마나 올리는지는 측정하지 않았다. 부하 시험(운영 개시 전)에서 확인해야 한다. 가격 계산(감면 조회)은 회원 잠금 뒤에만 안전해서 강좌 잠금 구간에 남겼다.
 - **결과**: 시험 6건(응답 조립 시점에 강좌·회원 행 잠금이 풀려 있음, 재전송 경로도 같음, 신청과 감사 기록이 함께 남음, 감사 실패 시 신청이 남지 않음, 거절된 신청이 잠금을 풀고 흔적이 없음, 정원 집계의 점유·대기 분리)과 변이 검사 6건이 통과했다. 기존 동시성 시험 28개 파일을 포함한 전체 2096건이 통과했다.
+
+### ADR-109
+**CSP 헤더, CI 워크플로, 커버리지 측정을 도입한다** — 승인 (코드 리뷰 2026-11-19 보안 중-5·품질 중-4·5)
+
+- **맥락**: 보고서는 CSP가 없고 CI가 없으며 커버리지를 재지 않는다고 지적했다. 현재 코드에서도 그대로였다. 점검 중 Nginx의 `location` 안에 `add_header`가 하나라도 있으면 서버 수준 `add_header`를 물려받지 못하는 규칙 때문에, `/assets/`와 `/`(진입 문서)에서는 기존 HSTS·nosniff·X-Frame-Options도 빠지고 있음을 발견했다.
+- **결정**
+  1. **CSP.** `jori-security-headers.conf`에 `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`을 둔다. 빌드 산출물에 인라인 스크립트·스타일·외부 주소가 없고 글꼴 요청도 없음을 확인했다(`document.documentElement.style.fontSize` 같은 CSSOM 대입은 CSP 대상이 아니다). PG 결제창·네이버 지도는 연동이 정해지면 `script-src`·`frame-src`·`form-action`·`img-src`·`connect-src`에 그 주소만 더한다(TBD, 지어내지 않는다).
+  2. **헤더 상속 결함 수정.** `/assets/`와 `/` location에 보안 헤더 스니펫을 다시 포함한다.
+  3. **CI.** `.github/workflows/ci.yml`. API 작업은 운영 `jori.cnf`를 마운트한 MariaDB 10.11 컨테이너(READ COMMITTED, ROW 바이너리 로그)에 `JORI_REQUIRE_DB=1`로 ruff check·ruff format --check·mypy·pytest를 돌린다. 웹 작업은 lint·typecheck·test·build를 돌린다(api-client가 OpenAPI에서 만들어져 uv도 설치한다). 브라우저 시험(e2e)은 Edge 전제라 CI에서 제외한다.
+  4. **커버리지.** pytest-cov, 줄 커버리지만 잰다(분기 측정은 전체 시험이 3~5배 길어져 제외, `COVERAGE_CORE=sysmon`). 측정값 98%, 하한(`fail_under`)은 95다. 생성 파일 `app/db/tables.py`는 제외한다.
+- **알아둘 것**: CI 워크플로는 GitHub에서 실제로 실행해 보지 못했다(YAML 파싱만 확인). 액션 버전(checkout@v4, setup-uv@v5, pnpm/action-setup@v4 등)은 첫 실행에서 확인해야 한다. Nginx 설정은 `nginx -t`로, CSP는 실제 브라우저로 위반 여부를 확인하지 못했다. 운영 전 확인이 필요하다. Bash 도구 환경에서는 bash 탐색이 실패해 배포 초안 시험 8건이 건너뛰어지지만 PowerShell에서는 모두 통과한다(환경 차이).
+- **결과**: 시험 3건(CSP 정책, 정적 location의 헤더 포함, CI 구성)과 변이 검사 5건이 통과했다. 커버리지 측정 전체 실행은 줄 98%였다.

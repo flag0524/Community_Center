@@ -1,0 +1,86 @@
+# 푸시·PR마다 API(ruff·mypy·pytest+커버리지)와 웹(린트·타입·단위 시험·빌드)을 검사하는 CI 워크플로
+# 코드 리뷰 품질 중-4·5. 브라우저 시험(pnpm test:e2e)은 Edge 전제라 여기서 돌리지 않고 로컬 pnpm check에서 돌린다.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/api
+    env:
+      JORI_REQUIRE_DB: "1" # DB가 없으면 건너뛰지 않고 실패시킨다(DB 없는 결과를 통과로 보고하지 않는다)
+      JORI_TEST_DATABASE_URL: mysql+pymysql://root:ci-only-password@127.0.0.1:3306/jori_test?charset=utf8mb4
+    steps:
+      - uses: actions/checkout@v4
+
+      # 운영과 같은 설정(READ COMMITTED, ROW 바이너리 로그, utf8mb4, UTC)으로 띄운다. 서비스 컨테이너로는 설정 파일을 줄 수 없다
+      - name: MariaDB 10.11 기동
+        working-directory: .
+        run: |
+          docker run -d --name jori-mariadb -p 3306:3306 \
+            -e MARIADB_ROOT_PASSWORD=ci-only-password -e MARIADB_DATABASE=jori_test \
+            -v "$PWD/deploy/mariadb/jori.cnf:/etc/mysql/conf.d/60-jori.cnf:ro" \
+            mariadb:10.11
+          for i in $(seq 1 60); do
+            docker exec jori-mariadb mariadb -uroot -pci-only-password -e "SELECT 1" >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          docker logs jori-mariadb
+          exit 1
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - run: uv sync --frozen
+
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy app tests
+      - name: pytest (커버리지 포함)
+        env:
+          COVERAGE_CORE: sysmon # 기본 추적기보다 훨씬 빠르다
+        run: uv run pytest -q --cov=app --cov-report=term:skip-covered --cov-report=xml
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-coverage
+          path: apps/api/coverage.xml
+          if-no-files-found: ignore
+
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # 버전은 package.json의 packageManager를 따른다
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      # 웹 계약(api-client)은 API의 OpenAPI에서 만들므로 Python 환경이 필요하다
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - run: uv sync --frozen --directory apps/api
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build

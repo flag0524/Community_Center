@@ -59,10 +59,16 @@ server {
     location /api/admin/ { return 404; }
 
     # 빌드 산출물은 해시가 붙어 오래 캐시해도 된다. 진입 문서는 캐시하지 않는다
-    location /assets/ { expires 1y; add_header Cache-Control "public, immutable"; }
+    # location 안에 add_header가 하나라도 있으면 서버 수준 헤더를 물려받지 못하므로 스니펫을 다시 넣는다
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        include /etc/nginx/snippets/jori-security-headers.conf;
+    }
     location / {
         try_files $uri /index.html;
         add_header Cache-Control "no-store";
+        include /etc/nginx/snippets/jori-security-headers.conf;
     }
 }
 
@@ -103,10 +109,16 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 120s;
     }
-    location /assets/ { expires 1y; add_header Cache-Control "public, immutable"; }
+    # location 안에 add_header가 하나라도 있으면 서버 수준 헤더를 물려받지 못하므로 스니펫을 다시 넣는다
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        include /etc/nginx/snippets/jori-security-headers.conf;
+    }
     location / {
         try_files $uri /index.html;
         add_header Cache-Control "no-store";
+        include /etc/nginx/snippets/jori-security-headers.conf;
     }
 }
 

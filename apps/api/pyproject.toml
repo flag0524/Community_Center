@@ -119,10 +119,23 @@ markers = [
     "db: 실제 MariaDB가 필요한 시험(scripts/db/mariadb-dev.ps1 start)",
 ]
 
+[tool.coverage.run]
+source = ["app"]
+# 줄 커버리지만 잰다. 분기 측정은 느려 전체 시험이 3~5배 길어진다(Python 3.12의 sysmon은 분기를 지원하지 않는다)
+branch = false
+# 생성 파일은 시험 대상이 아니다
+omit = ["app/db/tables.py"]
+
+[tool.coverage.report]
+# 2026-11-20 측정 줄 커버리지 98%. 크게 떨어지는 변경을 CI에서 잡는 하한이다
+fail_under = 95
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
+
 [dependency-groups]
 dev = [
     "httpx2>=2.16.0",
     "mypy>=2.4.1",
     "pytest>=9.2.0",
+    "pytest-cov>=7",
     "ruff>=0.17.3",
 ]
