@@ -1,17 +1,30 @@
 # 연령·성별 집계자료 등록·목록·상세·승인·반려(권한은 임시 매핑, ADR-089)
-import hashlib
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
-from sqlalchemy import insert, select, update
+from sqlalchemy import insert, select
 from sqlalchemy.orm import Session
 
 from app.audit import record_job
-from app.auth.admin_access import Admin, scope_for
+from app.auth.admin_access import Admin
 from app.core.errors import ApiError, ErrorCode
 from app.core.times import utc
-from app.db.tables import TB_JOB_HSTRY, TB_MBR_STATS_SRC, TB_MBR_STATS_TOT, TB_MNGR, TB_OPER_BNDL
+from app.db.locks import lock_bundle
+from app.db.tables import TB_MBR_STATS_SRC, TB_MBR_STATS_TOT, TB_MNGR
+from app.domain.admin.source_approval import (
+    LIST_LIMIT,
+    REGISTER,
+    SourceTable,
+    decide,
+    fail,
+    mark_of,
+    next_version,
+    parse_date,
+    replayed,
+    require_whole,
+    viewer,
+    ymd,
+)
 from app.domain.admin.stats_input_schemas import (
     SourceCreate,
     SourceDetail,
@@ -20,38 +33,19 @@ from app.domain.admin.stats_input_schemas import (
     SourceState,
     SourceSummary,
 )
-from app.domain.admin.types import AdminAuthority as AU
 
-REGISTER = AU.CONF_W  # 임시. 전용 권한 코드가 승인되면 바꾼다(PRD Q21)
-DECIDE = AU.GRANT_W  # 임시
 CREATE_JOB = "STATS_SRC_CREATE"
 DECIDE_JOB = "STATS_SRC_DECIDE"
 STATE = {"SA.WAIT": SourceState.WAIT, "SA.APPROVE": SourceState.APPROVED, "SA.REJECT": SourceState.REJECTED}
-LIST_LIMIT = 100
-
-
-def _ymd(value: date) -> str:
-    return value.strftime("%Y%m%d")
-
-
-def _date(value: Any) -> date | None:
-    text = None if value is None else str(value).strip()
-    if not text:
-        return None
-    try:
-        return datetime.strptime(text[:8], "%Y%m%d").date()
-    except ValueError:
-        return None
-
-
-def _fail(field: str, message: str) -> ApiError:
-    return ApiError(ErrorCode.RULE_REJECTED, message, fields={field: message})
-
-
-def _whole_viewer(db: Session, admin: Admin, now: datetime) -> None:
-    """자료는 묶음 공통이라 등록 또는 승인 권한이 묶음 전체 범위로 있어야 본다."""
-    if not any(scope_for(db, admin, code, now, group_only=True).whole for code in (REGISTER, DECIDE)):
-        raise ApiError(ErrorCode.FORBIDDEN)
+SPEC = SourceTable(
+    table=TB_MBR_STATS_SRC,
+    key="MBR_STATS_SRC_SN",
+    waiting="SA.WAIT",
+    approved="SA.APPROVE",
+    rejected="SA.REJECT",
+    waiting_label="검토대기",
+    decide_job=DECIDE_JOB,
+)
 
 
 def _summary(row: Any) -> SourceSummary:
@@ -60,9 +54,9 @@ def _summary(row: Any) -> SourceSummary:
         dataset_id=str(row.DATST_ID),
         version=int(row.SRC_VER),
         provider=str(row.SRC_NM),
-        period_start=_date(row.BGNG_YMD),
-        period_end=_date(row.END_YMD),
-        age_basis_date=_date(row.CRTR_YMD),
+        period_start=parse_date(row.BGNG_YMD),
+        period_end=parse_date(row.END_YMD),
+        age_basis_date=parse_date(row.CRTR_YMD),
         state=STATE[str(row.APRV_STTS_CD).strip()],
         registered_at=utc(row.REG_DT),
         decided_at=None if row.APRV_DT is None else utc(row.APRV_DT),
@@ -77,7 +71,7 @@ def _source_query() -> Any:
 
 
 def list_sources(db: Session, admin: Admin, *, now: datetime) -> SourceList:
-    _whole_viewer(db, admin, now)
+    viewer(db, admin, now)
     rows = db.execute(
         _source_query()
         .where(TB_MBR_STATS_SRC.c.OPER_BNDL_SN == admin.bundle_sn)
@@ -120,70 +114,42 @@ def _detail(db: Session, bundle: int, source_sn: int) -> SourceDetail:
 
 
 def get_source(db: Session, admin: Admin, *, now: datetime, source_id: str) -> SourceDetail:
-    _whole_viewer(db, admin, now)
+    viewer(db, admin, now)
     return _detail(db, admin.bundle_sn, int(source_id))
 
 
 def _validate(body: SourceCreate) -> None:
     if body.period_end < body.period_start:
-        raise _fail("periodEnd", "집계 기간의 끝은 시작보다 빠를 수 없습니다.")
+        raise fail("periodEnd", "집계 기간의 끝은 시작보다 빠를 수 없습니다.")
     seen: set[tuple[str, str]] = set()
     for index, row in enumerate(body.rows):
         field = f"rows[{index}]"
         if row.lower_age is not None and row.upper_age is not None and row.lower_age > row.upper_age:
-            raise _fail(field, "하한 연령은 상한 연령보다 클 수 없습니다.")
+            raise fail(field, "하한 연령은 상한 연령보다 클 수 없습니다.")
         key = (row.age_group_id, row.gender_id)
         if key in seen:  # 같은 자료 안에서 구간·성별 조합이 겹치면 합산이 틀어진다(STAT-04)
-            raise _fail(field, "같은 연령구간·성별 분류가 두 번 들어 있습니다.")
+            raise fail(field, "같은 연령구간·성별 분류가 두 번 들어 있습니다.")
         seen.add(key)
-
-
-def mark_of(idem_key: str, body: BaseModel) -> str:
-    """멱등 표식. 대상 테이블에 멱등키 칸이 없어 작업이력 메모에 둔다."""
-    key = hashlib.sha256(idem_key.encode()).hexdigest()[:16]
-    digest = hashlib.sha256(body.model_dump_json().encode()).hexdigest()[:16]
-    return f"[idem {key}:{digest}]"
-
-
-def replayed(db: Session, bundle: int, admin_sn: int, mark: str, job: str = CREATE_JOB) -> int | None:
-    prefix = mark.split(":")[0] + ":"
-    found = db.execute(
-        select(TB_JOB_HSTRY.c.CHG_CN, TB_JOB_HSTRY.c.TRGT_KEY_VL).where(
-            TB_JOB_HSTRY.c.OPER_BNDL_SN == bundle,
-            TB_JOB_HSTRY.c.MNGR_SN == admin_sn,  # 키는 담당자마다 따로 쓴다
-            TB_JOB_HSTRY.c.JOB_CD == job,
-            TB_JOB_HSTRY.c.CHG_CN.contains(prefix, autoescape=True),
-        )
-    ).first()
-    if found is None:
-        return None
-    if mark not in str(found.CHG_CN):
-        raise ApiError(ErrorCode.IDEMPOTENCY_CONFLICT)
-    return int(found.TRGT_KEY_VL)
 
 
 def create_source(
     db: Session, admin: Admin, *, now: datetime, request_id: str, body: SourceCreate, idem_key: str
 ) -> SourceDetail:
     """검토대기로 등록한다. 버전은 서버가 정하며 묶음 행을 잠가 버전 부여와 멱등 확인을 한 줄로 세운다."""
-    if not scope_for(db, admin, REGISTER, now, group_only=True).whole:
-        raise ApiError(ErrorCode.FORBIDDEN)
+    require_whole(db, admin, now, REGISTER)
     _validate(body)
     bundle = admin.bundle_sn
-    db.execute(
-        select(TB_OPER_BNDL.c.OPER_BNDL_SN).where(TB_OPER_BNDL.c.OPER_BNDL_SN == bundle).with_for_update()
-    )
+    lock_bundle(db, bundle)
     mark = mark_of(idem_key, body)
-    again = replayed(db, bundle, admin.admin_sn, mark)
+    again = replayed(db, bundle, admin.admin_sn, mark, CREATE_JOB)
     if again is not None:
         return _detail(db, bundle, again)
-    latest = db.execute(
-        select(TB_MBR_STATS_SRC.c.SRC_VER)
-        .where(TB_MBR_STATS_SRC.c.OPER_BNDL_SN == bundle, TB_MBR_STATS_SRC.c.DATST_ID == body.dataset_id)
-        .order_by(TB_MBR_STATS_SRC.c.SRC_VER.desc())
-        .limit(1)
-    ).scalar()
-    version = 1 if latest is None else int(latest) + 1
+    version = next_version(
+        db,
+        TB_MBR_STATS_SRC,
+        TB_MBR_STATS_SRC.c.OPER_BNDL_SN == bundle,
+        TB_MBR_STATS_SRC.c.DATST_ID == body.dataset_id,
+    )
     source_sn = int(
         db.execute(
             insert(TB_MBR_STATS_SRC)
@@ -193,9 +159,9 @@ def create_source(
                 SRC_BSS_ID=body.basis_id,
                 DATST_ID=body.dataset_id,
                 SRC_VER=version,
-                BGNG_YMD=_ymd(body.period_start),
-                END_YMD=_ymd(body.period_end),
-                CRTR_YMD=_ymd(body.age_basis_date),
+                BGNG_YMD=ymd(body.period_start),
+                END_YMD=ymd(body.period_end),
+                CRTR_YMD=ymd(body.age_basis_date),
                 TOT_CRTR_CN=body.dedupe_note,
                 APRV_STTS_CD="SA.WAIT",
                 REG_DT=now,
@@ -237,60 +203,15 @@ def create_source(
     return _detail(db, bundle, source_sn)
 
 
-def _decide(
-    db: Session, admin: Admin, *, now: datetime, request_id: str, source_id: str, status: str, label: str
-) -> SourceDetail:
-    if not scope_for(db, admin, DECIDE, now, group_only=True).whole:
-        raise ApiError(ErrorCode.FORBIDDEN)
-    bundle, source_sn = admin.bundle_sn, int(source_id)
-    current = db.execute(
-        select(TB_MBR_STATS_SRC.c.APRV_STTS_CD)
-        .where(TB_MBR_STATS_SRC.c.OPER_BNDL_SN == bundle, TB_MBR_STATS_SRC.c.MBR_STATS_SRC_SN == source_sn)
-        .with_for_update()
-    ).first()
-    if current is None:
-        raise ApiError(ErrorCode.NOT_FOUND)
-    if (
-        str(current.APRV_STTS_CD).strip() != "SA.WAIT"
-    ):  # 이미 결정한 자료는 다시 결정하지 않는다(승인본은 고치지 않는다)
-        raise ApiError(ErrorCode.CONFLICT_STATE, "검토대기 상태의 자료만 승인하거나 반려할 수 있습니다.")
-    db.execute(
-        update(TB_MBR_STATS_SRC)
-        .where(TB_MBR_STATS_SRC.c.OPER_BNDL_SN == bundle, TB_MBR_STATS_SRC.c.MBR_STATS_SRC_SN == source_sn)
-        .values(
-            APRV_STTS_CD=status,
-            APRV_MNGR_SN=admin.admin_sn,
-            APRV_DT=now,
-            MDFCN_DT=now,
-            RCRD_VER=TB_MBR_STATS_SRC.c.RCRD_VER + 1,
-        )
-    )
-    record_job(
-        db,
-        actor="AK.ADMIN",
-        job=DECIDE_JOB,
-        table="TB_MBR_STATS_SRC",
-        key=source_sn,
-        request_id=request_id,
-        now=now,
-        bundle_sn=bundle,
-        admin_sn=admin.admin_sn,
-        change=label,
-    )
-    return _detail(db, bundle, source_sn)
-
-
 def approve_source(
     db: Session, admin: Admin, *, now: datetime, request_id: str, source_id: str
 ) -> SourceDetail:
-    return _decide(
-        db, admin, now=now, request_id=request_id, source_id=source_id, status="SA.APPROVE", label="승인"
-    )
+    decide(db, admin, SPEC, now=now, request_id=request_id, source_id=source_id, approve=True)
+    return _detail(db, admin.bundle_sn, int(source_id))
 
 
 def reject_source(
     db: Session, admin: Admin, *, now: datetime, request_id: str, source_id: str
 ) -> SourceDetail:
-    return _decide(
-        db, admin, now=now, request_id=request_id, source_id=source_id, status="SA.REJECT", label="반려"
-    )
+    decide(db, admin, SPEC, now=now, request_id=request_id, source_id=source_id, approve=False)
+    return _detail(db, admin.bundle_sn, int(source_id))
