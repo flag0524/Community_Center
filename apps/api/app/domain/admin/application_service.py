@@ -1,5 +1,6 @@
 # 관리자 수강신청·대기 조회(AU.APLY_R). 범위는 신청자 거주지가 아니라 강좌의 운영 동이다(스키마 6.1, ADR-043)
 import re
+from collections.abc import Iterator
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -36,7 +37,7 @@ from app.domain.admin.application_schemas import (
     WaitlistPage,
 )
 from app.domain.admin.application_types import SmsResult
-from app.domain.admin.csv_export import audit_export, build_csv, chunks, fetch_all
+from app.domain.admin.csv_export import audit_export, chunks, stream_csv
 from app.domain.admin.refund_service import kst_start, scoped
 from app.domain.admin.types import AdminAuthority as AU
 from app.domain.application.service import PAYMENT, REFUND_STAGE, STATUS, flags, rank_in_waitlist
@@ -214,14 +215,13 @@ def list_applications(
     )
 
 
-def export_csv(db: Session, admin: Admin, *, now: datetime, request_id: str, **filters: Any) -> bytes:
-    """목록과 같은 조건·권한·가려진 값으로 만든다. 페이지 제한만 없고 5만 행을 넘으면 거절한다."""
-    rows = fetch_all(db, _filtered(db, admin, now, **filters))
-    items = _summaries(db, admin, rows, now)
-    audit_export(db, admin, "TB_ATNLC_APLY", len(items), request_id, now, filters)
-    return build_csv(
-        ["신청번호", "강좌", "신청자", "신청 상태", "표시 상태", "결제 상태", "환불 상태", "신청일시"],
-        [
+def export_csv(
+    db: Session, admin: Admin, *, now: datetime, request_id: str, **filters: Any
+) -> Iterator[bytes]:
+    """목록과 같은 조건·권한·가려진 값으로 만든다. 페이지 제한만 없고 5만 행을 넘으면 거절한다. 행 단위로 내보낸다."""
+
+    def rows_of(rows: list[Any]) -> list[list[Any]]:
+        return [
             [
                 i.application_no,
                 i.course_name,
@@ -232,8 +232,15 @@ def export_csv(db: Session, admin: Admin, *, now: datetime, request_id: str, **f
                 None if i.refund_status is None else i.refund_status.value,
                 i.applied_at,
             ]
-            for i in items
-        ],
+            for i in _summaries(db, admin, rows, now)
+        ]
+
+    return stream_csv(
+        db,
+        _filtered(db, admin, now, **filters),
+        header=["신청번호", "강좌", "신청자", "신청 상태", "표시 상태", "결제 상태", "환불 상태", "신청일시"],
+        rows_of=rows_of,
+        audit=lambda count: audit_export(db, admin, "TB_ATNLC_APLY", count, request_id, now, filters),
     )
 
 

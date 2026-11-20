@@ -166,6 +166,51 @@ def test_한도를_넘으면_만들지_않고_거절하고_한도_정확히는_�
     assert done == 1  # 거절한 요청은 만든 것이 아니라 기록하지 않는다
 
 
+@pytest.mark.parametrize("chunk", [1, 2, 5, 26, 27])
+def test_신청_CSV는_청크_크기와_상관없이_같은_내용이고_빠짐도_겹침도_없다(
+    world: World, monkeypatch: pytest.MonkeyPatch, chunk: int
+) -> None:
+    row = course(world)
+    made = [
+        application(world, member(world, f"홍길동{n}"), row, "ES.CONFIRM", APLY_DT=START - n * DAY)
+        for n in range(26)
+    ]
+    use(world, staff(world, "boss", "AU.APLY_R"))
+    baseline = fetch(world, "/applications/export.csv").content
+    monkeypatch.setattr(csv_export, "CSV_CHUNK", chunk)
+    streamed = fetch(world, "/applications/export.csv")
+    assert streamed.content == baseline  # 바이트까지 같다(머리글과 BOM은 한 번만)
+    numbers = [r[0] for r in rows_of(streamed)[1:]]
+    assert sorted(numbers) == sorted(str(m["ATNLC_APLY_SN"]) for m in made)  # 빠짐도 겹침도 없다
+    assert len(numbers) == 26 and len(set(numbers)) == 26
+
+
+def test_CSV는_길이를_미리_정하지_않고_나눠서_내려보낸다(world: World) -> None:
+    application(world, member(world, "홍길동"), course(world), "ES.CONFIRM")
+    use(world, staff(world, "boss", "AU.APLY_R"))
+    response = fetch(world, "/applications/export.csv")
+    assert response.headers.get("transfer-encoding") == "chunked" or "content-length" not in response.headers
+    assert response.headers["content-type"].startswith("text/csv")
+    assert (
+        response.headers["cache-control"] == "no-store"
+        and "attachment" in response.headers["content-disposition"]
+    )
+
+
+def test_한도를_넘는_요청은_본문을_조금도_보내지_않고_거절한다(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    row = course(world)
+    for _ in range(3):
+        application(world, member(world), row, "ES.CONFIRM")
+    use(world, staff(world, "boss", "AU.APLY_R"))
+    monkeypatch.setattr(csv_export, "MAX_ROWS", 2)
+    r = fetch(world, "/applications/export.csv")
+    assert r.status_code == 422 and not r.content.startswith(
+        b"\xef\xbb\xbf"
+    )  # BOM(본문 시작)도 나가지 않았다
+
+
 def test_만들_때마다_작업이력에_건수와_조건_이름만_남긴다(world: World) -> None:
     application(world, member(world, "김비밀"), course(world), "ES.CONFIRM")
     who = staff(world, "boss", "AU.APLY_R")

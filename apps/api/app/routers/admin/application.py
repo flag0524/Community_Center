@@ -16,7 +16,7 @@ from app.domain.admin.application_schemas import (
     WaitlistDetail,
     WaitlistPage,
 )
-from app.domain.admin.csv_export import csv_response
+from app.domain.admin.csv_export import csv_stream_response
 from app.domain.application.types import ApplicationStatus
 from app.domain.payment.types import PaymentStatus
 from app.routers.deps import CSV_RESPONSE, MEMBER_ERRORS, admin_session, error_responses
@@ -83,7 +83,7 @@ def export_applications_csv(
     to_date: Annotated[date | None, Query(alias="to")] = None,
 ) -> Response:
     """목록과 같은 조건·권한·가려진 값으로 만든다. 페이지 제한만 없다. 만들 때마다 작업이력에 남긴다."""
-    content = service.export_csv(
+    chunks = service.export_csv(
         db,
         admin,
         now=clock(),
@@ -96,7 +96,7 @@ def export_applications_csv(
         from_date=from_date,
         to_date=to_date,
     )
-    return csv_response("applications.csv", content)
+    return csv_stream_response("applications.csv", chunks)
 
 
 @router.get("/applications/{application_id}", responses=NOT_FOUND)

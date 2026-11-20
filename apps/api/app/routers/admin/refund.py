@@ -13,7 +13,7 @@ from app.core.errors import ErrorCode
 from app.db.session import get_db
 from app.domain.admin import refund_service as service
 from app.domain.admin.application_types import RefundRequester
-from app.domain.admin.csv_export import csv_response
+from app.domain.admin.csv_export import csv_stream_response
 from app.domain.admin.refund_schemas import (
     AdminRefund,
     AdminRefundCreate,
@@ -120,7 +120,7 @@ def export_refunds_csv(
     to_date: Annotated[date | None, Query(alias="to")] = None,
 ) -> Response:
     """목록과 같은 조건·권한으로 만든다. 환불 계좌 같은 민감 값은 담지 않는다."""
-    content = service.export_csv(
+    chunks = service.export_csv(
         db,
         admin,
         now=clock(),
@@ -130,7 +130,7 @@ def export_refunds_csv(
         from_date=from_date,
         to_date=to_date,
     )
-    return csv_response("refunds.csv", content)
+    return csv_stream_response("refunds.csv", chunks)
 
 
 @router.get("/refunds/{refund_id}", responses=error_responses(ErrorCode.NOT_FOUND))

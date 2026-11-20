@@ -2,12 +2,14 @@
 import csv
 import io
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from datetime import date, datetime
 from typing import Any
 from urllib.parse import quote
 
 from fastapi import Response
+from fastapi.responses import StreamingResponse
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.audit import record_job
@@ -16,6 +18,7 @@ from app.core.errors import ApiError, ErrorCode
 from app.core.times import KST, utc
 
 MAX_ROWS = 50_000  # 계약(CSV_RESPONSE)이 정한 한도. 넘으면 만들지 않고 거절한다
+CSV_CHUNK = 500  # 스트리밍 내보내기가 한 번에 읽어 변환하는 행 수. 메모리는 이 값에 비례한다
 BOM = "﻿"
 FORMULA_STARTS = ("=", "+", "-", "@", "\t", "\r")  # 스프레드시트가 수식으로 읽는 시작 문자(TRD 4.6)
 
@@ -37,14 +40,54 @@ def cell(value: Any) -> str:
     return "'" + text if text.startswith(FORMULA_STARTS) else text
 
 
-def build_csv(header: Sequence[str], rows: Iterable[Sequence[Any]]) -> bytes:
-    """RFC 4180에 맞춘다(쉼표 구분, 따옴표·줄바꿈 이스케이프, CRLF). 머리글도 수식 주입 방지를 거친다."""
+def _csv_text(rows: Iterable[Sequence[Any]]) -> str:
     out = io.StringIO()
     writer = csv.writer(out, quoting=csv.QUOTE_MINIMAL, lineterminator="\r\n")
-    writer.writerow([cell(h) for h in header])
     for row in rows:
         writer.writerow([cell(v) for v in row])
-    return (BOM + out.getvalue()).encode("utf-8")
+    return out.getvalue()
+
+
+def build_csv(header: Sequence[str], rows: Iterable[Sequence[Any]]) -> bytes:
+    """RFC 4180에 맞춘다(쉼표 구분, 따옴표·줄바꿈 이스케이프, CRLF). 머리글도 수식 주입 방지를 거친다."""
+    return (BOM + _csv_text([header]) + _csv_text(rows)).encode("utf-8")
+
+
+def stream_csv(
+    db: Session,
+    query: Any,
+    *,
+    header: Sequence[str],
+    rows_of: Callable[[list[Any]], Sequence[Sequence[Any]]],
+    audit: Callable[[int], None],
+) -> Iterator[bytes]:
+    """행 단위로 내보낸다. 건수 판정·감사 기록·커밋은 응답이 시작되기 전에 끝내고 본문만 나눠서 읽는다.
+
+    한도(MAX_ROWS)를 넘으면 아무것도 보내지 않고 거절한다. 본문은 (정렬 끝이 유일 키인) 같은 조회를
+    CSV_CHUNK행씩 끊어 읽으므로 메모리는 전체 건수가 아니라 CSV_CHUNK에 비례한다.
+    """
+    total = int(db.execute(select(func.count()).select_from(query.order_by(None).subquery())).scalar_one())
+    if total > MAX_ROWS:
+        raise ApiError(
+            ErrorCode.RULE_REJECTED,
+            f"내려받을 수 있는 최대 {MAX_ROWS:,}건을 넘었습니다. 조건을 좁혀 주세요.",
+        )
+    audit(total)
+    db.commit()  # 감사 기록을 먼저 확정한다. 응답 뒤의 커밋 실패가 성공으로 새지 않게 한다
+    return _stream(db, query, header, rows_of)
+
+
+def _stream(
+    db: Session, query: Any, header: Sequence[str], rows_of: Callable[[list[Any]], Sequence[Sequence[Any]]]
+) -> Iterator[bytes]:
+    yield (BOM + _csv_text([header])).encode("utf-8")
+    sent = 0
+    while sent < MAX_ROWS:
+        rows = list(db.execute(query.limit(min(CSV_CHUNK, MAX_ROWS - sent)).offset(sent)).all())
+        if not rows:
+            break
+        yield _csv_text(rows_of(rows)).encode("utf-8")
+        sent += len(rows)
 
 
 def fetch_all(db: Session, query: Any) -> list[Any]:
@@ -63,19 +106,23 @@ def chunks(values: list[int], size: int = 1000) -> Iterable[list[int]]:
         yield values[start : start + size]
 
 
-def csv_response(filename: str, content: bytes) -> Response:
+def _csv_headers(filename: str) -> dict[str, str]:
     """한글 파일명은 RFC 5987 형식으로 함께 준다. 캐시하지 않는다(개인정보가 섞일 수 있다)."""
     ascii_name = re.sub(r"[^A-Za-z0-9._-]+", "_", filename)  # 따옴표·줄바꿈·경로 문자가 헤더로 새지 않게 한다
     if not re.search(r"[A-Za-z0-9]", ascii_name.rsplit(".", 1)[0]):
         ascii_name = "export.csv"  # 한글뿐인 이름은 영문 대체 이름이 없다. 실제 이름은 filename*가 전한다
-    return Response(
-        content,
-        media_type="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition": f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename)}",
-            "Cache-Control": "no-store",
-        },
-    )
+    return {
+        "Content-Disposition": f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename)}",
+        "Cache-Control": "no-store",
+    }
+
+
+def csv_response(filename: str, content: bytes) -> Response:
+    return Response(content, media_type="text/csv; charset=utf-8", headers=_csv_headers(filename))
+
+
+def csv_stream_response(filename: str, chunks: Iterator[bytes]) -> StreamingResponse:
+    return StreamingResponse(chunks, media_type="text/csv; charset=utf-8", headers=_csv_headers(filename))
 
 
 def audit_export(

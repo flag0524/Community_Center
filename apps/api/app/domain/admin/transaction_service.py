@@ -1,4 +1,5 @@
 # 관리자 결제·거래 대조: 목록·상세, PG 재조회, 수동 대사(AU.STLM_R·AU.STLM_W, TDD 5.4, FN-041·042, R12·R13)
+from collections.abc import Iterator
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -25,7 +26,7 @@ from app.db.tables import (
 )
 from app.domain.admin.application_schemas import LinkedRefund
 from app.domain.admin.application_types import ActionKind, NoticeHandling, ReconcileOutcome
-from app.domain.admin.csv_export import audit_export, build_csv, chunks, fetch_all
+from app.domain.admin.csv_export import audit_export, chunks, stream_csv
 from app.domain.admin.refund_service import kst_start, scoped
 from app.domain.admin.transaction_schemas import (
     PgNotice,
@@ -183,26 +184,18 @@ def _recheck_stats_all(
     return stats
 
 
-def export_csv(db: Session, admin: Admin, *, now: datetime, request_id: str, **filters: Any) -> bytes:
-    """목록과 같은 조건·권한으로 만든다. 확인 중인 금액은 순수납에 넣지 않고 상태 열로 구분한다."""
+def export_csv(
+    db: Session, admin: Admin, *, now: datetime, request_id: str, **filters: Any
+) -> Iterator[bytes]:
+    """목록과 같은 조건·권한으로 만든다. 확인 중인 금액은 순수납에 넣지 않고 상태 열로 구분한다. 행 단위로 내보낸다."""
     conflicts = _conflict_payments(db, admin.bundle_sn)
-    rows = fetch_all(db, _filtered(db, admin, now, conflicts, **filters))
-    stats = _recheck_stats_all(db, admin.bundle_sn, [int(r.STLM_SN) for r in rows])
-    items = [TransactionSummary(**_summary(r, stats.get(int(r.STLM_SN), (0, None)), conflicts)) for r in rows]
-    audit_export(db, admin, "TB_STLM", len(items), request_id, now, filters)
-    return build_csv(
-        [
-            "주문번호",
-            "신청번호",
-            "금액",
-            "수단",
-            "상태",
-            "요청시각",
-            "PG 승인시각",
-            "재조회 횟수",
-            "충돌 통보",
-        ],
-        [
+
+    def rows_of(rows: list[Any]) -> list[list[Any]]:
+        stats = _recheck_stats_all(db, admin.bundle_sn, [int(r.STLM_SN) for r in rows])
+        items = (
+            TransactionSummary(**_summary(r, stats.get(int(r.STLM_SN), (0, None)), conflicts)) for r in rows
+        )
+        return [
             [
                 i.order_no,
                 i.application_no,
@@ -215,7 +208,24 @@ def export_csv(db: Session, admin: Admin, *, now: datetime, request_id: str, **f
                 i.has_conflict,
             ]
             for i in items
+        ]
+
+    return stream_csv(
+        db,
+        _filtered(db, admin, now, conflicts, **filters),
+        header=[
+            "주문번호",
+            "신청번호",
+            "금액",
+            "수단",
+            "상태",
+            "요청시각",
+            "PG 승인시각",
+            "재조회 횟수",
+            "충돌 통보",
         ],
+        rows_of=rows_of,
+        audit=lambda count: audit_export(db, admin, "TB_STLM", count, request_id, now, filters),
     )
 
 

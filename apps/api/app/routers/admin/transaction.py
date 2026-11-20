@@ -12,7 +12,7 @@ from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
 from app.db.session import get_db
 from app.domain.admin import transaction_service as service
-from app.domain.admin.csv_export import csv_response
+from app.domain.admin.csv_export import csv_stream_response
 from app.domain.admin.transaction_schemas import ReconcileRequest, Transaction, TransactionPage
 from app.domain.payment.types import PaymentMethod, PaymentStatus
 from app.routers.deps import CSV_RESPONSE, MEMBER_ERRORS, admin_session, csrf_header, error_responses
@@ -81,7 +81,7 @@ def export_transactions_csv(
     conflict_only: Annotated[bool, Query(alias="conflictOnly")] = False,
 ) -> Response:
     """목록과 같은 조건·권한으로 만든다. 확인 중인 금액은 순수납에 넣지 않고 상태 열로 구분한다."""
-    content = service.export_csv(
+    chunks = service.export_csv(
         db,
         admin,
         now=clock(),
@@ -93,7 +93,7 @@ def export_transactions_csv(
         to_date=to_date,
         conflict_only=conflict_only,
     )
-    return csv_response("transactions.csv", content)
+    return csv_stream_response("transactions.csv", chunks)
 
 
 @router.get("/transactions/{transaction_id}", responses=NOT_FOUND)

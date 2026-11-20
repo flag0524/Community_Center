@@ -1,5 +1,5 @@
 # 관리자 환불 검토·집행: 조회, 대리 접수, 보류·승인·반려, PG 취소 집행, 수동 이체 확인(TDD 5.6, FN-043~046, R14·R15)
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
@@ -30,7 +30,7 @@ from app.db.tables import (
 )
 from app.db.versioned import update_versioned
 from app.domain.admin.application_types import ExecutionMethod, RefundRequester
-from app.domain.admin.csv_export import audit_export, build_csv, fetch_all
+from app.domain.admin.csv_export import audit_export, stream_csv
 from app.domain.admin.refund_schemas import (
     AdminRefund,
     AdminRefundCreate,
@@ -205,14 +205,13 @@ def _filtered(
     )
 
 
-def export_csv(db: Session, admin: Admin, *, now: datetime, request_id: str, **filters: Any) -> bytes:
-    """목록과 같은 조건·권한으로 만든다. 환불 계좌 같은 민감 값은 담지 않는다."""
-    rows = fetch_all(db, _filtered(db, admin, now, **filters))
-    items = [AdminRefundSummary(**_summary(r, now)) for r in rows]
-    audit_export(db, admin, "TB_RFND", len(items), request_id, now, filters)
-    return build_csv(
-        ["환불번호", "신청번호", "강좌", "요청액", "상태", "접수일", "경과 영업일", "지연", "요청자"],
-        [
+def export_csv(
+    db: Session, admin: Admin, *, now: datetime, request_id: str, **filters: Any
+) -> Iterator[bytes]:
+    """목록과 같은 조건·권한으로 만든다. 환불 계좌 같은 민감 값은 담지 않는다. 행 단위로 내보낸다."""
+
+    def rows_of(rows: list[Any]) -> list[list[Any]]:
+        return [
             [
                 i.refund_no,
                 i.application_no,
@@ -224,8 +223,15 @@ def export_csv(db: Session, admin: Admin, *, now: datetime, request_id: str, **f
                 i.overdue,
                 i.requester.value,
             ]
-            for i in items
-        ],
+            for i in (AdminRefundSummary(**_summary(r, now)) for r in rows)
+        ]
+
+    return stream_csv(
+        db,
+        _filtered(db, admin, now, **filters),
+        header=["환불번호", "신청번호", "강좌", "요청액", "상태", "접수일", "경과 영업일", "지연", "요청자"],
+        rows_of=rows_of,
+        audit=lambda count: audit_export(db, admin, "TB_RFND", count, request_id, now, filters),
     )
 
 
