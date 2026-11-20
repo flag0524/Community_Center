@@ -13,8 +13,10 @@ from app.auth.admin_access import Admin, Scope, permit, permit_any, scope_for
 from app.auth.crypto import DecryptError, decrypt
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
+from app.core.masking import mask_name
 from app.core.schema import PageCriteria
 from app.core.times import KST, kst_today, utc
+from app.db.idempotent import find_prior
 from app.db.tables import (
     TB_ATNLC_APLY,
     TB_CORS,
@@ -69,14 +71,6 @@ JOB_STATUS = {
     "RFND_DONE": RefundStatus.DONE,
     "RFND_FAIL": RefundStatus.FAILED,
 }
-
-
-def mask_name(name: str) -> str:
-    if len(name) <= 1:
-        return "*"
-    if len(name) == 2:
-        return name[0] + "*"
-    return name[0] + "*" * (len(name) - 2) + name[-1]
 
 
 def business_days_between(received: date, today: date) -> int:
@@ -607,14 +601,17 @@ def create_by_admin(
         raise ApiError(ErrorCode.NOT_FOUND)
     course = lock_course(db, admin.bundle_sn, int(found.CORS_SN))
     application = lock_application(db, admin.bundle_sn, application_sn)
-    prior = db.execute(
-        select(TB_RFND.c.RFND_SN, TB_STLM.c.ATNLC_APLY_SN)
-        .join(TB_STLM, TB_STLM.c.STLM_SN == TB_RFND.c.STLM_SN)
-        .where(TB_RFND.c.OPER_BNDL_SN == admin.bundle_sn, TB_RFND.c.IDEM_KEY == idem_key)
-    ).first()
+    prior = find_prior(
+        db,
+        select(TB_RFND.c.RFND_SN, TB_STLM.c.ATNLC_APLY_SN).join(
+            TB_STLM, TB_STLM.c.STLM_SN == TB_RFND.c.STLM_SN
+        ),
+        TB_RFND,
+        admin.bundle_sn,
+        idem_key,
+        lambda p: int(p.ATNLC_APLY_SN) == application_sn,
+    )
     if prior is not None:
-        if int(prior.ATNLC_APLY_SN) != application_sn:
-            raise ApiError(ErrorCode.IDEMPOTENCY_CONFLICT)
         return _detail(db, settings, admin, now, int(prior.RFND_SN))
     payment = paid_payment(db, admin.bundle_sn, application_sn)
     if payment is None or application.APLY_STTS_CD != "ES.CONFIRM":

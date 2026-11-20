@@ -11,9 +11,9 @@ from app.auth.passwords import hash_password, verify_password
 from app.auth.sessions import discard
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
+from app.core.masking import mask_phone
 from app.core.times import kst_today
 from app.db.tables import TB_ATNLC_APLY, TB_LGN_SSN, TB_MBR, TB_RFND, TB_STLM
-from app.domain.admin.member_service import mask_phone
 from app.domain.member.schemas import MemberProfile, PasswordChange, ProfileUpdate, WithdrawalRequest
 from app.domain.member.types import ResidenceStatus
 

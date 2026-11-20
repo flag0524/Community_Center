@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.audit import record_job
 from app.auth.admin_access import Admin, Scope, permit
 from app.core.errors import ApiError, ErrorCode
+from app.core.masking import mask_name
 from app.core.schema import PageCriteria
 from app.core.times import kst_today, utc
 from app.db.tables import (
@@ -38,7 +39,7 @@ from app.domain.admin.reduction_schemas import (
     ReductionReviewSummary,
 )
 from app.domain.admin.reduction_types import ReductionDecision, ReductionStatus, ReductionType
-from app.domain.admin.refund_service import kst_start, mask_name
+from app.domain.admin.refund_service import kst_start
 from app.domain.admin.types import AdminAuthority as AU
 
 TYPE_CODE = {

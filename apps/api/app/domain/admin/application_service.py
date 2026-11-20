@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.admin_access import Admin, Scope, permit
 from app.core.errors import ApiError, ErrorCode
+from app.core.masking import mask_name
 from app.core.schema import PageCriteria
 from app.core.times import utc
 from app.db.tables import (
@@ -36,7 +37,7 @@ from app.domain.admin.application_schemas import (
 )
 from app.domain.admin.application_types import SmsResult
 from app.domain.admin.csv_export import audit_export, build_csv, chunks, fetch_all
-from app.domain.admin.refund_service import kst_start, mask_name, scoped
+from app.domain.admin.refund_service import kst_start, scoped
 from app.domain.admin.types import AdminAuthority as AU
 from app.domain.application.service import PAYMENT, REFUND_STAGE, STATUS, flags, rank_in_waitlist
 from app.domain.application.types import ApplicationStatus

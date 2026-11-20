@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.admin_access import Admin, permit
 from app.core.errors import ApiError, ErrorCode
+from app.core.masking import mask_name
 from app.core.schema import PageCriteria
 from app.core.times import utc
 from app.db.tables import TB_ATNLC_APLY, TB_CORS, TB_CORS_ATND, TB_CORS_ATND_DTL, TB_INSTR, TB_MBR
@@ -17,7 +18,6 @@ from app.domain.admin.attendance_schemas import (
     AttendanceSummary,
 )
 from app.domain.admin.education_types import AttendanceInputStatus, AttendanceMark
-from app.domain.admin.refund_service import mask_name
 from app.domain.admin.types import AdminAuthority as AU
 
 MARK = {

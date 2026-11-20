@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.audit import record_job
 from app.auth.admin_access import Admin, Scope, permit, permit_any
 from app.core.errors import ApiError, ErrorCode
+from app.core.masking import mask_name
 from app.core.schema import PageCriteria
 from app.core.times import kst_today, utc
 from app.db.tables import TB_BBS, TB_MBR, TB_MNGR, TB_PST
@@ -23,7 +24,6 @@ from app.domain.admin.board_schemas import (
 )
 from app.domain.admin.csv_export import audit_export, build_csv, fetch_all
 from app.domain.admin.education_service import _idem_mark, _replayed
-from app.domain.admin.refund_service import mask_name
 from app.domain.admin.types import AdminAuthority as AU
 from app.domain.board.sanitize import clean_body, has_text
 from app.domain.board.types import BoardKey

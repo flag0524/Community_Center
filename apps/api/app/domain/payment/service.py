@@ -18,6 +18,7 @@ from app.audit import record_job
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
 from app.core.times import utc
+from app.db.idempotent import find_prior
 from app.db.tables import TB_ATNLC_APLY, TB_CORS, TB_MBR, TB_STLM, TB_STLM_EVENT
 from app.domain.application.seats import cancel_ready_payments, expire_application, lock_course
 from app.domain.application.service import PAYMENT, get_mine
@@ -190,12 +191,15 @@ def request_payment(
     application = lock_application(db, bundle_sn, application_sn)
 
     # 같은 키: 같은 신청·수단이면 이전 결과, 다르면 충돌. 기한은 신청의 값 그대로라 늘어나지 않는다(FN-036)
-    prior = db.execute(
-        select(TB_STLM).where(TB_STLM.c.OPER_BNDL_SN == bundle_sn, TB_STLM.c.IDEM_KEY == idem_key)
-    ).first()
+    prior = find_prior(
+        db,
+        select(TB_STLM),
+        TB_STLM,
+        bundle_sn,
+        idem_key,
+        lambda p: int(p.ATNLC_APLY_SN) == application_sn and p.STLM_MNS_CD == METHOD_CODE[method],
+    )
     if prior is not None:
-        if int(prior.ATNLC_APLY_SN) != application_sn or prior.STLM_MNS_CD != METHOD_CODE[method]:
-            raise ApiError(ErrorCode.IDEMPOTENCY_CONFLICT)
         return _request_result(gateway, prior, application.STLM_DDLN_DT or now, now)
 
     _ensure_payable(db, settings, course, application, now=now, request_id=request_id)

@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import text
 
 from app.auth.member_phone import reveal
-from app.domain.admin.member_service import mask_email, mask_phone
+from app.core.masking import mask_email, mask_phone
 from tests.factory import TEST_SECRET
 from tests.test_admin_access import dong
 from tests.test_admin_refunds import call, staff, use

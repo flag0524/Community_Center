@@ -9,14 +9,9 @@ from app.auth.otp import consume_otp, mark_used, reject_after_failure
 from app.auth.passwords import hash_password
 from app.auth.sessions import discard_all
 from app.core.config import Settings
+from app.core.masking import mask_login_id
 from app.db.tables import TB_MBR
 from app.domain.member.types import OtpPurpose
-
-
-def mask_login_id(login_id: str) -> str:
-    """앞 2글자만 보이고 나머지는 *이다(예 ho*****). 통째로 드러나지 않게 끝 한 글자는 항상 가린다."""
-    shown = min(2, max(len(login_id) - 1, 0))
-    return login_id[:shown] + "*" * (len(login_id) - shown)
 
 
 def find_login_id(

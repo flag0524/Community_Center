@@ -8,11 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.audit import record_job
 from app.core.errors import ApiError, ErrorCode
+from app.core.masking import mask_name
 from app.core.schema import PageCriteria
 from app.core.times import utc
 from app.db.tables import TB_BBS, TB_COM_CD, TB_JOB_HSTRY, TB_MBR, TB_PST
 from app.domain.admin.inquiry_service import _base
-from app.domain.admin.refund_service import mask_name
 from app.domain.board.schemas import (
     InquiryAnswer,
     InquiryCategory,

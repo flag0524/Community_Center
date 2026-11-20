@@ -13,9 +13,9 @@ from app.auth.crypto import DecryptError, decrypt, encrypt
 from app.auth.deps import Member
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
+from app.core.masking import mask_name
 from app.core.times import utc
 from app.db.tables import TB_JOB_HSTRY, TB_MBR, TB_MNGR
-from app.domain.admin.refund_service import mask_name
 from app.domain.admin.types import AdminAuthority as AU
 from app.domain.member.name_change_schemas import (
     AdminNameChange,

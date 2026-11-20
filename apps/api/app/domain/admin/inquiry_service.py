@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, aliased
 from app.audit import record_job
 from app.auth.admin_access import Admin, Scope, permit
 from app.core.errors import ApiError, ErrorCode
+from app.core.masking import mask_name
 from app.core.schema import PageCriteria
 from app.core.times import kst_today, utc
 from app.db.tables import TB_BBS, TB_COM_CD, TB_JOB_HSTRY, TB_MBR, TB_MNGR, TB_PST
@@ -24,7 +25,6 @@ from app.domain.admin.inquiry_schemas import (
     InquiryAnswer,
     InquiryAnswerWrite,
 )
-from app.domain.admin.refund_service import mask_name
 from app.domain.admin.types import AdminAuthority as AU
 from app.domain.board.types import InquiryStatus
 

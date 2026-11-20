@@ -11,6 +11,7 @@ from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
 from app.core.schema import PageCriteria
 from app.core.times import kst_today, utc
+from app.db.idempotent import find_prior
 from app.db.tables import (
     TB_BBS,
     TB_CORS,
@@ -375,19 +376,20 @@ def create_mine(
     member = _lock_member(db, bundle_sn, member_sn)
     course, career = _texts(body)
     key = f"m{member_sn}-{hashlib.sha256(idem_key.encode()).hexdigest()[:40]}"
-    prior = db.execute(
-        select(TB_INSTR_APLY).where(
-            TB_INSTR_APLY.c.OPER_BNDL_SN == bundle_sn, TB_INSTR_APLY.c.IDEM_KEY == key
-        )
-    ).first()
+    prior = find_prior(
+        db,
+        select(TB_INSTR_APLY),
+        TB_INSTR_APLY,
+        bundle_sn,
+        key,
+        lambda p: (
+            int(p.INSTR_RCRT_SN) == int(body.recruitment_id)
+            and p.HOPE_CORS_NM == course
+            and p.CRR_CN == career
+            and str(p.HOPE_FLD_NM).casefold() == body.category_name.strip().casefold()
+        ),
+    )
     if prior is not None:
-        if (
-            int(prior.INSTR_RCRT_SN) != int(body.recruitment_id)
-            or prior.HOPE_CORS_NM != course
-            or prior.CRR_CN != career
-            or str(prior.HOPE_FLD_NM).casefold() != body.category_name.strip().casefold()
-        ):
-            raise ApiError(ErrorCode.IDEMPOTENCY_CONFLICT)
         return get_mine(db, bundle_sn, member_sn, str(int(prior.INSTR_APLY_SN)))
     recruitment = db.execute(
         _recruitment_query(bundle_sn, now).where(TB_INSTR_RCRT.c.INSTR_RCRT_SN == int(body.recruitment_id))

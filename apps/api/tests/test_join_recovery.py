@@ -422,7 +422,7 @@ def test_아이디_찾기는_앞_2글자만_보이고_인증을_사용_완료로
 def test_아이디_마스킹은_앞_2글자만_보이고_짧은_아이디도_통째로_드러나지_않는다(
     login_id: str, masked: str
 ) -> None:
-    from app.auth.recovery import mask_login_id
+    from app.core.masking import mask_login_id
 
     assert mask_login_id(login_id) == masked
     assert masked != login_id and len(masked) == len(login_id)

@@ -12,6 +12,7 @@ from app.auth.admin_access import Admin, Scope, permit
 from app.auth.member_phone import reveal
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
+from app.core.masking import mask_email, mask_name, mask_phone
 from app.core.schema import PageCriteria
 from app.core.times import kst_today, utc
 from app.db.tables import TB_ATNLC_APLY, TB_CORS, TB_JOB_HSTRY, TB_MBR, TB_MNGR, TB_STLM
@@ -29,7 +30,7 @@ from app.domain.admin.member_schemas import (
     RevealRequest,
 )
 from app.domain.admin.member_types import MemberReviewKind, MemberReviewState, MemberStatus
-from app.domain.admin.refund_service import mask_name, scoped
+from app.domain.admin.refund_service import scoped
 from app.domain.admin.types import AdminAuthority as AU
 from app.domain.member.types import ResidenceStatus
 
@@ -44,19 +45,6 @@ REVIEW_JOB, CLOSE_JOB = "MBR_REVIEW", "MBR_REVIEW_CLOSE"
 IDEM_MARK = re.compile(r"\s\[idem [0-9a-f]{16}:[0-9a-f]{16}\]$")
 CLOSE_TEXT = re.compile(r"^\[review (\d+)\] (.*)$", re.DOTALL)
 KIND_TEXT = re.compile(r"^\[([A-Z_]+)\] (.*)$", re.DOTALL)
-
-
-def mask_phone(phone: str | None) -> str:
-    if not phone:
-        return ""
-    return f"{phone[:3]}-****-{phone[-4:]}" if len(phone) >= 10 else "****"
-
-
-def mask_email(email: str | None) -> str:
-    if not email:
-        return ""
-    local, at, domain = email.partition("@")
-    return f"{local[:1]}***{at}{domain}" if at else "***"
 
 
 def _summary(row: Any) -> AdminMemberSummary:

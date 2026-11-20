@@ -10,6 +10,7 @@ from app.audit import record_job
 from app.auth.admin_access import Admin, Scope, permit, permit_any, scope_for
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
+from app.core.masking import mask_name
 from app.core.schema import PageCriteria
 from app.core.times import utc
 from app.db.tables import (
@@ -25,7 +26,7 @@ from app.db.tables import (
 from app.domain.admin.application_schemas import LinkedRefund
 from app.domain.admin.application_types import ActionKind, NoticeHandling, ReconcileOutcome
 from app.domain.admin.csv_export import audit_export, build_csv, chunks, fetch_all
-from app.domain.admin.refund_service import kst_start, mask_name, scoped
+from app.domain.admin.refund_service import kst_start, scoped
 from app.domain.admin.transaction_schemas import (
     PgNotice,
     ReconcileRequest,

@@ -2,7 +2,7 @@
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from sqlalchemy import RowMapping, Table, insert, select
+from sqlalchemy import Row, RowMapping, Select, Table, insert, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -52,3 +52,24 @@ def insert_idempotent(
         .one()
     )
     return created, False
+
+
+def find_prior(
+    session: Session,
+    query: Select[Any],
+    table: Table,
+    bundle_sn: int,
+    key: str,
+    same_request: Callable[[Row[Any]], bool],
+) -> Row[Any] | None:
+    """같은 (묶음, 멱등키)로 이미 처리된 요청의 행. 없으면 None이다.
+
+    행이 있는데 같은 요청이 아니면 멱등키 충돌로 거절한다. 호출한 쪽은 행이 있으면 이전 결과를 돌려준다.
+    선행 조회는 호출한 쪽이 잠금을 얻은 뒤에 해야 동시 재전송도 걸린다(FN-033).
+    """
+    prior = session.execute(query.where(table.c.OPER_BNDL_SN == bundle_sn, table.c.IDEM_KEY == key)).first()
+    if prior is None:
+        return None
+    if not same_request(prior):
+        raise ApiError(ErrorCode.IDEMPOTENCY_CONFLICT)
+    return prior

@@ -14,9 +14,10 @@ from app.auth.crypto import DecryptError, decrypt, encrypt
 from app.auth.member_phone import reveal
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
+from app.core.masking import mask_name, mask_phone
 from app.core.schema import PageCriteria
 from app.core.times import utc
-from app.db.idempotent import insert_idempotent
+from app.db.idempotent import find_prior, insert_idempotent
 from app.db.tables import (
     TB_ATNLC_APLY,
     TB_CORS,
@@ -28,8 +29,6 @@ from app.db.tables import (
     TB_SMS_SNDNG_HSTRY,
     TB_SMS_TRGT,
 )
-from app.domain.admin.member_service import mask_phone
-from app.domain.admin.refund_service import mask_name
 from app.domain.admin.sms_purge import PURGED_PHONE, PURGED_TEXT
 from app.domain.admin.sms_schemas import (
     SMS_MAX_BYTES,
@@ -208,14 +207,15 @@ def send(
     scope = permit(db, admin, AU.SMS_SEND, now)
     key = f"a{admin.admin_sn}-{idem_key}"
     digest = _hash(body)
-    prior = db.execute(
-        select(TB_SMS_DMND.c.SMS_DMND_SN, TB_SMS_DMND.c.DMND_HASH_VL).where(
-            TB_SMS_DMND.c.OPER_BNDL_SN == admin.bundle_sn, TB_SMS_DMND.c.IDEM_KEY == key
-        )
-    ).first()
+    prior = find_prior(
+        db,
+        select(TB_SMS_DMND.c.SMS_DMND_SN, TB_SMS_DMND.c.DMND_HASH_VL),
+        TB_SMS_DMND,
+        admin.bundle_sn,
+        key,
+        lambda p: p.DMND_HASH_VL == digest,
+    )
     if prior is not None:
-        if prior.DMND_HASH_VL != digest:
-            raise ApiError(ErrorCode.IDEMPOTENCY_CONFLICT)
         return get(db, settings, admin, now=now, sms_id=str(int(prior.SMS_DMND_SN)))
     audience = _audience(db, settings, admin, scope, body)
     if not body.confirmed:

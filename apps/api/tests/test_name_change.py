@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from sqlalchemy import text
 
-from app.domain.admin.refund_service import mask_name
+from app.core.masking import mask_name
 from tests.test_admin_access import dong
 from tests.test_admin_refunds import call, staff, use
 from tests.test_member_inquiries import as_member, csrf, person

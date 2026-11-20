@@ -12,6 +12,7 @@ from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
 from app.core.schema import PageCriteria
 from app.core.times import kst_today, utc
+from app.db.idempotent import find_prior
 from app.db.tables import TB_ATNLC_APLY, TB_CORS, TB_RFND, TB_STLM
 from app.domain.application.seats import cancel_ready_payments, lock_course, promote_waiters, set_status
 from app.domain.application.service import REFUND_STAGE
@@ -215,12 +216,10 @@ def create_refund(
     payment = paid_payment(db, bundle_sn, application_sn)
 
     # 같은 멱등키: 같은 신청이면 이전 결과, 다르면 충돌(FN-033). 잠금을 얻은 뒤 보므로 동시 재전송도 걸린다.
-    prior = db.execute(
-        _refund_query().where(TB_RFND.c.OPER_BNDL_SN == bundle_sn, TB_RFND.c.IDEM_KEY == idem_key)
-    ).first()
+    prior = find_prior(
+        db, _refund_query(), TB_RFND, bundle_sn, idem_key, lambda p: int(p.ATNLC_APLY_SN) == application_sn
+    )
     if prior is not None:
-        if int(prior.ATNLC_APLY_SN) != application_sn:
-            raise ApiError(ErrorCode.IDEMPOTENCY_CONFLICT)
         return _to_refund(prior)
 
     if payment is None or application.APLY_STTS_CD != "ES.CONFIRM":
