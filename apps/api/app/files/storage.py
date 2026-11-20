@@ -25,6 +25,17 @@ def read_blob(root: str, key: str) -> bytes:
         raise StorageError("파일을 읽지 못했다") from None
 
 
+def blob_path(root: str, key: str) -> Path:
+    """내려받기용으로 객체의 실제 경로를 준다. 내용은 읽지 않으므로 큰 파일도 메모리에 올리지 않는다.
+
+    일반 파일이 아니거나 읽을 수 없으면 응답을 시작하기 전에 알 수 있도록 여기서 실패시킨다.
+    """
+    target = _resolve(root, key)
+    if not target.is_file() or not os.access(target, os.R_OK):
+        raise StorageError("파일을 읽지 못했다")
+    return target
+
+
 def new_key(bundle_sn: int) -> str:
     """묶음 접두부 + 난수 객체키. 추측할 수 없고 원본 이름·확장자를 담지 않는다. 폴더를 나눠 한 폴더가 커지지 않게 한다."""
     token = secrets.token_hex(16)

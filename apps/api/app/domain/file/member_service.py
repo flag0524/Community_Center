@@ -5,6 +5,7 @@ from typing import Any
 from urllib.parse import quote
 
 from fastapi import Response
+from fastapi.responses import FileResponse
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
@@ -24,7 +25,7 @@ from app.domain.file.owner import (
 from app.domain.file.schemas import MyFile, MyFileList
 from app.domain.file.types import FileOwnerKind
 from app.domain.file.upload import ALLOWED_EXTENSIONS, MAX_BYTES, validate_upload
-from app.files.storage import StorageError, read_blob
+from app.files.storage import StorageError, blob_path
 
 MAX_FILES = 5  # 문의 한 건의 첨부 한도. 문서에 없어 둔 값이다(개정 요청 R31)
 REPLY = TB_PST.alias("reply")
@@ -367,7 +368,7 @@ def download_file(
         _denied(db, member_sn, bundle_sn, int(row.FILE_SN), now)
         raise ApiError(ErrorCode.NOT_FOUND)
     try:
-        content = read_blob(settings.file_root, str(row.STRG_KEY))
+        path = blob_path(settings.file_root, str(row.STRG_KEY))
     except StorageError:
         raise ApiError(ErrorCode.INTERNAL_ERROR) from None
     record_job(
@@ -382,8 +383,8 @@ def download_file(
         member_sn=member_sn,
         change="주민 내려받기",
     )
-    return Response(
-        content,
+    return FileResponse(
+        path,
         media_type=str(row.MIME_TYPE_NM),
         headers={
             "Content-Disposition": f"attachment; filename*=UTF-8''{quote(str(row.FILE_NM))}",

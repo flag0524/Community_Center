@@ -3,6 +3,7 @@ from typing import Annotated
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Path, Query, Response
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.auth.deps import Clock, get_bundle_resolver, get_clock
@@ -63,12 +64,12 @@ def download_file(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Response:
     """소유 게시물이 공개일 때, 게시 중인 홈 콘텐츠의 이미지일 때, 공개 강좌의 강의계획서일 때만 내려준다."""
-    file, content = file_service.download(db, settings, bundles.resolve(db), file_id, clock())
+    file, path = file_service.download(db, settings, bundles.resolve(db), file_id, clock())
     mime = str(file.MIME_TYPE_NM)
     inline = file.FILE_USE_CD == "FP.IMAGE" and mime.startswith("image/")
     disposition = "inline" if inline else "attachment"
-    return Response(
-        content=content,
+    return FileResponse(
+        path,
         media_type=mime,
         headers={
             "Content-Disposition": f"{disposition}; filename*=UTF-8''{quote(str(file.FILE_NM))}",

@@ -4,6 +4,7 @@ from typing import Any
 from urllib.parse import quote
 
 from fastapi import Response
+from fastapi.responses import FileResponse
 from sqlalchemy import and_, func, or_, select, true, update
 from sqlalchemy.orm import Session
 
@@ -45,7 +46,7 @@ from app.domain.file.owner import (
 from app.domain.file.schemas import OwnerFile, OwnerFileList
 from app.domain.file.types import FileOwnerKind, FilePurpose, FileStatus
 from app.domain.file.upload import ALLOWED_EXTENSIONS, MAX_BYTES, validate_upload
-from app.files.storage import StorageError, read_blob
+from app.files.storage import StorageError, blob_path
 
 PURPOSE = {
     "FP.ATTACH": FilePurpose.ATTACH,
@@ -556,7 +557,7 @@ def download_file(
         _denied(db, admin, now, int(row.FILE_SN))
         raise ApiError(ErrorCode.NOT_FOUND)
     try:
-        content = read_blob(settings.file_root, str(row.STRG_KEY))
+        path = blob_path(settings.file_root, str(row.STRG_KEY))
     except StorageError:
         raise ApiError(ErrorCode.INTERNAL_ERROR) from None
     if owner.kind is FileOwnerKind.REDUCTION:
@@ -575,8 +576,8 @@ def download_file(
         admin_sn=admin.admin_sn,
         change="관리자 내려받기",
     )
-    return Response(
-        content,
+    return FileResponse(
+        path,
         media_type=str(row.MIME_TYPE_NM),
         headers={
             "Content-Disposition": f"attachment; filename*=UTF-8''{quote(str(row.FILE_NM))}",

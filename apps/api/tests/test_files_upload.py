@@ -5,7 +5,7 @@ import pytest
 
 from app.core.errors import ApiError
 from app.domain.file.upload import ALLOWED, ALLOWED_EXTENSIONS, MAX_BYTES, clean_name, validate_upload
-from app.files.storage import StorageError, new_key, read_blob, remove_blob, write_blob
+from app.files.storage import StorageError, blob_path, new_key, read_blob, remove_blob, write_blob
 
 PDF = b"%PDF-1.7\n..."
 PNG = b"\x89PNG\r\n\x1a\n" + b"x" * 8
@@ -160,6 +160,36 @@ def test_없는_파일을_읽으면_저장소_오류이고_치우기는_조용�
     remove_blob(str(tmp_path), key)
     with pytest.raises(StorageError):
         read_blob(str(tmp_path), key)
+
+
+def test_내려받기_경로는_있는_파일만_주고_내용은_읽지_않는다(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    key = new_key(1)
+    write_blob(str(tmp_path), key, b"hello")
+    monkeypatch.setattr(Path, "read_bytes", lambda self: pytest.fail("내용을 통째로 읽으면 안 된다"))
+    found = blob_path(str(tmp_path), key)
+    assert found.is_file() and found.stat().st_size == 5
+
+
+@pytest.mark.parametrize("key", ["../outside", "/etc/passwd", ".", "", "b1/aa/none"])
+def test_내려받기_경로는_없거나_밖을_가리키는_키를_거절한다(tmp_path: Path, key: str) -> None:
+    with pytest.raises(StorageError):
+        blob_path(str(tmp_path), key)
+
+
+def test_내려받기_경로는_저장소_밖에_실제로_있는_파일도_주지_않는다(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    store.mkdir()
+    (tmp_path / "secret.txt").write_text("비밀", encoding="utf-8")
+    with pytest.raises(StorageError):
+        blob_path(str(store), "../secret.txt")
+
+
+def test_내려받기_경로는_폴더를_파일로_보지_않는다(tmp_path: Path) -> None:
+    (tmp_path / "b1" / "aa").mkdir(parents=True)
+    with pytest.raises(StorageError):
+        blob_path(str(tmp_path), "b1/aa")
 
 
 def test_검증한_결과의_이름은_정리한_이름이고_빈_파일은_빈_파일이라고_알린다() -> None:

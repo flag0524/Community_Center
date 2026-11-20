@@ -162,6 +162,37 @@ def test_전체_목록과_상세와_내려받기는_콘텐츠_범위를_따른�
     assert call(world, "DELETE", f"/files/{fb}").status_code == 404
 
 
+def test_내려받기는_파일을_통째로_읽지_않고_조각으로_내보내며_길이를_알려_준다(
+    world: World, root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    big = PNG + b"x" * (3 * 1024 * 1024)  # 여러 조각으로 나뉘는 크기
+    banner = publish(world, "CT.BANNER", "banner-big", "본문")
+    editor(world)
+    fid = upload(world, path(banner), "큰.png", big).json()["fileId"]
+    put(world, int(fid))
+    monkeypatch.setattr(Path, "read_bytes", lambda self: pytest.fail("내용을 통째로 읽으면 안 된다"))
+    res = call(world, "GET", f"/files/{fid}/download")
+    assert res.status_code == 200 and res.content == big
+    assert res.headers["content-length"] == str(len(big))
+    assert (
+        res.headers["cache-control"] == "private, no-store"
+        and res.headers["x-content-type-options"] == "nosniff"
+    )
+    assert "attachment" in res.headers["content-disposition"]
+
+
+def test_저장소에서_사라진_파일은_응답을_시작하기_전에_500이다(world: World, root: Path) -> None:
+    banner = publish(world, "CT.BANNER", "banner-gone", "본문")
+    editor(world)
+    fid = upload(world, path(banner), "a.png", PNG).json()["fileId"]
+    put(world, int(fid))
+    for blob in root.rglob("*"):
+        if blob.is_file():
+            blob.unlink()
+    res = call(world, "GET", f"/files/{fid}/download")
+    assert res.status_code == 500 and res.json()["code"] == "INTERNAL_ERROR"
+
+
 def test_감면_증빙과_강사_지원서_파일도_상세와_내려받기가_된다(world: World, root: Path) -> None:
     ia = world.factory.make("TB_INSTR_APLY")
     proof = world.factory.make(

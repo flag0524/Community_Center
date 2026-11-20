@@ -1,5 +1,6 @@
 # 첨부파일 내려받기 판정. 파일은 소유 업무의 지금 공개 상태를 따르고 검사를 통과한 것만 나간다(TRD 4.5, NF-SER-002)
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import case, exists, select
@@ -11,7 +12,7 @@ from app.db.tables import TB_BBS, TB_CORS, TB_FILE, TB_PST, TB_SITE_CONTS
 from app.domain.board.service import ATTACH, IMAGE, SAFE, public_post_conditions
 from app.domain.course.service import VISIBLE_STATUSES
 from app.domain.site.service import banner_window, published_window
-from app.files.storage import StorageError, read_blob
+from app.files.storage import StorageError, blob_path
 
 HOME_CONTENT_TYPES = ("CT.VISUAL", "CT.BANNER", "CT.POPUP")  # 이미지를 올릴 수 있는 홈 콘텐츠
 ALWAYS_LISTED = ("CT.VISUAL", "CT.BANNER")  # 게시 기간과 상관없이 게시 여부만 보는 홈 콘텐츠(ADR-088·099)
@@ -69,11 +70,12 @@ def public_file(db: Session, bundle_sn: int, file_id: str, now: datetime) -> Any
 
 def download(
     db: Session, settings: Settings, bundle_sn: int, file_id: str, now: datetime
-) -> tuple[Any, bytes]:
+) -> tuple[Any, Path]:
+    """파일 행과 저장소 경로. 내용은 라우터가 조각으로 내보낸다."""
     file = public_file(db, bundle_sn, file_id, now)
     if file is None:
         raise ApiError(ErrorCode.NOT_FOUND)
     try:
-        return file, read_blob(settings.file_root, str(file.STRG_KEY))
+        return file, blob_path(settings.file_root, str(file.STRG_KEY))
     except StorageError:
         raise ApiError(ErrorCode.INTERNAL_ERROR) from None
