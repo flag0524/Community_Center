@@ -1,4 +1,5 @@
 // 문의·답변 목록 화면. 답변을 기다리는 문의가 먼저 나오고 비공개 표시와 가려진 작성자를 보인다 (ADM-MBR-003)
+import { toQueryString } from '@jori/ui';
 import type { Schemas } from '@jori/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -7,7 +8,6 @@ import { CsvButton } from '../../components/CsvButton';
 import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
 import { INQUIRY_STATUS } from '../../lib/labels';
-import { toQueryString } from '../../lib/queryString';
 
 const PAGE_SIZE = 20;
 const FILTERS = ['status', 'categoryId', 'q'] as const;

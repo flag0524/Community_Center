@@ -1,4 +1,5 @@
 // 수강후기 목록. 누구나 보고 제목으로 검색한다. 작성은 로그인한 수강확정 회원만이다
+import { toQueryString } from '@jori/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -8,7 +9,6 @@ import { QueryFallback } from '../../components/QueryFallback';
 import { NAV_GROUPS } from '../../layout/navigation';
 import { SubLayout } from '../../layout/SubLayout';
 import { formatDate } from '../../lib/format';
-import { toQueryString } from '../../lib/queryString';
 import { usePageTitle } from '../../lib/usePageTitle';
 import { COMMUNITY_GROUP_TITLE } from '../board/boards';
 

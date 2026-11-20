@@ -1,7 +1,7 @@
 // 관리자 공통 레이아웃. 상단 업무 묶음, 왼쪽 하위 메뉴, 전체 메뉴, 세션 표시를 권한 응답의 메뉴로 그린다 (ADM-CMN-001)
 import logo from '@jori/ui/assets/paju-ci.jpg';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { ApiRequestError } from '../api/http';
 import { permissionsQuery, sessionQuery } from '../api/queries';
@@ -103,7 +103,9 @@ export function AdminLayout() {
       </aside>
       <div className="adm-workspace">
         <main id="admin-main">
-          <Outlet />
+          <Suspense fallback={<p role="status">화면을 불러오는 중입니다.</p>}>
+            <Outlet />
+          </Suspense>
           <footer className="adm-footer">조리읍주민자치센터 관리 시스템</footer>
         </main>
       </div>

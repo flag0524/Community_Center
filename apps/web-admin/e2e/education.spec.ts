@@ -71,6 +71,8 @@ for (const size of SIZES) {
 test('강좌를 등록하고 공개를 요청하면 일정이 없어 거절된다', async ({ page }) => {
   await signIn(page);
   await goTo(page, '/edu/courses/new');
+  // 화면 조각을 내려받는 동안 이전 화면(대시보드의 기수 선택 폼)이 남아 있으므로 새 화면이 뜰 때까지 기다린다
+  await expect(page.getByLabel(/^강좌명/)).toBeVisible();
   await page.getByLabel(/^기수/).selectOption({ label: '2026년 제4기' });
   await page.getByLabel(/^분류/).selectOption({ label: '컴퓨터' });
   await page.getByLabel(/^대표강사/).selectOption({ label: '추순자' });

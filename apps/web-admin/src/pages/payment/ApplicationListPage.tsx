@@ -1,4 +1,5 @@
 // 수강신청 관리 목록 화면. 조회 전용이며 신청자 이름은 가려서 보인다 (ADM-PAY-001)
+import { toQueryString } from '@jori/ui';
 import type { Schemas } from '@jori/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -9,7 +10,6 @@ import { PiiExportButton } from '../../components/PiiExportButton';
 import { errorMessage } from '../../lib/errors';
 import { kstDateTime } from '../../lib/format';
 import { APPLICATION_STATUS, DISPLAY_STATE, PAYMENT_STATUS, REFUND_STATUS } from '../../lib/labels';
-import { toQueryString } from '../../lib/queryString';
 
 const PAGE_SIZE = 20;
 const FILTERS = ['q', 'cycleId', 'courseId', 'status', 'paymentStatus', 'from', 'to'] as const;

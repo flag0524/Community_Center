@@ -1,4 +1,5 @@
 // 강사현황. 시간표에 수록된 승인·공개 강사를 강사명·강좌명으로 검색한다(FN-018)
+import { toQueryString } from '@jori/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -7,7 +8,6 @@ import { Pager } from '../../components/Pager';
 import { QueryFallback } from '../../components/QueryFallback';
 import { NAV_GROUPS } from '../../layout/navigation';
 import { SubLayout } from '../../layout/SubLayout';
-import { toQueryString } from '../../lib/queryString';
 import { usePageTitle } from '../../lib/usePageTitle';
 import { INSTRUCTOR_GROUP_TITLE } from './labels';
 

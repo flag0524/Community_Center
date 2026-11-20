@@ -1,4 +1,5 @@
 // 통계 화면. 수요·정산·출석·만족도·연령 성별 탭이 같은 조건 영역을 쓰고 자료가 없는 것과 0을 구분해 보인다 (ADM-DSH-002)
+import { toQueryString } from '@jori/ui';
 import type { Schemas } from '@jori/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -8,7 +9,6 @@ import { TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
 import { kstDateTime, won } from '../../lib/format';
 import { PAYMENT_METHOD } from '../../lib/labels';
-import { toQueryString } from '../../lib/queryString';
 
 const TABS = [
   { key: 'demand', label: '수요' },

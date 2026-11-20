@@ -1,4 +1,5 @@
 // 관리자 로그인 화면. 아이디·비밀번호만 받고 MFA는 쓰지 않는다 (ADM-LGN-001)
+import { safeNext } from '@jori/ui';
 import logo from '@jori/ui/assets/paju-ci.jpg';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -6,7 +7,6 @@ import { Navigate, useSearchParams } from 'react-router-dom';
 import { login } from '../api/auth';
 import { sessionQuery } from '../api/queries';
 import { errorMessage, fieldErrors } from '../lib/errors';
-import { safeNext } from '../lib/safeNext';
 
 export function LoginPage() {
   const [params] = useSearchParams();

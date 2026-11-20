@@ -1,4 +1,5 @@
 // 공통 코드 화면. 그룹별로 표시명·순서·사용 여부만 고치고 코드값은 바꾸거나 지우지 않으며 저장이 거절되면 입력을 그대로 둔다 (ADM-SYS-007)
+import { toQueryString } from '@jori/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -6,7 +7,6 @@ import { updateCodes } from '../../api/codes';
 import { codeGroupsQuery, codeListQuery, type CodeParams } from '../../api/queries';
 import { TableWrap } from '../../components/ListParts';
 import { errorMessage, fieldErrors } from '../../lib/errors';
-import { toQueryString } from '../../lib/queryString';
 import type { Schemas } from '@jori/api-client';
 
 interface RowValue {

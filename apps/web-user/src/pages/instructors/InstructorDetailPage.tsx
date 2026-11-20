@@ -1,11 +1,11 @@
 // 강사 소개. 강의 분야와 담당 강좌를 보이고 경력·자격은 공식 자료가 있을 때만 보인다
+import { toQueryString } from '@jori/ui';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { instructorQuery } from '../../api/queries';
 import { QueryFallback } from '../../components/QueryFallback';
 import { NAV_GROUPS } from '../../layout/navigation';
 import { SubLayout } from '../../layout/SubLayout';
-import { toQueryString } from '../../lib/queryString';
 import { usePageTitle } from '../../lib/usePageTitle';
 import { INSTRUCTOR_GROUP_TITLE } from './labels';
 

@@ -1,7 +1,7 @@
 // 화면이 쓰는 서버 상태 조회. 기본 화면과 쉬운 화면이 같은 쿼리 키를 공유한다(RQ-QUR-NF-008)
+import { toQueryString } from '@jori/ui';
 import type { Schemas } from '@jori/api-client';
 import { queryOptions } from '@tanstack/react-query';
-import { toQueryString } from '../lib/queryString';
 import { getJson } from './http';
 
 export type HomeResponse = Schemas['HomeResponse'];

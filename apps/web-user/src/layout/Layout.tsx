@@ -1,10 +1,19 @@
 // 모든 주민 화면이 공유하는 틀. 본문 바로가기, 머리글, 전체 메뉴, 본문 자리, 바닥글을 묶는다
-import { useRef } from 'react';
+import { Suspense, useRef } from 'react';
 import { Outlet, useMatches } from 'react-router-dom';
 import { AllMenu } from './AllMenu';
 import { EasyHelp, Footer } from './Footer';
 import { Header } from './Header';
 import { UtilityBar } from './UtilityBar';
+
+/** 화면 조각을 내려받는 동안 본문 자리에 보이는 안내. 틀(머리글·바닥글)은 그대로 보인다. */
+function RouteLoading() {
+  return (
+    <p className="wrap" role="status">
+      화면을 불러오는 중입니다.
+    </p>
+  );
+}
 
 export function Layout() {
   const menuRef = useRef<HTMLDialogElement>(null);
@@ -23,7 +32,9 @@ export function Layout() {
       <Header onOpenMenu={() => menuRef.current?.showModal()} />
       <AllMenu ref={menuRef} />
       <main id="main" className={mainClass}>
-        <Outlet />
+        <Suspense fallback={<RouteLoading />}>
+          <Outlet />
+        </Suspense>
       </main>
       <EasyHelp />
       <Footer />

@@ -1,4 +1,5 @@
 // 회원 관리 목록 화면. 이름은 가려서 보이고 연령대는 보이지 않는다(개인 연령은 집계자료로만 다룬다) (ADM-MBR-001)
+import { toQueryString } from '@jori/ui';
 import type { Schemas } from '@jori/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -7,7 +8,6 @@ import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
 import { PiiExportButton } from '../../components/PiiExportButton';
 import { errorMessage } from '../../lib/errors';
 import { MEMBER_STATUS, RESIDENCE_DECLARED, RESIDENCE_STATUS } from '../../lib/labels';
-import { toQueryString } from '../../lib/queryString';
 
 const PAGE_SIZE = 20;
 const FILTERS = ['q', 'status'] as const;

@@ -1,4 +1,5 @@
 // 첨부파일 조회 화면. 소유 업무·검사 상태·파일명으로 좁혀 보고 파일 올리기는 소유 업무 화면에서 한다 (ADM-MBR-006)
+import { toQueryString } from '@jori/ui';
 import type { Schemas } from '@jori/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -7,7 +8,6 @@ import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
 import { fileSize } from '../../lib/format';
 import { FILE_OWNER, FILE_STATUS } from '../../lib/labels';
-import { toQueryString } from '../../lib/queryString';
 
 const PAGE_SIZE = 20;
 const FILTERS = ['ownerKind', 'status', 'q'] as const;

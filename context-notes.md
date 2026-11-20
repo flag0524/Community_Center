@@ -850,3 +850,4 @@
 - 5단계(ADR-109): Nginx는 location에 add_header가 있으면 서버 수준 헤더를 물려받지 않아 정적 location에 스니펫을 다시 넣었다. 커버리지는 줄 기준 98%(분기는 느려 제외). Bash 도구에서는 bash 탐색 실패로 배포 초안 시험이 건너뛰어지니 시험은 PowerShell로 돌린다.
 - 6단계 결정(사용자 2026-11-20): 회원 연락처는 OTP(ADR-095)와 같은 방식, 즉 암호문 컬럼+용도별 HMAC 검색해시로 바꾼다. 기존 평문은 0005가 채우고 삭제한다. 검색키는 OTP와 다른 용도 파생키(member-phone-search)를 쓴다. 좌석 승격·강사 알림의 문자 수신번호는 같은 키·같은 AAD라 암호문을 그대로 복사한다. 이메일은 이번 범위가 아니다.
 - 7단계(ADR-111): 마스킹은 app/core/masking.py, 멱등 선행 조회는 app/db/idempotent.py의 find_prior를 쓴다. 옛 위치 re-export는 두지 않았다. 남은 역전 의존 목록은 ADR-111에 있다.
+- 8단계(ADR-112): 두 웹 앱 모두 화면을 React.lazy로 가져온다. 새 화면을 추가할 때도 라우트 표에 정적 import를 넣지 않는다(시험이 막는다). e2e는 pnpm 없이 playwright.config의 webServer 명령을 node vite로 바꾼 임시 설정으로 돌렸다(저장소에는 넣지 않음). 지연 로딩 화면은 pushState 이동 직후 바로 요소를 찾지 말고 새 화면 요소를 기다린다.

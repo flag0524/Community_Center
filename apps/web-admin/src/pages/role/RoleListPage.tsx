@@ -1,4 +1,5 @@
 // 권한 배정 목록 화면. 관리자별로 역할·범위·유효기간과 유효 상태를 보이고 새 배정으로 이어진다 (ADM-SYS-002)
+import { toQueryString } from '@jori/ui';
 import type { Schemas } from '@jori/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -6,7 +7,6 @@ import { assignmentListQuery, type AssignmentParams } from '../../api/queries';
 import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
 import { ASSIGNMENT_STATUS } from '../../lib/labels';
-import { toQueryString } from '../../lib/queryString';
 
 const PAGE_SIZE = 20;
 const FILTERS = ['status', 'q'] as const;

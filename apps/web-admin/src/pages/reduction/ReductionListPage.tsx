@@ -1,4 +1,5 @@
 // 감면 검토 목록 화면. 접수된 사전심사가 오래된 신청부터 먼저 나오고 상태·기수로 좁힌다 (ADM-PAY-005)
+import { toQueryString } from '@jori/ui';
 import type { Schemas } from '@jori/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -6,7 +7,6 @@ import { courseOptionsQuery, reductionListQuery, type ReductionParams } from '..
 import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
 import { REDUCTION_STATUS, REDUCTION_TYPE } from '../../lib/labels';
-import { toQueryString } from '../../lib/queryString';
 
 const PAGE_SIZE = 20;
 const FILTERS = ['status', 'cycleId'] as const;

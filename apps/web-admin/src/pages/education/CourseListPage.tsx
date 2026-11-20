@@ -1,4 +1,5 @@
 // 강좌 관리 목록 화면. 조건은 주소의 쿼리에 두어 새로 고침·뒤로 가기에도 유지한다 (ADM-EDU-001)
+import { toQueryString } from '@jori/ui';
 import { useQuery } from '@tanstack/react-query';
 import type { Schemas } from '@jori/api-client';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -8,7 +9,6 @@ import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
 import { kstDate, won } from '../../lib/format';
 import { COURSE_STATUS, RECEPTION_STATE } from '../../lib/labels';
-import { toQueryString } from '../../lib/queryString';
 import { useHasAuthority } from '../../layout/menu';
 
 const PAGE_SIZE = 20;

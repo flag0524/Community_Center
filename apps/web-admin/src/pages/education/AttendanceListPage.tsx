@@ -1,4 +1,5 @@
 // 출석 현황 목록 화면. 조회 전용이며 CSV로 내려받을 수 없다 (ADM-EDU-006)
+import { toQueryString } from '@jori/ui';
 import type { Schemas } from '@jori/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -6,7 +7,6 @@ import { attendanceListQuery, courseOptionsQuery, type AttendanceParams } from '
 import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
 import { INPUT_STATUS } from '../../lib/labels';
-import { toQueryString } from '../../lib/queryString';
 
 const PAGE_SIZE = 20;
 const FILTERS = ['cycleId', 'courseId', 'classDate', 'inputStatus'] as const;

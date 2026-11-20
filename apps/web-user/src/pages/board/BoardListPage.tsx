@@ -1,4 +1,5 @@
 // 게시판 목록. 공지·자료실은 표, 기관소식은 줄 목록, 갤러리는 카드, 자주하는 질문은 펼침 항목으로 그린다
+import { toQueryString } from '@jori/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -8,7 +9,6 @@ import { QueryFallback } from '../../components/QueryFallback';
 import { NAV_GROUPS } from '../../layout/navigation';
 import { SubLayout } from '../../layout/SubLayout';
 import { formatDate } from '../../lib/format';
-import { toQueryString } from '../../lib/queryString';
 import { usePageTitle } from '../../lib/usePageTitle';
 import { BOARDS, COMMUNITY_GROUP_TITLE, fileUrl, paragraphs, type ReadBoardKey } from './boards';
 

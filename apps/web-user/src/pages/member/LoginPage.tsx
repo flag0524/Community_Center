@@ -1,4 +1,5 @@
 // 아이디·비밀번호 로그인. 성공하면 next 주소나 홈으로 보내고 이미 로그인한 사람은 바로 돌려보낸다
+import { safeNext } from '@jori/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
@@ -8,7 +9,6 @@ import { FormMessage } from '../../components/FormMessage';
 import { TextField } from '../../components/TextField';
 import { ServicePage } from '../../layout/SubLayout';
 import { errorMessage } from '../../lib/errors';
-import { safeNext } from '../../lib/safeNext';
 import { usePageTitle } from '../../lib/usePageTitle';
 
 export function LoginPage() {

@@ -1,4 +1,5 @@
 // 게시물 목록 화면. 게시판을 고르면 그 게시판의 글을 보이고 상단공지가 먼저 나온다 (ADM-MBR-002)
+import { toQueryString } from '@jori/ui';
 import type { Schemas } from '@jori/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -6,7 +7,6 @@ import { adminPostListQuery, boardListQuery, type AdminPostParams } from '../../
 import { CsvButton } from '../../components/CsvButton';
 import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
-import { toQueryString } from '../../lib/queryString';
 
 const PAGE_SIZE = 20;
 const FILTERS = ['board', 'q'] as const;

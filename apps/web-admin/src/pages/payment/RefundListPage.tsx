@@ -1,4 +1,5 @@
 // 환불 검토 목록 화면. 접수·보류 건을 오래된 것부터 먼저 보이고 심사 목표 3영업일을 넘긴 건은 글자로 알린다 (ADM-PAY-004)
+import { toQueryString } from '@jori/ui';
 import type { Schemas } from '@jori/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -8,7 +9,6 @@ import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
 import { won } from '../../lib/format';
 import { REFUND_REQUESTER, REFUND_STATUS } from '../../lib/labels';
-import { toQueryString } from '../../lib/queryString';
 
 const PAGE_SIZE = 20;
 const FILTERS = ['status', 'requester', 'from', 'to'] as const;

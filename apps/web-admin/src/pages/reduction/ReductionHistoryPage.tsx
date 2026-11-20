@@ -1,4 +1,5 @@
 // 감면 처리 이력 화면. 신청에 적용된 판정이 새 행으로 쌓인 기록을 조회만 한다 (ADM-PAY-006)
+import { toQueryString } from '@jori/ui';
 import type { Schemas } from '@jori/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -7,7 +8,6 @@ import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
 import { kstDateTime, won } from '../../lib/format';
 import { REDUCTION_DECISION } from '../../lib/labels';
-import { toQueryString } from '../../lib/queryString';
 
 const PAGE_SIZE = 20;
 const FILTERS = ['result', 'from', 'to'] as const;

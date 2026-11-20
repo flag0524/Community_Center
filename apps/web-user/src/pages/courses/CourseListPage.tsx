@@ -1,4 +1,5 @@
 // 전체·접수중·접수예정 강좌 목록. 조건은 주소의 쿼리에 담고 서버에 조회한다
+import { toQueryString } from '@jori/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -11,7 +12,6 @@ import { NAV_GROUPS } from '../../layout/navigation';
 import { categoryText, EDUCATION_LABEL, formatFee, instructorText, remainingSeatsText } from '../../lib/course';
 import { formatMonthDay } from '../../lib/format';
 import { RECEPTION_LABEL, type ReceptionState } from '../../lib/reception';
-import { toQueryString } from '../../lib/queryString';
 import { formatSchedule, WEEKDAY_LABEL, type Weekday } from '../../lib/schedule';
 import { usePageTitle } from '../../lib/usePageTitle';
 import { useViewMode } from '../../view/ViewModeProvider';

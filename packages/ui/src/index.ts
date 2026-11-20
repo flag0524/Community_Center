@@ -11,3 +11,7 @@ export function isViewMode(value: unknown): value is ViewMode {
 
 // 시안의 글자 크기 조절 범위(90~120%, 10% 단위)
 export const TEXT_SIZE_STEPS = [90, 100, 110, 120] as const;
+
+// 주민·관리자 앱이 함께 쓰는 순수 함수
+export { toQueryString, type QueryValue } from './lib/queryString';
+export { safeNext } from './lib/safeNext';

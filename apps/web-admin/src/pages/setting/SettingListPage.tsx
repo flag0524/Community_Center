@@ -1,4 +1,5 @@
 // 운영 설정 화면. 운영 기준과 검토 상태를 읽기만 하며 확정이 실제 기능 적용 완료를 뜻하지는 않는다 (ADM-SYS-004)
+import { toQueryString } from '@jori/ui';
 import type { Schemas } from '@jori/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -6,7 +7,6 @@ import { settingListQuery, type SettingParams } from '../../api/queries';
 import { AdminPager, ResultCount, TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
 import { OPER_RULE_STATUS } from '../../lib/labels';
-import { toQueryString } from '../../lib/queryString';
 
 const PAGE_SIZE = 20;
 const FILTERS = ['status', 'q'] as const;
