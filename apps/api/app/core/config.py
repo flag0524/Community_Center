@@ -46,6 +46,7 @@ class Settings:
     # 같은 휴대전화번호로 하루(24시간)에 받을 수 있는 인증번호 수. 문자 비용 남용과 괴롭힘을 막는다.
     # 번호 단위 한도이고 IP 단위 한도는 Nginx가 맡는다(코드 리뷰 보안 중-2, 값은 사용자 확정 2026-11-20)
     otp_daily_limit: int = 10
+    cache_ttl_seconds: int = 30  # 준정적 조회(기수·분류·연락처) 캐시 유효 시간. 0이면 끈다(ADR-114)
 
     def __post_init__(self) -> None:
         if self.environment not in {"development", "test", "production"}:
@@ -54,6 +55,8 @@ class Settings:
             raise ConfigError("DB 풀 크기와 대기 시간은 1 이상, 초과 허용은 0 이상이어야 합니다.")
         if self.otp_daily_limit < 1:
             raise ConfigError("인증번호 하루 상한은 1 이상이어야 합니다.")
+        if self.cache_ttl_seconds < 0:
+            raise ConfigError("캐시 유효 시간은 0 이상이어야 합니다(0이면 끈다).")
         if self.environment == "production":
             if "mock" in (self.pg_provider, self.sms_provider, self.file_scanner):
                 raise ConfigError("운영 환경에서는 PG·SMS·파일 검사에 mock을 사용할 수 없습니다.")
@@ -111,6 +114,7 @@ def load_settings(environ: dict[str, str] | None = None) -> Settings:
         db_max_overflow=_int_or(env, "JORI_DB_MAX_OVERFLOW", 10),
         db_pool_timeout=_int_or(env, "JORI_DB_POOL_TIMEOUT", 10),
         otp_daily_limit=_int_or(env, "JORI_OTP_DAILY_LIMIT", 10),
+        cache_ttl_seconds=_int_or(env, "JORI_CACHE_TTL_SECONDS", 30),
     )
 
 

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.join import ALL_TERM_CONTENT_TYPES
 from app.core.errors import ApiError, ErrorCode
+from app.core.ttl_cache import CACHE
 from app.db.tables import TB_OPER_BNDL, TB_SITE_CONTS
 from app.domain.member.schemas import TermDocument
 from app.domain.member.types import TermType
@@ -105,9 +106,12 @@ def get_content(db: Session, bundle_sn: int, slug: ContentSlug, now: datetime) -
 
 def get_contact(db: Session, bundle_sn: int, now: datetime) -> ContactResponse:
     """게시 중인 연락처 글(CT.CONTACT)의 항목을 우선하고, 비어 있는 전화·주소는 운영묶음 값으로 채운다."""
-    base = db.execute(
-        select(TB_OPER_BNDL.c.TELNO, TB_OPER_BNDL.c.ADDR).where(TB_OPER_BNDL.c.OPER_BNDL_SN == bundle_sn)
-    ).one()
+    base = CACHE.get_or_load(  # 거의 안 바뀌는 센터 기본 전화·주소만 짧게 캐시한다. 게시 글은 시각에 따라 달라 늘 읽는다
+        ("center-base", bundle_sn),
+        lambda: db.execute(
+            select(TB_OPER_BNDL.c.TELNO, TB_OPER_BNDL.c.ADDR).where(TB_OPER_BNDL.c.OPER_BNDL_SN == bundle_sn)
+        ).one(),
+    )
     row = _latest_published(db, bundle_sn, "CT.CONTACT", now, content_id=None, version=None)
     values: dict[str, Any] = {}
     if row is not None:

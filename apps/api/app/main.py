@@ -12,6 +12,7 @@ from app.adapters.sms import build_sender
 from app.core.config import get_settings
 from app.core.errors import install_error_handlers
 from app.core.openapi import install_openapi
+from app.core.ttl_cache import CACHE
 from app.routers.admin import admin_router
 from app.routers.health import router as health_router
 from app.routers.user import user_router
@@ -31,6 +32,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         build_gateway(settings)
         build_sender(settings)
         build_scanner(settings)
+        CACHE.configure(settings.cache_ttl_seconds)
     yield
 
 

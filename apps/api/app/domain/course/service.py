@@ -7,6 +7,7 @@ from sqlalchemy import ColumnElement, and_, exists, func, not_, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ApiError, ErrorCode
+from app.core.ttl_cache import CACHE
 from app.db.tables import (
     TB_ATNLC_APLY,
     TB_CORS,
@@ -89,12 +90,17 @@ def _usable_category() -> ColumnElement[bool]:
 
 
 def list_categories(db: Session, bundle_sn: int) -> CategoryList:
-    rows = db.execute(
-        select(TB_CORS_CLSF.c.CORS_CLSF_SN, TB_CORS_CLSF.c.CORS_CLSF_NM)
-        .where(TB_CORS_CLSF.c.OPER_BNDL_SN == bundle_sn, _usable_category())
-        .order_by(TB_CORS_CLSF.c.SORT_SEQ, TB_CORS_CLSF.c.CORS_CLSF_SN)
-    ).all()
-    return CategoryList(items=[CategoryRef(category_id=str(int(r[0])), name=str(r[1])) for r in rows])
+    """주민 화면의 읽기라 짧게 캐시한다. 관리자가 분류를 바꾸면 유효 시간 안에는 옛 목록이 보일 수 있다."""
+
+    def load() -> CategoryList:
+        rows = db.execute(
+            select(TB_CORS_CLSF.c.CORS_CLSF_SN, TB_CORS_CLSF.c.CORS_CLSF_NM)
+            .where(TB_CORS_CLSF.c.OPER_BNDL_SN == bundle_sn, _usable_category())
+            .order_by(TB_CORS_CLSF.c.SORT_SEQ, TB_CORS_CLSF.c.CORS_CLSF_SN)
+        ).all()
+        return CategoryList(items=[CategoryRef(category_id=str(int(r[0])), name=str(r[1])) for r in rows])
+
+    return CACHE.get_or_load(("categories", bundle_sn), load)
 
 
 def cycle_info(row: Any, now: datetime) -> CycleInfo:
@@ -111,17 +117,22 @@ def cycle_info(row: Any, now: datetime) -> CycleInfo:
 def current_cycle(db: Session, bundle_sn: int, now: datetime) -> Any:
     """기준 기수. 교육이 끝나지 않은 기수 중 교육 시작이 가장 이른 것, 없으면 가장 최근에 끝난 기수다."""
     today = _today(now).strftime("%Y%m%d")
-    base = select(TB_EDU_CYCL).where(TB_EDU_CYCL.c.OPER_BNDL_SN == bundle_sn, TB_EDU_CYCL.c.USE_YN == "Y")
-    row = db.execute(
-        base.where(TB_EDU_CYCL.c.EDU_END_YMD >= today)
-        .order_by(TB_EDU_CYCL.c.EDU_BGNG_YMD, TB_EDU_CYCL.c.EDU_CYCL_SN)
-        .limit(1)
-    ).first()
-    if row is None:
+
+    def load() -> Any:
+        base = select(TB_EDU_CYCL).where(TB_EDU_CYCL.c.OPER_BNDL_SN == bundle_sn, TB_EDU_CYCL.c.USE_YN == "Y")
         row = db.execute(
-            base.order_by(TB_EDU_CYCL.c.EDU_END_YMD.desc(), TB_EDU_CYCL.c.EDU_CYCL_SN.desc()).limit(1)
+            base.where(TB_EDU_CYCL.c.EDU_END_YMD >= today)
+            .order_by(TB_EDU_CYCL.c.EDU_BGNG_YMD, TB_EDU_CYCL.c.EDU_CYCL_SN)
+            .limit(1)
         ).first()
-    return row
+        if row is None:
+            row = db.execute(
+                base.order_by(TB_EDU_CYCL.c.EDU_END_YMD.desc(), TB_EDU_CYCL.c.EDU_CYCL_SN.desc()).limit(1)
+            ).first()
+        return row
+
+    # 결과가 날짜에 따라 달라지므로 키에 한국 날짜를 넣는다. 주민 화면의 읽기에만 쓴다(신청 판정은 기수를 직접 읽는다)
+    return CACHE.get_or_load(("cycle", bundle_sn, today), load)
 
 
 def _occupied_seats() -> Any:
