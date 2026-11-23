@@ -13,7 +13,8 @@ type JoinRequest = Schemas['JoinRequest'];
 /** 시험·시연용 가상 값. 화면 어디에도 노출하지 않는다. */
 export const DEMO = {
   loginId: 'demo-member',
-  password: 'Demo-pass-2026',
+  // 모의 서버 로그인 비밀번호. VITE_DEMO_MEMBER_PASSWORD로 바꿀 수 있고 없으면 기본값이다(e2e 시험은 기본값을 쓴다)
+  password: (import.meta.env.VITE_DEMO_MEMBER_PASSWORD as string | undefined) ?? 'Demo-pass-2026',
   otpCode: '123456',
   member: { memberId: '1000000000000000000001', name: '예시회원', loginId: 'demo-member' } satisfies MemberBrief,
 } as const;

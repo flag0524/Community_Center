@@ -13,7 +13,8 @@ interface DemoAdmin extends AdminBrief {
   authorities: Authority[];
 }
 
-const PASSWORD = 'Demo-admin-2026';
+// 모의 서버 로그인 비밀번호. VITE_DEMO_ADMIN_PASSWORD로 바꿀 수 있고 없으면 기본값이다(e2e 시험은 기본값을 쓴다)
+const PASSWORD = (import.meta.env.VITE_DEMO_ADMIN_PASSWORD as string | undefined) ?? 'Demo-admin-2026';
 
 /** 시험·시연용 가상 계정. 화면 어디에도 노출하지 않는다. 역할 템플릿은 TDD 4.2를 따른다. */
 export const DEMO_ADMINS = {
