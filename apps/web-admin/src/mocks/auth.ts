@@ -198,7 +198,6 @@ const MESSAGES: Partial<Record<ErrorCode, string>> = {
   RULE_REJECTED: '처리할 수 없는 요청입니다.',
   VERSION_CONFLICT: '다른 곳에서 먼저 수정되었습니다. 새로 고친 뒤 다시 시도해 주세요.',
   LOGIN_FAILED: '아이디 또는 비밀번호를 확인해 주세요.',
-  LOGIN_LOCKED: '로그인 시도가 많아 잠시 이용할 수 없습니다.',
   UNAUTHENTICATED: '로그인이 필요합니다.',
   VALIDATION_FAILED: '입력 형식이 올바르지 않습니다.',
 };
@@ -211,7 +210,6 @@ const STATUS: Partial<Record<ErrorCode, number>> = {
   RULE_REJECTED: 422,
   VERSION_CONFLICT: 409,
   LOGIN_FAILED: 401,
-  LOGIN_LOCKED: 429,
   UNAUTHENTICATED: 401,
   VALIDATION_FAILED: 400,
 };
@@ -273,7 +271,7 @@ export const authHandlers = [
     if (csrfRejected(request)) return apiError('FORBIDDEN');
     const { loginId, password } = (await request.json()) as Schemas['AdminLoginRequest'];
     const failures = state.loginFailures.get(loginId) ?? 0;
-    if (failures >= LOGIN_FAILURE_LIMIT) return apiError('LOGIN_LOCKED');
+    if (failures >= LOGIN_FAILURE_LIMIT) return apiError('LOGIN_FAILED'); // 잠금도 실패와 같은 응답이다(ADR-115)
     const admin = ADMINS.find((item) => item.loginId === loginId);
     if (!admin || admin.password !== password) {
       state.loginFailures.set(loginId, failures + 1);

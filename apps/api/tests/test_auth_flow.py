@@ -114,17 +114,18 @@ def test_틀린_비밀번호는_401이고_실패_이력이_응답이_오류여�
 def test_직전_10분_안에_5번_틀리면_15분_동안_잠기고_맞는_비밀번호도_막는다(world: World) -> None:
     member = make_member(world)
     responses = fail(world, times=5)
-    assert [r.status_code for r in responses] == [401, 401, 401, 401, 429]
-    assert responses[-1].json()["code"] == "LOGIN_LOCKED"
+    # 잠금도 틀린 비밀번호와 같은 401이라 응답만으로 계정이 있는지, 잠겼는지 알 수 없다(ADR-115)
+    assert [r.status_code for r in responses] == [401] * 5
+    assert {r.json()["code"] for r in responses} == {"LOGIN_FAILED"}
     locked_until = world.db.execute(
         select(tables.TB_MBR.c.LCK_END_DT).where(tables.TB_MBR.c.MBR_SN == member["MBR_SN"])
     ).scalar_one()
     assert locked_until == START + timedelta(minutes=15)
-    assert (
-        login(world, MEMBER, "member1", PASSWORD).json()["code"] == "LOGIN_LOCKED"
-    )  # 맞는 비밀번호도 막힌다
+    blocked = login(world, MEMBER, "member1", PASSWORD)  # 맞는 비밀번호도 막힌다
+    assert (blocked.status_code, blocked.json()["code"]) == (401, "LOGIN_FAILED")
+    assert blocked.json()["message"] == responses[0].json()["message"]
     world.clock.advance(minutes=14, seconds=59)
-    assert login(world, MEMBER, "member1", PASSWORD).status_code == 429
+    assert login(world, MEMBER, "member1", PASSWORD).status_code == 401
     world.clock.advance(seconds=2)
     ok = login(world, MEMBER, "member1", PASSWORD)
     assert ok.status_code == 200  # 잠금이 끝나면 들어갈 수 있다
@@ -171,7 +172,31 @@ def test_없는_아이디와_탈퇴_계정은_같은_응답이고_실패_이력�
 
 def test_관리자가_제한한_회원은_로그인할_수_없다(world: World) -> None:
     make_member(world, "restricted", MBR_STTS_CD="MS.LOCKED")
-    assert login(world, MEMBER, "restricted").json()["code"] == "LOGIN_LOCKED"
+    response = login(world, MEMBER, "restricted")
+    assert (response.status_code, response.json()["code"]) == (401, "LOGIN_FAILED")
+
+
+def test_잠긴_계정도_없는_계정처럼_비밀번호_검증_계산을_하고_실패_이력을_더하지_않는다(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    make_member(world, "locked")
+    fail(world, "locked", times=5)
+    make_member(world, "restricted", MBR_STTS_CD="MS.LOCKED")
+    calls: list[str] = []
+    original = passwords.verify_password
+
+    def spy(password: str, encoded: str) -> bool:
+        calls.append(encoded)
+        return original(password, encoded)
+
+    monkeypatch.setattr("app.auth.login.verify_password", spy)
+    before = world.db.execute(select(func.count()).select_from(tables.TB_LGN_FAIL_HSTRY)).scalar_one()
+    login(world, MEMBER, "locked", PASSWORD)
+    login(world, MEMBER, "restricted", PASSWORD)
+    login(world, MEMBER, "nobody", PASSWORD)
+    assert len(calls) == 3  # 잠긴 계정·제한 계정도 응답 시간으로 구분되지 않게 같은 계산을 한다
+    after = world.db.execute(select(func.count()).select_from(tables.TB_LGN_FAIL_HSTRY)).scalar_one()
+    assert after == before
 
 
 # --- 유휴 만료 ---------------------------------------------------------------
@@ -311,8 +336,8 @@ def test_관리자_잠금_수치를_설정하면_그대로_적용한다(migrated
     for w in build_world(migrated_engine, schema_doc, settings):
         make_admin(w)
         statuses = [login(w, ADMIN, "admin1", "wrong").status_code for _ in range(3)]
-        assert statuses == [401, 401, 429]
-        assert login(w, ADMIN, "admin1").status_code == 429
+        assert statuses == [401, 401, 401]  # 잠금도 같은 401이라 응답으로는 잠겼는지 알 수 없다(ADR-115)
+        assert login(w, ADMIN, "admin1").status_code == 401  # 잠긴 동안은 맞는 비밀번호도 막힌다
         w.clock.advance(minutes=20, seconds=1)
         assert login(w, ADMIN, "admin1").status_code == 200
 
@@ -337,7 +362,8 @@ def test_관리자_잠금은_연속_실패만_센다(migrated_engine: Engine, sc
             401,
             401,
         ]  # 앞의 2번은 세지 않는다
-        assert login(w, ADMIN, "admin1", "wrong").status_code == 429  # 성공 뒤 연속 3번째 실패에서 잠근다
+        assert login(w, ADMIN, "admin1", "wrong").status_code == 401
+        assert login(w, ADMIN, "admin1").status_code == 401  # 성공 뒤 연속 3번째 실패에서 잠겨 맞는 비밀번호도 막힌다
 
 
 def test_사용_중지된_관리자는_로그인할_수_없다(world: World) -> None:

@@ -37,7 +37,6 @@ class ErrorCode(StrEnum):
     NOT_IMPLEMENTED = "NOT_IMPLEMENTED"
     # 인증
     LOGIN_FAILED = "LOGIN_FAILED"
-    LOGIN_LOCKED = "LOGIN_LOCKED"
     OTP_INVALID = "OTP_INVALID"
     OTP_EXPIRED = "OTP_EXPIRED"
     OTP_RESEND_TOO_SOON = "OTP_RESEND_TOO_SOON"
@@ -74,7 +73,6 @@ ERROR_STATUS: dict[ErrorCode, int] = {
     ErrorCode.INTERNAL_ERROR: 500,
     ErrorCode.NOT_IMPLEMENTED: 501,
     ErrorCode.LOGIN_FAILED: 401,
-    ErrorCode.LOGIN_LOCKED: 429,
     ErrorCode.OTP_INVALID: 422,
     ErrorCode.OTP_EXPIRED: 422,
     ErrorCode.OTP_RESEND_TOO_SOON: 429,
@@ -107,7 +105,6 @@ DEFAULT_MESSAGES: dict[ErrorCode, str] = {
     ErrorCode.INTERNAL_ERROR: "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
     ErrorCode.NOT_IMPLEMENTED: "아직 구현되지 않은 기능입니다.",
     ErrorCode.LOGIN_FAILED: "아이디 또는 비밀번호를 확인해 주세요.",
-    ErrorCode.LOGIN_LOCKED: "로그인 시도가 많아 잠시 이용할 수 없습니다.",
     ErrorCode.OTP_INVALID: "인증번호가 올바르지 않습니다.",
     ErrorCode.OTP_EXPIRED: "인증번호 유효시간이 지났습니다. 다시 요청해 주세요.",
     ErrorCode.OTP_RESEND_TOO_SOON: "인증번호는 잠시 후 다시 요청할 수 있습니다.",

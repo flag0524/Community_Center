@@ -90,7 +90,6 @@ const MESSAGES: Partial<Record<ErrorCode, string>> = {
   FORBIDDEN: '요청을 확인할 수 없습니다. 화면을 새로 열고 다시 시도해 주세요.',
   NOT_FOUND: '요청한 정보를 찾을 수 없습니다.',
   LOGIN_FAILED: '아이디 또는 비밀번호를 확인해 주세요.',
-  LOGIN_LOCKED: '로그인 시도가 많아 잠시 이용할 수 없습니다.',
   OTP_INVALID: '인증번호가 올바르지 않습니다.',
   OTP_EXPIRED: '인증번호 유효시간이 지났습니다. 다시 요청해 주세요.',
   OTP_RESEND_TOO_SOON: '인증번호는 잠시 후 다시 요청할 수 있습니다.',
@@ -114,7 +113,6 @@ const STATUS: Partial<Record<ErrorCode, number>> = {
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   LOGIN_FAILED: 401,
-  LOGIN_LOCKED: 429,
   OTP_INVALID: 422,
   OTP_EXPIRED: 422,
   OTP_RESEND_TOO_SOON: 429,
@@ -198,7 +196,7 @@ export const authHandlers = [
     if (csrfRejected(request)) return apiError('FORBIDDEN');
     const { loginId, password } = (await request.json()) as LoginRequest;
     const failures = state.loginFailures.get(loginId) ?? 0;
-    if (failures >= LOGIN_FAILURE_LIMIT) return apiError('LOGIN_LOCKED');
+    if (failures >= LOGIN_FAILURE_LIMIT) return apiError('LOGIN_FAILED'); // 잠금도 실패와 같은 응답이다(ADR-115)
     const member = state.members.get(loginId);
     if (!member || state.passwords.get(loginId) !== password) {
       state.loginFailures.set(loginId, failures + 1);

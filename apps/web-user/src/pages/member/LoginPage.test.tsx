@@ -96,9 +96,9 @@ describe('로그인', () => {
     expect(screen.getByLabelText('아이디')).toHaveValue(DEMO.loginId);
   });
 
-  it('시도 횟수를 넘으면 잠금 문구를 알린다', async () => {
+  it('시도 횟수를 넘어 잠겨도 안내는 틀린 비밀번호와 같고 맞는 비밀번호도 들어가지 못한다', async () => {
     const user = userEvent.setup({ delay: null });
-    renderApp('/login');
+    const { router } = renderApp('/login');
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
       await fillAndSubmit(user, attempt === 0 ? DEMO.loginId : '', 'wrong-password');
@@ -107,7 +107,8 @@ describe('로그인', () => {
     await user.type(screen.getByLabelText('비밀번호'), DEMO.password);
     await user.click(screen.getByRole('button', { name: '로그인' }));
 
-    expect(await screen.findByText('로그인 시도가 많아 잠시 이용할 수 없습니다.')).toBeInTheDocument();
+    expect(await screen.findByText('아이디 또는 비밀번호를 확인해 주세요.')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/login');
   });
 
   it('비어 있는 칸은 서버에 묻지 않고 칸마다 안내한다', async () => {

@@ -112,7 +112,7 @@ def verify_otp(
 
 @router.post(
     "/auth/login",
-    responses=error_responses(ErrorCode.LOGIN_FAILED, ErrorCode.LOGIN_LOCKED),
+    responses=error_responses(ErrorCode.LOGIN_FAILED),
     dependencies=[Depends(csrf_header)],
 )
 def login(

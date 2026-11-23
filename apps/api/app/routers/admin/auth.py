@@ -41,7 +41,7 @@ router = APIRouter(tags=["admin-auth"], responses=PUBLIC_ERRORS)
 
 @router.post(
     "/auth/login",
-    responses=error_responses(ErrorCode.LOGIN_FAILED, ErrorCode.LOGIN_LOCKED),
+    responses=error_responses(ErrorCode.LOGIN_FAILED),
     dependencies=[Depends(csrf_header)],
 )
 def admin_login(

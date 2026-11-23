@@ -43,14 +43,19 @@ describe('관리자 로그인', () => {
     expect(screen.getByLabelText('아이디')).toHaveValue(DEMO_ADMINS.group.loginId);
   });
 
-  it('실패가 이어지면 잠김 안내가 나온다', async () => {
-    renderApp('/login');
+  it('실패가 이어져 잠겨도 안내는 틀린 비밀번호와 같고 맞는 비밀번호도 들어가지 못한다', async () => {
+    const { router } = renderApp('/login');
     await fill(DEMO_ADMINS.group.loginId, 'wrong-password');
-    for (let attempt = 0; attempt < 6; attempt += 1) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
       await userEvent.click(screen.getByRole('button', { name: '로그인' }));
       await waitFor(() => expect(screen.getByRole('button', { name: '로그인' })).toBeEnabled());
     }
-    expect(screen.getByRole('alert')).toHaveTextContent('로그인 시도가 많아 잠시 이용할 수 없습니다.');
+    await userEvent.clear(screen.getByLabelText('비밀번호'));
+    await userEvent.type(screen.getByLabelText('비밀번호'), DEMO_ADMINS.group.password);
+    await userEvent.click(screen.getByRole('button', { name: '로그인' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: '로그인' })).toBeEnabled());
+    expect(screen.getByRole('alert')).toHaveTextContent('아이디 또는 비밀번호를 확인해 주세요.');
+    expect(router.state.location.pathname).toBe('/login');
   });
 
   it('로그인하면 돌아올 주소의 화면으로 간다', async () => {

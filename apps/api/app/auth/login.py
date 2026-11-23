@@ -69,7 +69,9 @@ def member_login(
         raise ApiError(ErrorCode.LOGIN_FAILED)
     member_sn = int(member.MBR_SN)
     if member.MBR_STTS_CD == "MS.LOCKED" or (member.LCK_END_DT is not None and member.LCK_END_DT > now):
-        raise ApiError(ErrorCode.LOGIN_LOCKED)
+        # 잠금도 없는 계정과 같은 응답·같은 계산이다. 응답이나 시간으로 계정 존재를 알 수 없게 한다(ADR-115)
+        verify_password(password, dummy_hash(settings.pbkdf2_iterations))
+        raise ApiError(ErrorCode.LOGIN_FAILED)
     if not verify_password(password, str(member.PSWD_HASH_VL)):
         db.execute(
             insert(TB_LGN_FAIL_HSTRY).values(
@@ -83,7 +85,7 @@ def member_login(
             .where(TB_MBR.c.MBR_SN == member_sn)
             .values(PSWD_FAIL_NMTM=failures, LCK_END_DT=now + MEMBER_LOCK if locked else None)
         )
-        raise _fail_closed(db, ErrorCode.LOGIN_LOCKED if locked else ErrorCode.LOGIN_FAILED)
+        raise _fail_closed(db, ErrorCode.LOGIN_FAILED)
     db.execute(
         update(TB_MBR)
         .where(TB_MBR.c.MBR_SN == member_sn)
@@ -114,10 +116,11 @@ def admin_login(
         raise ApiError(ErrorCode.LOGIN_FAILED)
     admin_sn = int(admin.MNGR_SN)
     if admin.LCK_END_DT is not None and admin.LCK_END_DT > now:
-        raise ApiError(ErrorCode.LOGIN_LOCKED)
+        # 잠금도 없는 계정과 같은 응답·계산이다(ADR-115)
+        verify_password(password, dummy_hash(settings.pbkdf2_iterations))
+        raise ApiError(ErrorCode.LOGIN_FAILED)
     if not verify_password(password, str(admin.PSWD_HASH_VL)):
         db.execute(insert(TB_LGN_FAIL_HSTRY).values(MNGR_SN=admin_sn, FAIL_DT=now, DMND_ID=request_id))
-        locked = False
         if settings.admin_lock_failures is not None and settings.admin_lock_minutes is not None:
             window = timedelta(minutes=settings.admin_lock_minutes)
             since = now - window
@@ -132,7 +135,7 @@ def admin_login(
                 .where(TB_MNGR.c.MNGR_SN == admin_sn)
                 .values(PSWD_FAIL_NMTM=failures, LCK_END_DT=now + window if locked else None)
             )
-        raise _fail_closed(db, ErrorCode.LOGIN_LOCKED if locked else ErrorCode.LOGIN_FAILED)
+        raise _fail_closed(db, ErrorCode.LOGIN_FAILED)
     db.execute(
         update(TB_MNGR)
         .where(TB_MNGR.c.MNGR_SN == admin_sn)
