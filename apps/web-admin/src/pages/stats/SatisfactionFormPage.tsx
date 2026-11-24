@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { createSatisfactionSource } from '../../api/satisfactionSources';
 import { courseOptionsQuery } from '../../api/queries';
 import { Field, describe } from '../../components/Field';
+import { TableWrap } from '../../components/ListParts';
 import { errorMessage, fieldErrors } from '../../lib/errors';
 import { RESPONSE_TYPE } from '../../lib/labels';
 import { useIdempotencyKey } from '../../lib/useIdempotencyKey';
@@ -223,6 +224,7 @@ interface TableOptionsProps {
 function TableOptions({ question, n, onChange, onAdd, onRemove }: TableOptionsProps) {
   return (
     <>
+      <TableWrap label={`${n}번 문항 선택 항목 표`}>
       <table>
         <thead>
           <tr>
@@ -253,6 +255,7 @@ function TableOptions({ question, n, onChange, onAdd, onRemove }: TableOptionsPr
           })}
         </tbody>
       </table>
+      </TableWrap>
       <div className="adm-actions">
         <button type="button" className="adm-button secondary" onClick={onAdd}>
           {n}번 문항 선택 항목 추가

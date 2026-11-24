@@ -169,4 +169,21 @@ button.login-link {
   .side-menu a {
     min-height: 44px;
   }
+
+  /* 폭 501~800px에서 보이는 머리글 검색칸. 줄 높이(44px)에 맞춰 입력칸과 버튼을 키운다. */
+  .header-search input {
+    min-height: 44px;
+  }
+
+  .header-search button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* 로그인한 머리글(로고·검색·메뉴·이름·로그아웃)은 폭 약 583px가 필요해서, 시안의 500px 기준보다 넓은 640px 이하에서 검색칸을 숨겨 가로로 넘치지 않게 한다. */
+@media (max-width: 640px) {
+  .header-search {
+    display: none;
+  }
 }
