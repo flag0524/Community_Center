@@ -94,16 +94,44 @@ describe('센터소개', () => {
     expect(crumbs().getByText('센터소개')).toBeInTheDocument();
   });
 
-  it('시설안내는 층별 표와 찾아오시는 길 링크를 그린다', async () => {
+  it('시설안내는 센터별 층·시설 표와 찾아오시는 길 링크를 그린다', async () => {
     renderApp('/center/facility');
 
     expect(await screen.findByRole('heading', { level: 1, name: '시설안내' })).toBeInTheDocument();
+    expect(screen.getByText('경기도 파주시 조리읍 봉천로 64')).toBeInTheDocument();
     const table = screen.getByRole('table', { name: '조리읍 행정복지센터 표' });
     expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['층', '시설']);
     const rows = within(table).getAllByRole('row').slice(1);
     expect(rows).toHaveLength(4);
     expect(within(rows[2]!).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['3층', '주민자치센터']);
     expect(screen.getByRole('link', { name: '찾아오시는 길 →' })).toHaveAttribute('href', '/center/contact');
+  });
+
+  it('층이 없는 강의실은 층 칸을 -로 보이고 강의실이 없는 센터는 표 없이 이름만 보인다', async () => {
+    server.use(
+      http.get('/api/v1/site/facilities', () =>
+        HttpResponse.json({
+          items: [
+            { facilityId: '1', kind: 'CENTER', parentId: null, name: '본관', floor: null, address: null },
+            { facilityId: '2', kind: 'ROOM', parentId: '1', name: '컴퓨터실', floor: null, address: null },
+            { facilityId: '3', kind: 'CENTER', parentId: null, name: '별관', floor: null, address: null },
+          ],
+        }),
+      ),
+    );
+    renderApp('/center/facility');
+
+    expect(await screen.findByRole('heading', { level: 2, name: '별관' })).toBeInTheDocument();
+    const rows = within(screen.getByRole('table', { name: '본관 표' })).getAllByRole('row').slice(1);
+    expect(within(rows[0]!).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['-', '컴퓨터실']);
+    expect(screen.queryByRole('table', { name: '별관 표' })).not.toBeInTheDocument();
+  });
+
+  it('등록된 시설이 없으면 안내 문구를 보인다', async () => {
+    server.use(http.get('/api/v1/site/facilities', () => HttpResponse.json({ items: [] })));
+    renderApp('/center/facility');
+
+    expect(await screen.findByText('등록된 시설이 없습니다.')).toBeInTheDocument();
   });
 
   it('위치 및 연락처는 연락처 응답의 주소와 전화번호를 그린다', async () => {
@@ -154,7 +182,7 @@ describe('문서를 불러오지 못할 때', () => {
 
   it('서버 오류이면 다시 시도 버튼을 보인다', async () => {
     server.use(
-      http.get('/api/v1/contents/center-facility', () =>
+      http.get('/api/v1/site/facilities', () =>
         HttpResponse.json({ code: 'INTERNAL_ERROR', message: '오류', requestId: 'r' }, { status: 500 }),
       ),
     );

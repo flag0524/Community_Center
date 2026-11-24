@@ -10,8 +10,14 @@ from app.db.bundle import BundleResolver
 from app.db.session import get_db
 from app.domain.member.schemas import TermDocument
 from app.domain.member.types import TermType
-from app.domain.site import home, service
-from app.domain.site.schemas import ContactResponse, ContentDocument, ContentSlug, HomeResponse
+from app.domain.site import facility, home, service
+from app.domain.site.schemas import (
+    ContactResponse,
+    ContentDocument,
+    ContentSlug,
+    FacilityListResponse,
+    HomeResponse,
+)
 from app.routers.deps import PUBLIC_ERRORS, error_responses
 
 router = APIRouter(tags=["site"], responses=PUBLIC_ERRORS)
@@ -33,6 +39,15 @@ def get_contact(
     clock: Annotated[Clock, Depends(get_clock)],
 ) -> ContactResponse:
     return service.get_contact(db, bundles.resolve(db), clock())
+
+
+@router.get("/site/facilities")
+def get_facilities(
+    db: Annotated[Session, Depends(get_db)],
+    bundles: Annotated[BundleResolver, Depends(get_bundle_resolver)],
+) -> FacilityListResponse:
+    """시설안내. 사용 중인 센터와 강의실을 로그인 없이 읽는다."""
+    return facility.list_facilities(db, bundles.resolve(db))
 
 
 @router.get("/terms/{term_type}", responses=error_responses(ErrorCode.NOT_FOUND))

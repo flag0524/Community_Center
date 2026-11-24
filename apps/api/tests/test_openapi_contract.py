@@ -12,6 +12,7 @@ Schema = dict[str, Any]
 EXPECTED_OPERATIONS = {
     ("get", "/api/v1/home"),
     ("get", "/api/v1/site/contact"),
+    ("get", "/api/v1/site/facilities"),
     ("get", "/api/v1/terms/{term_type}"),
     ("get", "/api/v1/contents/{slug}"),
     ("get", "/api/v1/boards/{board}/posts"),

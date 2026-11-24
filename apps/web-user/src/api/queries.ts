@@ -6,6 +6,7 @@ import { getJson } from './http';
 
 export type HomeResponse = Schemas['HomeResponse'];
 export type ContactResponse = Schemas['ContactResponse'];
+export type FacilityListResponse = Schemas['FacilityListResponse'];
 export type CategoryList = Schemas['CategoryList'];
 export type CoursePage = Schemas['CoursePage'];
 export type CourseSummary = Schemas['CourseSummary'];
@@ -56,6 +57,12 @@ export const termQuery = (termType: TermType) =>
 export const homeQuery = queryOptions({
   queryKey: ['home'],
   queryFn: ({ signal }) => getJson<HomeResponse>('/home', signal),
+});
+
+export const facilitiesQuery = queryOptions({
+  queryKey: ['site', 'facilities'],
+  queryFn: ({ signal }) => getJson<FacilityListResponse>('/site/facilities', signal),
+  staleTime: 5 * 60 * 1000,
 });
 
 export const contactQuery = queryOptions({

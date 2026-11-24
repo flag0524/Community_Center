@@ -5,6 +5,7 @@ import { homeContent } from './homeContent';
 
 type HomeResponse = Schemas['HomeResponse'];
 type ContactResponse = Schemas['ContactResponse'];
+type FacilityListResponse = Schemas['FacilityListResponse'];
 type ReceptionState = Schemas['ReceptionState'];
 type EducationState = Schemas['EducationState'];
 type CycleInfo = Schemas['CycleInfo'];
@@ -176,6 +177,16 @@ export function buildHome(now: Date = new Date()): HomeResponse {
     ],
   };
 }
+
+export const facilities: FacilityListResponse = {
+  items: [
+    { facilityId: '1', kind: 'CENTER', parentId: null, name: '조리읍 행정복지센터', floor: null, address: '경기도 파주시 조리읍 봉천로 64' },
+    { facilityId: '2', kind: 'ROOM', parentId: '1', name: '문화공연장', floor: '1층', address: null },
+    { facilityId: '3', kind: 'ROOM', parentId: '1', name: '통합민원실', floor: '2층', address: null },
+    { facilityId: '4', kind: 'ROOM', parentId: '1', name: '주민자치센터', floor: '3층', address: null },
+    { facilityId: '5', kind: 'ROOM', parentId: '1', name: '다목적강당', floor: '4층', address: null },
+  ],
+};
 
 export const contact: ContactResponse = {
   phone: '031-941-7742',

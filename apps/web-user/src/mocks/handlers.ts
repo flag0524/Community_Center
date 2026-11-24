@@ -16,6 +16,7 @@ import {
   buildCoursePlan,
   buildHome,
   contact,
+  facilities,
   findCourseSeed,
 } from './fixtures';
 
@@ -41,6 +42,7 @@ export const handlers = [
   ...reductionHandlers,
   http.get('/api/v1/home', () => HttpResponse.json(buildHome(mockNow()))),
   http.get('/api/v1/site/contact', () => HttpResponse.json(contact)),
+  http.get('/api/v1/site/facilities', () => HttpResponse.json(facilities)),
   http.get('/api/v1/contents/:slug', ({ params }) => {
     const document = CONTENTS[String(params.slug) as keyof typeof CONTENTS];
     return document ? HttpResponse.json(document) : notFound();

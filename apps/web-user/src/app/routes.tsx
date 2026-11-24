@@ -16,6 +16,7 @@ const CourseDetailPage = lazy(() => import('../pages/courses/CourseDetailPage').
 const CourseListPage = lazy(() => import('../pages/courses/CourseListPage').then((m) => ({ default: m.CourseListPage })));
 const CoursePlanPage = lazy(() => import('../pages/courses/CoursePlanPage').then((m) => ({ default: m.CoursePlanPage })));
 const ContactPage = lazy(() => import('../pages/content/ContactPage').then((m) => ({ default: m.ContactPage })));
+const FacilityPage = lazy(() => import('../pages/content/FacilityPage').then((m) => ({ default: m.FacilityPage })));
 const ContentPage = lazy(() => import('../pages/content/ContentPage').then((m) => ({ default: m.ContentPage })));
 const InquiryFormPage = lazy(() => import('../pages/community/InquiryFormPage').then((m) => ({ default: m.InquiryFormPage })));
 const MyInquiriesPage = lazy(() => import('../pages/community/MyInquiriesPage').then((m) => ({ default: m.MyInquiriesPage })));
@@ -81,7 +82,7 @@ export const routes: RouteObject[] = [
       { path: 'guide/apply', element: <ContentPage slug="guide-apply" groupTitle="강좌정보" /> },
       { path: 'guide/refund', element: <ContentPage slug="guide-refund" groupTitle="강좌정보" /> },
       { path: 'center/history', element: <ContentPage slug="center-history" groupTitle="센터소개" /> },
-      { path: 'center/facility', element: <ContentPage slug="center-facility" groupTitle="센터소개" /> },
+      { path: 'center/facility', element: <FacilityPage /> },
       { path: 'center/contact', element: <ContactPage /> },
       ...(['notice', 'news', 'resources', 'gallery', 'faq'] as const).map((board) => ({
         path: `board/${board}`,

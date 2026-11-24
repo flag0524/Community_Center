@@ -1,6 +1,7 @@
 # 홈 화면과 센터 연락처 API의 응답 모델
 from datetime import date
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import AwareDatetime, Field
 
@@ -76,6 +77,23 @@ class ContactResponse(ApiModel):
     floor_info: str | None = None
     open_hours: str | None = None
     parking: str | None = None
+
+
+class FacilityInfo(ApiModel):
+    """공개 시설안내의 한 줄. 층은 관리자가 입력한 경우에만 있고 주소는 센터만 가진다."""
+
+    facility_id: SerialId
+    kind: Literal["CENTER", "ROOM"]
+    parent_id: SerialId | None = Field(description="강의실이면 상위 센터다. 센터이면 null이다.")
+    name: str
+    floor: str | None = None
+    address: str | None = None
+
+
+class FacilityListResponse(ApiModel):
+    """사용 중인 센터와 강의실이다. 센터가 먼저고 그 아래 강의실이 층, 이름순으로 온다."""
+
+    items: list[FacilityInfo]
 
 
 class ContentSlug(StrEnum):

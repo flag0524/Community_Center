@@ -102,6 +102,8 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 "tests/test_home_public.py" = ["SIM300", "E501"]
 "tests/test_db_foundation.py" = ["SIM300"]
 "app/routers/**/auth.py" = ["SIM300"]
+"app/domain/site/facility.py" = ["SIM300"]
+"tests/test_site_facilities.py" = ["SIM300"]
 # 생성 파일이라 설계안의 문구를 그대로 둔다
 "app/db/tables.py" = ["E501"]
 
