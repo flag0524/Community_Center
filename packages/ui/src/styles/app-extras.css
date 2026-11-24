@@ -120,3 +120,53 @@ button.login-link {
   display: inline-block;
   padding-block: 10px;
 }
+
+/* 기본 화면도 폭 800px 이하이거나 손가락으로 누르는 기기에서는 글자만 있는 링크와 작은 버튼의 누르는 칸을 44px 이상으로 한다.
+   쉬운 화면은 위의 규칙이 모든 폭에서 이미 맡고, PC 마우스 화면의 기본 모양은 그대로 둔다. */
+@media (max-width: 800px), (pointer: coarse) {
+  .view-picker a,
+  .logo,
+  .breadcrumb a,
+  .footer-links a,
+  .footer-bottom a,
+  .pager a,
+  .proto-consent a,
+  .proto-account-links a,
+  .news-heading a,
+  .heading-line > a,
+  .program-banner > a,
+  .scroll-hint {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .scroll-hint {
+    display: flex;
+    justify-content: center;
+  }
+
+  .text-size-buttons button,
+  .pager a {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  /* 문장·표 칸·목록 안의 링크는 줄 흐름을 깨지 않도록 위아래 여백으로 누르는 칸을 넓힌다. */
+  .article-text a:not(.button),
+  td a:not(.button),
+  dd a,
+  .page-body li > a:not(.button),
+  p > a:not(.button),
+  h2 > a,
+  strong > a,
+  span > a {
+    display: inline-block;
+    padding-block: 11px;
+  }
+
+  .side-menu a {
+    min-height: 44px;
+  }
+}
