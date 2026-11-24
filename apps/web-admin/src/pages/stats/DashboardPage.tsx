@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { courseOptionsQuery, dashboardQuery } from '../../api/queries';
 import { TableWrap } from '../../components/ListParts';
+import { jobLabel, targetLabel } from '../../lib/auditLabels';
 import { errorMessage } from '../../lib/errors';
 import { kstDateTime, won } from '../../lib/format';
 import { DASHBOARD_TASK, DASHBOARD_TASK_LINK } from '../../lib/labels';
@@ -138,8 +139,8 @@ export function DashboardPage() {
                       <tr key={`${index}-${entry.at}-${entry.action}`}>
                         <td>{kstDateTime(entry.at)}</td>
                         <td>{entry.actor}</td>
-                        <td>{entry.action}</td>
-                        <td>{entry.target}</td>
+                        <td>{jobLabel(entry.action)}</td>
+                        <td>{targetLabel(entry.target)}</td>
                       </tr>
                     ))}
                   </tbody>

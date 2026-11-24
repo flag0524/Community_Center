@@ -108,6 +108,29 @@ describe('대시보드', () => {
     }
   });
 
+  it('최근 작업의 내부 작업 코드와 대상 테이블은 한글로 보이고 모르는 코드는 그대로 보인다', async () => {
+    server.use(
+      http.get('/api/admin/v1/dashboard', () =>
+        HttpResponse.json({
+          basis: { basisAt: '2026-10-30T14:20:00+09:00', cycleId: null, fromDate: null, toDate: null },
+          summary: null,
+          tasks: [],
+          demand: [],
+          recent: [
+            { at: '2026-10-30T14:18:00+09:00', actor: '김관리', action: 'FCLT_CREATE', target: 'TB_FCLT 12' },
+            { at: '2026-10-30T14:17:00+09:00', actor: 'SYSTEM', action: 'NEW_JOB', target: 'TB_NEW 3' },
+          ],
+        }),
+      ),
+    );
+    await signInAs('group');
+    renderApp('/dashboard');
+    expect((await rows('최근 작업 표')).map((row) => cells(row).slice(1))).toEqual([
+      ['김관리', '시설 등록', '시설 12'],
+      ['SYSTEM', 'NEW_JOB', 'TB_NEW 3'],
+    ]);
+  });
+
   it('신청이 없는 기수는 0이 아니라 자료 없음으로 보인다', async () => {
     await signInAs('group');
     renderApp('/dashboard');
