@@ -106,8 +106,8 @@ export function AdminLayout() {
           <Suspense fallback={<p role="status">화면을 불러오는 중입니다.</p>}>
             <Outlet />
           </Suspense>
-          <footer className="adm-footer">조리읍주민자치센터 관리 시스템</footer>
         </main>
+        <footer className="adm-footer">조리읍주민자치센터 관리 시스템</footer>
       </div>
       <dialog
         ref={allMenu}
