@@ -35,6 +35,7 @@
   .adm-table-wrap tbody td {
     display: grid;
     grid-template-columns: 6.5em minmax(0, 1fr);
+    align-items: center;
     gap: 10px;
     padding: 7px 0;
     border: 0;
@@ -57,5 +58,38 @@
     content: attr(data-label);
     color: #55606f;
     font-size: 0.8125rem;
+  }
+}
+
+/* 폭 760px 이하이거나 손가락으로 누르는 기기에서는 누르는 칸을 44px 이상으로 한다. PC 마우스 화면의 촘촘한 모양은 그대로 둔다.
+   체크박스·라디오는 글자 줄 전체가 눌리는 라벨이 있어 제외한다. 시안 CSS가 더 구체적인 선택자로 높이를 36~40px로 정해 둬서 !important로 덮어쓴다. */
+@media (max-width: 760px), (pointer: coarse) {
+  .admin-prototype button,
+  .admin-prototype .adm-button,
+  .admin-prototype select,
+  .admin-prototype textarea,
+  .admin-prototype input:not([type='checkbox'], [type='radio']),
+  .admin-prototype summary {
+    min-height: 44px !important;
+  }
+
+  .admin-prototype header a,
+  .admin-prototype nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px !important;
+  }
+
+  /* 표 카드·목록·설명 속 글자 링크는 줄 흐름을 지키려고 위아래 여백으로 누르는 칸을 넓힌다. */
+  .admin-prototype main a:not(.adm-button) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px !important;
+  }
+
+  .admin-prototype .adm-pager a,
+  .admin-prototype .adm-pager strong {
+    justify-content: center;
+    min-width: 44px !important;
   }
 }
