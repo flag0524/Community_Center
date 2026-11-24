@@ -2,7 +2,7 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
-import { AdminPager, ResultCount } from './ListParts';
+import { AdminPager, ResultCount, TableWrap } from './ListParts';
 
 const pager = (page: number, total: number) =>
   render(
@@ -31,5 +31,54 @@ describe('ResultCount', () => {
   it('천 단위 구분과 함께 총 건수를 알린다', () => {
     render(<ResultCount total={1280} />);
     expect(screen.getByRole('status')).toHaveTextContent('총 1,280건');
+  });
+});
+describe('TableWrap', () => {
+  it('본문 칸마다 같은 열의 머리글 글자를 data-label로 붙인다', () => {
+    render(
+      <TableWrap label="시험 표">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">강좌명</th>
+              <th scope="col">기수</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>요가</td>
+              <td>2026년 4기</td>
+            </tr>
+          </tbody>
+        </table>
+      </TableWrap>,
+    );
+    expect(screen.getByText('요가')).toHaveAttribute('data-label', '강좌명');
+    expect(screen.getByText('2026년 4기')).toHaveAttribute('data-label', '기수');
+    expect(screen.getByRole('region', { name: '시험 표' })).toBeInTheDocument();
+  });
+
+  it('행이 바뀌어 다시 그려지면 새 행에도 열 이름을 붙인다', () => {
+    const table = (rows: string[]) => (
+      <TableWrap label="표">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">이름</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row}>
+                <td>{row}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableWrap>
+    );
+    const { rerender } = render(table(['가']));
+    rerender(table(['가', '나']));
+    expect(screen.getByText('나')).toHaveAttribute('data-label', '이름');
   });
 });

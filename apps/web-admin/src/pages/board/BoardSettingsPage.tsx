@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { updateBoard, type BoardSetting } from '../../api/boards';
 import { boardListQuery } from '../../api/queries';
+import { TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
 import { isVersionConflict } from '../../lib/messages';
 
@@ -18,7 +19,7 @@ export function BoardSettingsPage() {
       {isPending && <p role="status">불러오는 중입니다.</p>}
       {isError && <p role="alert">{errorMessage(error)}</p>}
       {data && (
-        <div className="adm-table-wrap" role="region" aria-label="게시판 설정 목록" tabIndex={0}>
+        <TableWrap label="게시판 설정 목록">
           <table>
             <thead>
               <tr>
@@ -38,7 +39,7 @@ export function BoardSettingsPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
     </>
   );

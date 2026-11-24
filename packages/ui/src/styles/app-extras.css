@@ -77,3 +77,15 @@ button.login-link {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* 폭 800px 이하의 하위 메뉴는 옆으로 밀지 않고 줄바꿈해 모든 항목을 한눈에 보이게 한다. */
+@media (max-width: 800px) {
+  .side-menu ul {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .side-menu a {
+    white-space: normal;
+  }
+}

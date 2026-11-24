@@ -4,3 +4,58 @@
 .admin-prototype .adm-footer {
   color: #647080;
 }
+/* 폭 760px 이하에서는 목록 표의 한 행을 카드 하나로 쌓는다. 열이 4~13개라 표 그대로는 줄바꿈해도 읽을 수 없다.
+   칸 앞의 열 이름은 TableWrap이 칸에 붙인 data-label에서 가져온다. 머리글 줄은 눈에서만 숨겨 읽기 도구에는 남긴다. */
+@media (max-width: 760px) {
+  .adm-table-wrap {
+    overflow: visible;
+  }
+
+  .adm-table-wrap table {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .adm-table-wrap thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .adm-table-wrap tbody tr {
+    display: block;
+    margin-bottom: 12px;
+    padding: 8px 14px;
+    border: 1px solid #ccd3de;
+    background: #fff;
+  }
+
+  .adm-table-wrap tbody td {
+    display: grid;
+    grid-template-columns: 6.5em minmax(0, 1fr);
+    gap: 10px;
+    padding: 7px 0;
+    border: 0;
+    border-bottom: 1px solid #edf0f5;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+
+  .adm-table-wrap tbody td:last-child {
+    border-bottom: 0;
+  }
+
+  .adm-table-wrap tbody td > a,
+  .adm-table-wrap tbody td > button {
+    justify-self: start;
+  }
+
+  .adm-table-wrap tbody td::before {
+    content: attr(data-label);
+    color: #55606f;
+    font-size: 0.8125rem;
+  }
+}
