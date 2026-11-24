@@ -2,7 +2,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderApp, server, signInAs, useMockServer } from '../../test/render';
 
 useMockServer();
@@ -78,6 +78,34 @@ describe('대시보드', () => {
       ['SYSTEM', '대기 승격', '건강요가 초급'],
       ['박정산', '환불 승인', 'R20264-000012'],
     ]);
+  });
+
+  it('같은 시각에 같은 작업이 여럿이어도 중복 key 경고 없이 모두 보인다', async () => {
+    const same = { at: '2026-10-30T14:18:00+09:00', actor: 'SYSTEM', action: '환불 집행', target: 'R20264-000012' };
+    server.use(
+      http.get('/api/admin/v1/dashboard', () =>
+        HttpResponse.json({
+          basis: { basisAt: '2026-10-30T14:20:00+09:00', cycleId: null, fromDate: null, toDate: null },
+          summary: null,
+          tasks: [],
+          demand: [],
+          recent: [same, { ...same, target: 'R20264-000013' }, { ...same }],
+        }),
+      ),
+    );
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      await signInAs('group');
+      renderApp('/dashboard');
+      expect((await rows('최근 작업 표')).map((row) => cells(row).slice(1))).toEqual([
+        ['SYSTEM', '환불 집행', 'R20264-000012'],
+        ['SYSTEM', '환불 집행', 'R20264-000013'],
+        ['SYSTEM', '환불 집행', 'R20264-000012'],
+      ]);
+      expect(errors.mock.calls.filter(([message]) => String(message).includes('same key'))).toEqual([]);
+    } finally {
+      errors.mockRestore();
+    }
   });
 
   it('신청이 없는 기수는 0이 아니라 자료 없음으로 보인다', async () => {

@@ -134,8 +134,8 @@ export function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {dashboard.data.recent.map((entry) => (
-                      <tr key={`${entry.at}-${entry.action}`}>
+                    {dashboard.data.recent.map((entry, index) => (
+                      <tr key={`${index}-${entry.at}-${entry.action}`}>
                         <td>{kstDateTime(entry.at)}</td>
                         <td>{entry.actor}</td>
                         <td>{entry.action}</td>
