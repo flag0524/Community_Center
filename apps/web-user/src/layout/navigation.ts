@@ -8,6 +8,8 @@ export interface NavGroup {
   title: string;
   to: string;
   items: NavLinkItem[];
+  /** 항목에 없는 하위 화면(비밀번호 변경 등)도 이 메뉴로 보이게 하는 경로 접두부 */
+  roots?: string[];
 }
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -55,9 +57,14 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: '마이페이지',
     to: '/me/applications',
+    roots: ['/me'],
     items: [
       { label: '수강신청내역', to: '/me/applications' },
+      { label: '환불신청 내역', to: '/me/refunds' },
       { label: '감면 심사', to: '/me/reductions' },
+      { label: '내 문의', to: '/me/inquiries' },
+      { label: '내 후기', to: '/me/reviews' },
+      { label: '강사 신청내역', to: '/me/instructor-applications' },
       { label: '회원정보수정', to: '/me/profile' },
     ],
   },
@@ -76,6 +83,6 @@ export const FOOTER_LINKS: NavLinkItem[] = [
 ];
 
 export function isActiveGroup(group: NavGroup, pathname: string): boolean {
-  const roots = new Set([group.to, ...group.items.map((item) => item.to)]);
+  const roots = new Set([group.to, ...group.items.map((item) => item.to), ...(group.roots ?? [])]);
   return [...roots].some((root) => pathname === root || pathname.startsWith(`${root}/`));
 }

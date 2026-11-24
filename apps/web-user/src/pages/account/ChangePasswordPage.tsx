@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { changePassword } from '../../api/member';
 import { FormMessage } from '../../components/FormMessage';
 import { TextField } from '../../components/TextField';
-import { ServicePage } from '../../layout/SubLayout';
+import { MyPageLayout } from '../../layout/SubLayout';
 import { errorMessage, fieldErrors } from '../../lib/errors';
 import { usePageTitle } from '../../lib/usePageTitle';
 
@@ -51,7 +51,7 @@ export function ChangePasswordPage() {
   const message = changed ? '비밀번호가 변경되었습니다.' : change.isError && Object.keys(server).length === 0 ? errorMessage(change.error) : '';
 
   return (
-    <ServicePage title={TITLE} crumbs={[{ label: '마이페이지' }, { label: '회원정보수정', to: '/me/profile' }, { label: TITLE }]}>
+    <MyPageLayout title={TITLE} crumbs={[{ label: '마이페이지' }, { label: '회원정보수정', to: '/me/profile' }, { label: TITLE }]}>
       <div className="proto">
         <form className="proto-form" aria-label="비밀번호 변경" noValidate onSubmit={submit}>
           <TextField
@@ -98,6 +98,6 @@ export function ChangePasswordPage() {
           </Link>
         </div>
       </div>
-    </ServicePage>
+    </MyPageLayout>
   );
 }

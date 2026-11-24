@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { withdraw } from '../../api/member';
 import { FormMessage } from '../../components/FormMessage';
 import { TextField } from '../../components/TextField';
-import { ServicePage } from '../../layout/SubLayout';
+import { MyPageLayout } from '../../layout/SubLayout';
 import { errorMessage, fieldErrors } from '../../lib/errors';
 import { usePageTitle } from '../../lib/usePageTitle';
 
@@ -62,7 +62,7 @@ export function WithdrawPage() {
   const message = leave.isError && !server.password ? errorMessage(leave.error) : '';
 
   return (
-    <ServicePage title={TITLE} crumbs={[{ label: '마이페이지' }, { label: '회원정보수정', to: '/me/profile' }, { label: TITLE }]}>
+    <MyPageLayout title={TITLE} crumbs={[{ label: '마이페이지' }, { label: '회원정보수정', to: '/me/profile' }, { label: TITLE }]}>
       <div className="proto">
           <>
             <h2>회원탈퇴 안내</h2>
@@ -111,6 +111,6 @@ export function WithdrawPage() {
             </form>
           </>
       </div>
-    </ServicePage>
+    </MyPageLayout>
   );
 }

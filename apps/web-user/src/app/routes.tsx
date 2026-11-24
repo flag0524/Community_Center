@@ -111,10 +111,6 @@ export const routes: RouteObject[] = [
       { path: 'instructors/:instructorId', element: <InstructorDetailPage /> },
       ...[
         ['instructors/recruit/:recruitmentId/apply', <InstructorApplyPage mode="create" />],
-        ['me/instructor-applications', <MyInstructorApplicationsPage />],
-  ['me/reductions', <MyReductionsPage />],
-  ['me/reductions/new', <ReductionApplyPage />],
-  ['me/reductions/:reviewId', <MyReductionDetailPage />],
         ['me/instructor-applications/:applicationId/edit', <InstructorApplyPage mode="edit" />],
       ].map(([path, page]) => ({
         path: path as string,
@@ -171,10 +167,13 @@ export const routes: RouteObject[] = [
         ['me/name-change', <NameChangePage />],
         ['me/password', <ChangePasswordPage />],
         ['me/withdraw', <WithdrawPage />],
+        ['me/instructor-applications', <MyInstructorApplicationsPage />],
+        ['me/reductions', <MyReductionsPage />],
+        ['me/reductions/new', <ReductionApplyPage />],
+        ['me/reductions/:reviewId', <MyReductionDetailPage />],
       ].map(([path, page]) => ({
         path: path as string,
         element: <RequireLogin>{page}</RequireLogin>,
-        handle: SERVICE_PAGE_HANDLE,
       })),      {
         path: 'join',
         element: <JoinFlowLayout />,

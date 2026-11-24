@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { reviewListQuery } from '../../api/queries';
 import { Pager } from '../../components/Pager';
 import { QueryFallback } from '../../components/QueryFallback';
-import { ServicePage } from '../../layout/SubLayout';
+import { MyPageLayout } from '../../layout/SubLayout';
 import { usePageTitle } from '../../lib/usePageTitle';
 
 const TITLE = '내 수강후기';
@@ -18,7 +18,7 @@ export function MyReviewsPage() {
   if (!data) return <QueryFallback query={query} what="내 후기" />;
 
   return (
-    <ServicePage title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
+    <MyPageLayout title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
       <div className="proto">
         {data.items.length === 0 ? (
           <div className="empty-state">
@@ -48,6 +48,6 @@ export function MyReviewsPage() {
           </Link>
         </div>
       </div>
-    </ServicePage>
+    </MyPageLayout>
   );
 }

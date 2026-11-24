@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { myReductionsQuery, reductionOptionsQuery } from '../../api/queries';
 import { QueryFallback } from '../../components/QueryFallback';
-import { ServicePage } from '../../layout/SubLayout';
+import { MyPageLayout } from '../../layout/SubLayout';
 import { usePageTitle } from '../../lib/usePageTitle';
 import { REDUCTION_STATUS_LABEL, REDUCTION_TYPE_LABEL } from './labels';
 
@@ -17,7 +17,7 @@ export function MyReductionsPage() {
   if (!data) return <QueryFallback query={query} what="감면 심사 내역" />;
 
   return (
-    <ServicePage title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
+    <MyPageLayout title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
       <div className="proto">
         <p className="proto-hint">조리읍 거주가 확인된 회원 본인이 기수마다 신청해 심사를 받습니다. 승인된 감면은 기수당 1강좌에 적용되며, 금액은 서버가 정합니다.</p>
         {data.items.length === 0 ? (
@@ -64,6 +64,6 @@ export function MyReductionsPage() {
           )}
         </div>
       </div>
-    </ServicePage>
+    </MyPageLayout>
   );
 }

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { applicationQuery, sessionQuery } from '../../api/queries';
 import { QueryFallback } from '../../components/QueryFallback';
-import { ServicePage } from '../../layout/SubLayout';
+import { MyPageLayout } from '../../layout/SubLayout';
 import { usePageTitle } from '../../lib/usePageTitle';
 import { ApplicationFacts } from '../payment/ApplicationFacts';
 
@@ -20,7 +20,7 @@ export function ApplicationCancelledPage() {
   if (application.displayState !== 'CANCELLED') return <Navigate to={`/me/applications/${applicationId}`} replace />;
 
   return (
-    <ServicePage title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
+    <MyPageLayout title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
       <div className="proto">
         <div className="proto-result">
           <h2>신청이 취소되었습니다.</h2>
@@ -36,6 +36,6 @@ export function ApplicationCancelledPage() {
           </Link>
         </div>
       </div>
-    </ServicePage>
+    </MyPageLayout>
   );
 }

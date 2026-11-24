@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { receiptQuery } from '../../api/queries';
 import { QueryFallback } from '../../components/QueryFallback';
-import { ServicePage } from '../../layout/SubLayout';
+import { MyPageLayout } from '../../layout/SubLayout';
 import { PAYMENT_METHOD_LABEL } from '../../lib/applicationLabels';
 import { formatFee } from '../../lib/course';
 import { usePageTitle } from '../../lib/usePageTitle';
@@ -19,7 +19,7 @@ export function ReceiptPage() {
   if (!receipt) return <QueryFallback query={query} what="영수증" />;
 
   return (
-    <ServicePage title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
+    <MyPageLayout title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
       <div className="proto">
         <h2>수강료 결제 내역</h2>
         <dl className="proto-info">
@@ -57,6 +57,6 @@ export function ReceiptPage() {
           </Link>
         </div>
       </div>
-    </ServicePage>
+    </MyPageLayout>
   );
 }

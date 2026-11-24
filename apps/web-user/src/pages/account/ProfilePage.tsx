@@ -7,7 +7,7 @@ import { profileQuery, type MemberProfile } from '../../api/queries';
 import { FormMessage } from '../../components/FormMessage';
 import { QueryFallback } from '../../components/QueryFallback';
 import { TextField } from '../../components/TextField';
-import { ServicePage } from '../../layout/SubLayout';
+import { MyPageLayout } from '../../layout/SubLayout';
 import { errorMessage, fieldErrors } from '../../lib/errors';
 import { usePageTitle } from '../../lib/usePageTitle';
 
@@ -103,7 +103,7 @@ export function ProfilePage() {
   if (!profile) return <QueryFallback query={query} what="회원정보" />;
 
   return (
-    <ServicePage title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
+    <MyPageLayout title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
       <div className="proto">
         <ProfileForm profile={profile} />
         <div className="proto-actions">
@@ -118,6 +118,6 @@ export function ProfilePage() {
           </Link>
         </div>
       </div>
-    </ServicePage>
+    </MyPageLayout>
   );
 }

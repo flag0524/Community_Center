@@ -7,7 +7,7 @@ import { createReduction } from '../../api/reductions';
 import { reductionOptionsQuery } from '../../api/queries';
 import { FormMessage } from '../../components/FormMessage';
 import { QueryFallback } from '../../components/QueryFallback';
-import { ServicePage } from '../../layout/SubLayout';
+import { MyPageLayout } from '../../layout/SubLayout';
 import { errorMessage, fieldErrors } from '../../lib/errors';
 import { usePageTitle } from '../../lib/usePageTitle';
 import { REDUCTION_TYPE_LABEL } from './labels';
@@ -86,8 +86,8 @@ export function ReductionApplyPage() {
   else if (!options.data.canApply) body = <p className="proto-hint">{options.data.blockReason ?? '지금은 감면을 신청할 수 없습니다.'}</p>;
   else body = <ApplyForm cycles={options.data.cycles} />;
   return (
-    <ServicePage title={TITLE} crumbs={crumbs}>
+    <MyPageLayout title={TITLE} crumbs={crumbs}>
       <div className="proto">{body}</div>
-    </ServicePage>
+    </MyPageLayout>
   );
 }

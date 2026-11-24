@@ -8,7 +8,7 @@ import { nameChangesQuery, profileQuery } from '../../api/queries';
 import { FormMessage } from '../../components/FormMessage';
 import { QueryFallback } from '../../components/QueryFallback';
 import { TextField } from '../../components/TextField';
-import { ServicePage } from '../../layout/SubLayout';
+import { MyPageLayout } from '../../layout/SubLayout';
 import { errorMessage, fieldErrors } from '../../lib/errors';
 import { formatDate } from '../../lib/format';
 import { usePageTitle } from '../../lib/usePageTitle';
@@ -95,7 +95,7 @@ export function NameChangePage() {
   const pending = list.data.items.find((item) => item.state === 'PENDING');
 
   return (
-    <ServicePage title={TITLE} crumbs={[{ label: '마이페이지' }, { label: '회원정보수정', to: '/me/profile' }, { label: TITLE }]}>
+    <MyPageLayout title={TITLE} crumbs={[{ label: '마이페이지' }, { label: '회원정보수정', to: '/me/profile' }, { label: TITLE }]}>
       <div className="proto">
         <dl className="proto-info">
           <div>
@@ -129,6 +129,6 @@ export function NameChangePage() {
           </Link>
         </div>
       </div>
-    </ServicePage>
+    </MyPageLayout>
   );
 }

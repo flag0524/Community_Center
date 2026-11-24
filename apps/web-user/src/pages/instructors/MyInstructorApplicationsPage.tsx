@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { instructorApplicationsQuery, sessionQuery } from '../../api/queries';
 import { Pager } from '../../components/Pager';
 import { QueryFallback } from '../../components/QueryFallback';
-import { ServicePage } from '../../layout/SubLayout';
+import { MyPageLayout } from '../../layout/SubLayout';
 import { usePageTitle } from '../../lib/usePageTitle';
 import { APPLY_STATUS_LABEL } from './labels';
 
@@ -20,7 +20,7 @@ export function MyInstructorApplicationsPage() {
   if (!data) return <QueryFallback query={query} what="지원내역" />;
 
   return (
-    <ServicePage title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
+    <MyPageLayout title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
       <div className="proto">
         {data.items.length === 0 ? (
           <div className="empty-state">
@@ -72,6 +72,6 @@ export function MyInstructorApplicationsPage() {
           </Link>
         </div>
       </div>
-    </ServicePage>
+    </MyPageLayout>
   );
 }

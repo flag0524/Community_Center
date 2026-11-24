@@ -7,7 +7,7 @@ import { myReductionQuery } from '../../api/queries';
 import { FormMessage } from '../../components/FormMessage';
 import { MyFiles } from '../../components/MyFiles';
 import { QueryFallback } from '../../components/QueryFallback';
-import { ServicePage } from '../../layout/SubLayout';
+import { MyPageLayout } from '../../layout/SubLayout';
 import { errorMessage } from '../../lib/errors';
 import { usePageTitle } from '../../lib/usePageTitle';
 import { REDUCTION_STATUS_LABEL, REDUCTION_TYPE_LABEL } from './labels';
@@ -34,7 +34,7 @@ export function MyReductionDetailPage() {
   if (!data) return <QueryFallback query={query} what="감면 심사" />;
 
   return (
-    <ServicePage title={TITLE} crumbs={[{ label: '마이페이지' }, { label: '감면 심사', to: '/me/reductions' }, { label: TITLE }]}>
+    <MyPageLayout title={TITLE} crumbs={[{ label: '마이페이지' }, { label: '감면 심사', to: '/me/reductions' }, { label: TITLE }]}>
       <div className="proto">
         {created && <FormMessage text="신청했습니다. 아래에서 증빙 파일을 올려 주세요." />}
         <dl className="proto-info">
@@ -99,6 +99,6 @@ export function MyReductionDetailPage() {
           </Link>
         </div>
       </div>
-    </ServicePage>
+    </MyPageLayout>
   );
 }

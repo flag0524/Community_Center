@@ -8,7 +8,7 @@ import { applicationQuery, refundPreviewQuery, type RefundPreview } from '../../
 import { FormMessage } from '../../components/FormMessage';
 import { QueryFallback } from '../../components/QueryFallback';
 import { TextField } from '../../components/TextField';
-import { ServicePage } from '../../layout/SubLayout';
+import { MyPageLayout } from '../../layout/SubLayout';
 import { formatFee } from '../../lib/course';
 import { errorMessage, fieldErrors } from '../../lib/errors';
 import { usePageTitle } from '../../lib/usePageTitle';
@@ -75,14 +75,14 @@ export function RefundApplyPage() {
 
   if (preview.error instanceof ApiRequestError && preview.error.status === 422) {
     return (
-      <ServicePage title={TITLE} crumbs={crumbs}>
+      <MyPageLayout title={TITLE} crumbs={crumbs}>
         <div className="empty-state" role="status">
           <h3>{preview.error.body?.message ?? '환불을 신청할 수 없습니다.'}</h3>
           <Link className="button secondary" to={`/me/applications/${applicationId}`}>
             신청 상세
           </Link>
         </div>
-      </ServicePage>
+      </MyPageLayout>
     );
   }
   if (!preview.data) return <QueryFallback query={preview} what="환불 정보" />;
@@ -105,7 +105,7 @@ export function RefundApplyPage() {
   }
 
   return (
-    <ServicePage title={TITLE} crumbs={crumbs}>
+    <MyPageLayout title={TITLE} crumbs={crumbs}>
       <div className="proto">
         <h2>환불신청 내역</h2>
         <ApplicationFacts application={application.data} />
@@ -200,6 +200,6 @@ export function RefundApplyPage() {
           </Link>
         </div>
       </div>
-    </ServicePage>
+    </MyPageLayout>
   );
 }

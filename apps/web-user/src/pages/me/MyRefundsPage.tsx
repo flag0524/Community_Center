@@ -4,7 +4,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { myRefundsQuery } from '../../api/queries';
 import { Pager } from '../../components/Pager';
 import { QueryFallback } from '../../components/QueryFallback';
-import { ServicePage } from '../../layout/SubLayout';
+import { MyPageLayout } from '../../layout/SubLayout';
 import { refundStageText } from '../../lib/applicationLabels';
 import { formatFee } from '../../lib/course';
 import { formatDate } from '../../lib/format';
@@ -24,7 +24,7 @@ export function MyRefundsPage() {
   if (!data) return <QueryFallback query={query} what="환불신청 내역" />;
 
   return (
-    <ServicePage title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
+    <MyPageLayout title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
       <div className="proto">
         {created ? (
           <div className="proto-result" role="status">
@@ -38,8 +38,8 @@ export function MyRefundsPage() {
           </div>
         ) : (
           <>
-            <div className="course-table-wrap">
-              <table aria-label={TITLE}>
+            <div className="table-wrap">
+              <table className="data-table" aria-label={TITLE}>
                 <thead>
                   <tr>
                     <th scope="col">신청 강좌</th>
@@ -81,6 +81,6 @@ export function MyRefundsPage() {
           </Link>
         </div>
       </div>
-    </ServicePage>
+    </MyPageLayout>
   );
 }

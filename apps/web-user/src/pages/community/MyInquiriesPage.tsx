@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { inquiryListQuery } from '../../api/queries';
 import { Pager } from '../../components/Pager';
 import { QueryFallback } from '../../components/QueryFallback';
-import { ServicePage } from '../../layout/SubLayout';
+import { MyPageLayout } from '../../layout/SubLayout';
 import { usePageTitle } from '../../lib/usePageTitle';
 import { INQUIRY_STATUS_LABEL } from './labels';
 
@@ -19,7 +19,7 @@ export function MyInquiriesPage() {
   if (!data) return <QueryFallback query={query} what="내 문의" />;
 
   return (
-    <ServicePage title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
+    <MyPageLayout title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
       <div className="proto">
         {data.items.length === 0 ? (
           <div className="empty-state">
@@ -49,6 +49,6 @@ export function MyInquiriesPage() {
           </Link>
         </div>
       </div>
-    </ServicePage>
+    </MyPageLayout>
   );
 }

@@ -6,7 +6,7 @@ import { cancelApplication } from '../../api/applications';
 import { applicationQuery, sessionQuery } from '../../api/queries';
 import { FormMessage } from '../../components/FormMessage';
 import { QueryFallback } from '../../components/QueryFallback';
-import { ServicePage } from '../../layout/SubLayout';
+import { MyPageLayout } from '../../layout/SubLayout';
 import { applicationStateText, refundStageText } from '../../lib/applicationLabels';
 import { errorMessage } from '../../lib/errors';
 import { usePageTitle } from '../../lib/usePageTitle';
@@ -47,7 +47,7 @@ export function MyApplicationPage() {
   }
 
   return (
-    <ServicePage title={TITLE} crumbs={[{ label: '마이페이지' }, { label: '수강신청내역', to: '/me/applications' }, { label: TITLE }]}>
+    <MyPageLayout title={TITLE} crumbs={[{ label: '마이페이지' }, { label: '수강신청내역', to: '/me/applications' }, { label: TITLE }]}>
       <div className="proto">
         <ApplicationFacts application={application} applicantName={session.data?.member?.name} />
         <dl className="proto-info">
@@ -102,6 +102,6 @@ export function MyApplicationPage() {
           </Link>
         </div>
       </div>
-    </ServicePage>
+    </MyPageLayout>
   );
 }

@@ -31,11 +31,15 @@ async function apply(cycle: string, type: string) {
   await userEvent.click(screen.getByRole('button', { name: '신청' }));
 }
 
+// 좌측 마이페이지 메뉴의 제목과 섞이지 않게 본문 영역만 본다.
+const pageBody = () => document.querySelector('.page-body') as HTMLElement;
+
 describe('감면 심사 내역', () => {
   it('신청한 심사를 최근 신청부터 기수·유형·상태와 함께 보인다', async () => {
     await signInAsDemo();
     renderApp('/me/reductions');
-    const headings = await screen.findAllByRole('heading', { level: 2 });
+    await screen.findByRole('heading', { level: 2, name: /국가유공자 본인/ });
+    const headings = within(pageBody()).getAllByRole('heading', { level: 2 });
     expect(headings.map((heading) => heading.textContent)).toEqual(['2027년 제1기 · 국가유공자 본인', '2026년 제4기 · 기초생활보장 수급자 본인']);
     expect(within(screen.getByRole('main')).getAllByRole('status').map((status) => status.textContent)).toEqual(['승인', '반려']);
     expect(screen.getAllByRole('link', { name: '상세 보기' }).map((link) => link.getAttribute('href'))).toEqual(['/me/reductions/5002', '/me/reductions/5001']);
@@ -143,7 +147,8 @@ describe('감면 심사 상세', () => {
     await userEvent.upload(await screen.findByLabelText('파일 추가'), file);
     expect(await screen.findByText('증빙.pdf')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('link', { name: '목록' }));
-    const first = (await screen.findAllByRole('heading', { level: 2 }))[0]!.closest('section')!;
+    await screen.findAllByRole('heading', { level: 2, name: /국가유공자 본인/ });
+    const first = within(pageBody()).getAllByRole('heading', { level: 2 })[0]!.closest('section')!;
     expect(within(first).getByText('증빙').nextElementSibling).toHaveTextContent('1건');
   });
   it('접수 상태의 신청은 두 번 확인해 철회하고 철회하면 증빙이 잠긴다', async () => {

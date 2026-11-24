@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { myApplicationsQuery } from '../../api/queries';
 import { Pager } from '../../components/Pager';
 import { QueryFallback } from '../../components/QueryFallback';
-import { ServicePage } from '../../layout/SubLayout';
+import { MyPageLayout } from '../../layout/SubLayout';
 import { applicationStateText, paymentStatusText, refundStageText } from '../../lib/applicationLabels';
 import { usePageTitle } from '../../lib/usePageTitle';
 
@@ -20,7 +20,7 @@ export function MyApplicationsPage() {
   if (!data) return <QueryFallback query={query} what="신청 내역" />;
 
   return (
-    <ServicePage title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
+    <MyPageLayout title={TITLE} crumbs={[{ label: '마이페이지' }, { label: TITLE }]}>
       <div className="proto">
         <h2>신청내역</h2>
         {data.items.length === 0 ? (
@@ -32,8 +32,8 @@ export function MyApplicationsPage() {
           </div>
         ) : (
           <>
-            <div className="course-table-wrap">
-              <table aria-label={TITLE}>
+            <div className="table-wrap">
+              <table className="data-table" aria-label={TITLE}>
                 <thead>
                   <tr>
                     <th scope="col">신청 강좌</th>
@@ -74,6 +74,6 @@ export function MyApplicationsPage() {
           </Link>
         </div>
       </div>
-    </ServicePage>
+    </MyPageLayout>
   );
 }

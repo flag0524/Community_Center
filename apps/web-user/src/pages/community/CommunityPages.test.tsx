@@ -46,7 +46,8 @@ describe('질문과 답변', () => {
     expect(within(hidden).queryByRole('link')).not.toBeInTheDocument();
     expect(within(hidden).getByText('김**')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '문의 작성' })).toHaveAttribute('href', '/board/qna/write');
-    expect(screen.getByRole('link', { name: '내 문의' })).toHaveAttribute('href', '/me/inquiries');
+    // 머리글 마이페이지 메뉴에도 같은 이름의 링크가 있어 본문 영역에서 찾는다.
+    expect(within(document.querySelector('.page-body') as HTMLElement).getByRole('link', { name: '내 문의' })).toHaveAttribute('href', '/me/inquiries');
     expect(document.title).toBe('질문과 답변 | 조리읍주민자치센터');
   });
 
