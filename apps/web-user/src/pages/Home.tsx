@@ -300,7 +300,7 @@ function Gallery() {
     <section className="home-gallery">
       <div className="wrap">
         <div className="two-col">
-          <Link className="photo-panel" to="/board/gallery/jori-center" aria-label="조리읍 행정복지센터 청사 전경">
+          <Link className="photo-panel" to="/board/gallery" aria-label="조리읍 행정복지센터 청사 전경">
             {photo === 'ok' ? <img src={BUILDING_PHOTO} alt="" /> : null}
           </Link>
           <div>

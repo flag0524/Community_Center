@@ -27,6 +27,8 @@ describe('청사 사진', () => {
     expect(document.querySelector('.hero > img')).not.toBeNull();
     expect(document.querySelector('.easy-place figure img')).not.toBeNull();
     expect(document.querySelector('.photo-panel img')).not.toBeNull();
+    // 청사 사진은 글 번호가 아니라 센터 갤러리 목록으로 이어진다(없는 글로 가면 404가 된다).
+    expect(document.querySelector('.photo-panel')).toHaveAttribute('href', '/board/gallery');
     expect(screen.getByText(/파주시 제공\(2022\.10\.05\)/)).toBeInTheDocument();
   });
 
