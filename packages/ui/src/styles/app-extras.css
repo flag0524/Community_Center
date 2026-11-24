@@ -54,17 +54,20 @@ button.login-link {
   grid-template-columns: minmax(0, 1fr) auto;
   column-gap: 8px;
   align-items: end;
+  border-bottom: 1px solid var(--line); /* 다른 입력 칸처럼 구분선이 버튼 아래까지 이어지게 묶음에 둔다 */
 }
 
 .field-with-action > .field {
   grid-column: 1;
   grid-row: 1;
+  border-bottom: 0;
 }
 
 .field-with-action > .button {
   grid-column: 2;
   grid-row: 1;
   margin-bottom: 14px;
+  min-height: 48px; /* 옆 입력 칸(.field input)의 최소 높이와 같게 맞춘다 */
 }
 
 .field-with-action > p {
