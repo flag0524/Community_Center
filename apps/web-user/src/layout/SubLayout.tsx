@@ -11,7 +11,7 @@ function SideMenu({ group, activeTo }: { group: NavGroup; activeTo?: string }) {
   const { pathname } = useLocation();
   const contact = useContact();
   return (
-    <aside className="side-menu">
+    <aside className={group.easyVisible ? 'side-menu easy-visible' : 'side-menu'}>
       <h2>{group.title}</h2>
       <nav aria-label={`${group.title} 하위 메뉴`}>
         <ul>

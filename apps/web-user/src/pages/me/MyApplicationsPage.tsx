@@ -46,11 +46,11 @@ export function MyApplicationsPage() {
                 <tbody>
                   {data.items.map((item) => (
                     <tr key={item.applicationId}>
-                      <td>{item.course.name}</td>
-                      <td>{applicationStateText(item)}</td>
-                      <td>{paymentStatusText(item)}</td>
-                      <td>{item.refundStage ? refundStageText(item.refundStage) : '-'}</td>
-                      <td>
+                      <td data-label="신청 강좌">{item.course.name}</td>
+                      <td data-label="신청상태">{applicationStateText(item)}</td>
+                      <td data-label="결제상태">{paymentStatusText(item)}</td>
+                      <td data-label="환불상태">{item.refundStage ? refundStageText(item.refundStage) : '-'}</td>
+                      <td data-label="확인">
                         {/* 이름이 보이는 글자를 낱말 단위로 포함해야 한다(WCAG 2.5.3). */}
                         <Link to={`/me/applications/${item.applicationId}`} aria-label={`상세 (${item.course.name})`}>
                           상세

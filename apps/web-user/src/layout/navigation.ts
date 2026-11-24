@@ -10,6 +10,8 @@ export interface NavGroup {
   items: NavLinkItem[];
   /** 항목에 없는 하위 화면(비밀번호 변경 등)도 이 메뉴로 보이게 하는 경로 접두부 */
   roots?: string[];
+  /** 쉬운 화면에서도 좌측 메뉴를 숨기지 않고 큰 버튼 목록으로 보이는 메뉴 */
+  easyVisible?: boolean;
 }
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -58,6 +60,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: '마이페이지',
     to: '/me/applications',
     roots: ['/me'],
+    easyVisible: true,
     items: [
       { label: '수강신청내역', to: '/me/applications' },
       { label: '환불신청 내역', to: '/me/refunds' },

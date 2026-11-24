@@ -51,9 +51,9 @@ export function MyRefundsPage() {
                 <tbody>
                   {data.items.map((item) => (
                     <tr key={item.refundId}>
-                      <td>{item.courseName}</td>
-                      <td>{formatFee(item.amount)}</td>
-                      <td>
+                      <td data-label="신청 강좌">{item.courseName}</td>
+                      <td data-label="환불금액">{formatFee(item.amount)}</td>
+                      <td data-label="처리상태">
                         {refundStageText(item.stage)}
                         {item.reason ? (
                           <>
@@ -62,7 +62,7 @@ export function MyRefundsPage() {
                           </>
                         ) : null}
                       </td>
-                      <td>{formatDate(item.requestedAt)}</td>
+                      <td data-label="신청일">{formatDate(item.requestedAt)}</td>
                     </tr>
                   ))}
                 </tbody>

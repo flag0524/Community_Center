@@ -512,3 +512,29 @@ describe('환불신청 내역', () => {
     if (reason) expect(within(row).getByText(reason)).toBeInTheDocument();
   });
 });
+
+describe('마이페이지 좌측 메뉴', () => {
+  it('다른 메뉴와 같은 좌측 메뉴를 7개 항목으로 보이고 쉬운 화면에서도 숨기지 않는 메뉴로 표시한다', async () => {
+    await signInAsDemo();
+    renderApp('/me/applications');
+    const menu = await screen.findByRole('navigation', { name: '마이페이지 하위 메뉴' });
+    expect(within(menu).getAllByRole('link').map((link) => link.textContent?.replace('›', ''))).toEqual([
+      '수강신청내역',
+      '환불신청 내역',
+      '감면 심사',
+      '내 문의',
+      '내 후기',
+      '강사 신청내역',
+      '회원정보수정',
+    ]);
+    expect(within(menu).getByRole('link', { name: /수강신청내역/ })).toHaveAttribute('aria-current', 'page');
+    expect(menu.closest('aside')).toHaveClass('easy-visible');
+  });
+
+  it('회원정보 하위 화면(비밀번호 변경)에서는 회원정보수정이 현재 항목이다', async () => {
+    await signInAsDemo();
+    renderApp('/me/password');
+    const menu = await screen.findByRole('navigation', { name: '마이페이지 하위 메뉴' });
+    expect(within(menu).getByRole('link', { name: /회원정보수정/ })).toHaveAttribute('aria-current', 'page');
+  });
+});
