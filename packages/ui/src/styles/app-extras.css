@@ -92,3 +92,29 @@ button.login-link {
     white-space: normal;
   }
 }
+
+/* 쉬운 화면은 손가락으로 누르기 쉬워야 해서 글자만 있는 링크도 누르는 칸의 높이를 44px 이상으로 한다. 시안 easy.css는 건드리지 않는다. */
+[data-view='easy'] .breadcrumb a,
+[data-view='easy'] .footer-links a,
+[data-view='easy'] .footer-bottom a,
+[data-view='easy'] .proto-account-links a,
+[data-view='easy'] .proto-consent a,
+[data-view='easy'] .pager a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+[data-view='easy'] .pager a {
+  justify-content: center;
+  min-width: 44px;
+}
+
+/* 문장 안이나 표 칸 안의 링크는 줄 흐름을 깨지 않도록 위아래 여백으로 누르는 칸을 넓힌다. */
+[data-view='easy'] .article-text a:not(.button),
+[data-view='easy'] td a:not(.button),
+[data-view='easy'] dd a,
+[data-view='easy'] p > a:not(.button) {
+  display: inline-block;
+  padding-block: 10px;
+}
