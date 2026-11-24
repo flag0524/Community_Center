@@ -87,6 +87,28 @@
     min-height: 44px !important;
   }
 
+  /* 체크박스·라디오를 품은 라벨은 한 줄 전체를 누르는 칸으로 하고 높이를 44px 이상으로 한다. */
+  .admin-prototype label:has(input[type='checkbox'], input[type='radio']) {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px !important;
+  }
+
+  /* 입력 칸과 라벨이 따로 놓인 입력 항목(Field)의 체크박스·라디오는 라벨 줄이 누르는 칸이 되므로 라벨 높이를 44px 이상으로 한다. */
+  .admin-prototype .adm-field:has(input[type='checkbox'], input[type='radio']) > label {
+    display: flex;
+    align-items: center;
+    min-height: 44px !important;
+  }
+
+  /* 라벨이 없는 표 칸 안의 체크박스는 칸 전체가 눌리게(TableWrap) 하고 칸 높이를 44px 이상으로 한다. */
+  .admin-prototype .adm-table-wrap td:has(> input[type='checkbox'], > input[type='radio']) {
+    align-items: center;
+    min-height: 44px;
+    cursor: pointer;
+  }
+
   .admin-prototype .adm-pager a,
   .admin-prototype .adm-pager strong {
     justify-content: center;

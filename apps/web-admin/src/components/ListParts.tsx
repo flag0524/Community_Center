@@ -24,6 +24,20 @@ export function TableWrap({ label, children }: { label: string; children: ReactN
       });
     });
   });
+  useEffect(() => {
+    // 좁은 화면·터치 기기에서는 라벨이 없는 칸 안의 체크박스·라디오를 칸 어디를 눌러도 켜지고 꺼지게 한다(누르는 칸 44px 이상).
+    const element = wrap.current;
+    if (!element) return undefined;
+    const toggleFromCell = (event: MouseEvent) => {
+      if (!window.matchMedia?.('(max-width: 760px), (pointer: coarse)').matches) return;
+      const target = event.target as HTMLElement;
+      if (target.closest('input, label, button, a, select, textarea')) return;
+      const boxes = target.closest('td')?.querySelectorAll<HTMLInputElement>('input[type=checkbox], input[type=radio]');
+      if (boxes?.length === 1) boxes[0]?.click();
+    };
+    element.addEventListener('click', toggleFromCell);
+    return () => element.removeEventListener('click', toggleFromCell);
+  }, []);
   return (
     <div className="adm-table-wrap" role="region" aria-label={label} tabIndex={0} ref={wrap}>
       {children}

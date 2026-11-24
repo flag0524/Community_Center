@@ -1,7 +1,7 @@
 // 목록 화면 조각(총 건수, 쪽 번호)의 표시와 이동 주소를 확인하는 시험
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AdminPager, ResultCount, TableWrap } from './ListParts';
 
 const pager = (page: number, total: number) =>
@@ -80,5 +80,44 @@ describe('TableWrap', () => {
     const { rerender } = render(table(['가']));
     rerender(table(['가', '나']));
     expect(screen.getByText('나')).toHaveAttribute('data-label', '이름');
+  });
+});
+
+describe('TableWrap 칸 안의 체크박스', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const render1 = () =>
+    render(
+      <TableWrap label="체크 표">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">사용</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td data-testid="cell">
+                <input type="checkbox" aria-label="사용 여부" />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </TableWrap>,
+    );
+
+  it('좁은 화면에서는 칸의 빈 곳을 눌러도 체크박스가 켜진다', () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+    render1();
+    fireEvent.click(screen.getByTestId('cell'));
+    expect(screen.getByRole('checkbox', { name: '사용 여부' })).toBeChecked();
+  });
+
+  it('넓은 화면에서는 칸을 눌러도 켜지지 않고 상자를 누를 때만 바뀐다', () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    render1();
+    fireEvent.click(screen.getByTestId('cell'));
+    expect(screen.getByRole('checkbox', { name: '사용 여부' })).not.toBeChecked();
+    fireEvent.click(screen.getByRole('checkbox', { name: '사용 여부' }));
+    expect(screen.getByRole('checkbox', { name: '사용 여부' })).toBeChecked();
   });
 });
