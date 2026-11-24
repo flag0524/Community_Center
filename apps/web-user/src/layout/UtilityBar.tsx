@@ -1,4 +1,4 @@
-// 화면 선택(기본·쉬운·관리자), 글자 크기 조절, SNS 아이콘이 있는 맨 위 띠
+// 화면 선택(기본·쉬운), 글자 크기 조절, SNS 아이콘이 있는 맨 위 띠
 import facebook from '@jori/ui/assets/sns-facebook.png';
 import kakao from '@jori/ui/assets/sns-kakao.png';
 import youtube from '@jori/ui/assets/sns-youtube.png';
@@ -28,8 +28,6 @@ export function UtilityBar() {
         <Link to={viewHref('easy')} aria-current={view === 'easy' ? 'true' : 'false'}>
           쉬운 화면
         </Link>
-        {/* 관리자 앱은 별도 빌드라 일반 링크로 이동한다. */}
-        <a href="/admin/">관리자</a>
       </nav>
       <div className="text-tools" role="group" aria-label="글자 크기 조절">
         <span>글자 크기</span>

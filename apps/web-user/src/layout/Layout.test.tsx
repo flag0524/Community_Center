@@ -94,6 +94,12 @@ describe('화면 선택', () => {
     expect(screen.getByRole('link', { name: '쉬운 화면' })).toHaveAttribute('aria-current', 'false');
   });
 
+  it('주민 화면에는 관리자 화면으로 가는 링크를 두지 않는다', () => {
+    renderApp('/');
+    expect(screen.getByRole('navigation', { name: '화면 선택' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '관리자' })).not.toBeInTheDocument();
+  });
+
   it('쉬운 화면을 고르면 주소와 html 속성과 세션이 바뀌고 글자가 25% 커진다', async () => {
     const { router } = renderApp('/');
     await userEvent.click(screen.getByRole('link', { name: '쉬운 화면' }));
