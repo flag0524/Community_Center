@@ -114,7 +114,9 @@ button.login-link {
 [data-view='easy'] .article-text a:not(.button),
 [data-view='easy'] td a:not(.button),
 [data-view='easy'] dd a,
-[data-view='easy'] p > a:not(.button) {
+[data-view='easy'] p > a:not(.button),
+[data-view='easy'] .record-file li a,
+[data-view='easy'] .proto-files li a {
   display: inline-block;
   padding-block: 10px;
 }
