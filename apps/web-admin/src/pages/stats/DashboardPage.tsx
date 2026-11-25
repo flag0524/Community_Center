@@ -14,8 +14,10 @@ export function DashboardPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const options = useQuery(courseOptionsQuery);
-  const cycleId = params.get('cycleId') ?? options.data?.cycles[0]?.id;
-  const dashboard = useQuery({ ...dashboardQuery(cycleId), enabled: !options.isPending });
+  // 기수를 고르지 않으면 서버가 사용 중인 가장 최근 기수를 정한다. 선택지의 첫 항목은 작성 중인 기수일 수 있다.
+  const asked = params.get('cycleId') ?? undefined;
+  const dashboard = useQuery(dashboardQuery(asked));
+  const cycleId = asked ?? dashboard.data?.basis.cycleId ?? '';
 
   return (
     <>
@@ -25,7 +27,8 @@ export function DashboardPage() {
       <form className="adm-toolbar" role="search" aria-label="기수 선택" onSubmit={(event) => event.preventDefault()}>
         <label>
           교육기수
-          <select value={cycleId ?? ''} onChange={(event) => void navigate(`/dashboard?cycleId=${event.target.value}`)}>
+          <select value={cycleId} onChange={(event) => void navigate(`/dashboard?cycleId=${event.target.value}`)}>
+            {cycleId === '' && <option value="">교육기수를 선택하세요</option>}
             {options.data?.cycles.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}

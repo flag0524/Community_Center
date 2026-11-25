@@ -67,7 +67,8 @@ export const statsHandlers = [
     const data = hasData(params);
     const mine = currentAuthorities();
     return HttpResponse.json({
-      basis: basis(params),
+      // 기수를 주지 않으면 서버처럼 사용 중인 가장 최근 기수를 기준으로 알린다
+      basis: { ...basis(params), cycleId: params.get('cycleId') ?? CYCLE_WITH_DATA },
       summary: data ? { applications: 62, uniqueApplicants: 55, confirmed: 37, seatsHeld: 43, waiting: 8, cancelled: 11, netRevenue: SETTLEMENT.netRevenue } : null,
       tasks: TASKS.filter((task) => mine.includes(task.need)).map(({ kind, count }) => ({ kind, count })),
       demand: data ? DEMAND.map((row) => ({ courseId: row.courseId, courseName: row.courseName, effectiveDemand: row.effectiveDemand, capacity: row.capacity })) : [],

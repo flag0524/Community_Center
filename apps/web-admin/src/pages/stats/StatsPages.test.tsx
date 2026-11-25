@@ -28,18 +28,34 @@ describe('대시보드', () => {
     expect(screen.getByLabelText('교육기수')).toHaveValue('1000000000000000000001');
   });
 
-  it('기수를 고르지 않으면 목록의 첫 기수로 조회한다', async () => {
-    const asked: Array<string | null> = [];
-    server.use(
-      http.get('/api/admin/v1/dashboard', ({ request }) => {
-        asked.push(new URL(request.url).searchParams.get('cycleId'));
-        return HttpResponse.json({ basis: { basisAt: '2026-10-30T14:20:00+09:00', cycleId: null, fromDate: null, toDate: null }, summary: null, tasks: [], demand: [], recent: [] });
-      }),
+  // 선택지는 최근 기수가 먼저라 작성 중인 기수가 맨 앞에 올 수 있다
+  const draftFirst = () =>
+    http.get('/api/admin/v1/course-options', () =>
+      HttpResponse.json({ cycles: [{ id: '1000000000000000000002', name: '2027년 제1기' }, { id: '1000000000000000000001', name: '2026년 제4기' }], dongs: [], classes: [], instructors: [], courses: [], rooms: [] }),
     );
+  const emptyDashboard = (cycleId: string | null, asked: Array<string | null>) =>
+    http.get('/api/admin/v1/dashboard', ({ request }) => {
+      asked.push(new URL(request.url).searchParams.get('cycleId'));
+      return HttpResponse.json({ basis: { basisAt: '2026-10-30T14:20:00+09:00', cycleId, fromDate: null, toDate: null }, summary: null, tasks: [], demand: [], recent: [] });
+    });
+
+  it('기수를 고르지 않으면 기수를 보내지 않고 서버가 정한 기수를 선택에 보인다', async () => {
+    const asked: Array<string | null> = [];
+    server.use(draftFirst(), emptyDashboard('1000000000000000000001', asked));
     await signInAs('group');
     renderApp('/dashboard');
     await screen.findByText('자료 없음. 이 기수에는 집계할 신청이 아직 없습니다.');
-    expect(asked).toEqual(['1000000000000000000001']);
+    await waitFor(() => expect(screen.getByLabelText('교육기수')).toHaveValue('1000000000000000000001'));
+    expect(asked).toEqual([null]);
+  });
+
+  it('사용 중인 기수가 없으면 작성 중인 기수를 고른 것처럼 보이지 않는다', async () => {
+    server.use(draftFirst(), emptyDashboard(null, []));
+    await signInAs('group');
+    renderApp('/dashboard');
+    await screen.findByText('자료 없음. 이 기수에는 집계할 신청이 아직 없습니다.');
+    await screen.findByRole('option', { name: '2027년 제1기' });
+    expect(screen.getByLabelText('교육기수')).toHaveValue('');
   });
 
   it('확인할 업무는 권한이 있는 종류만 건수와 함께 보이고 누르면 조건이 걸린 목록으로 간다', async () => {
