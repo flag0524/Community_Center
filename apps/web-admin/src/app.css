@@ -16,6 +16,11 @@
 .admin-prototype .adm-table-wrap th,
 .admin-prototype .adm-table-wrap td { padding: 10px; text-align: left; border-bottom: 1px solid #dce0e5; vertical-align: top; }
 .admin-prototype .adm-table-wrap th { border-top: 1px solid #858e9c; font-weight: 500; color: #343c48; white-space: nowrap; }
+/* 목록 화면의 표는 머리글과 칸을 가운데 정렬한다. 폭 760px 이하의 카드 모양(열 이름 + 값)은 왼쪽 정렬을 그대로 둔다. */
+@media (min-width: 761px) {
+  .admin-prototype .adm-table-center th,
+  .admin-prototype .adm-table-center td { text-align: center; }
+}
 .admin-prototype .adm-sub { display: block; font-size: 12px; color: #647080; }
 .admin-prototype .adm-pager { display: flex; gap: 6px; justify-content: center; margin: 18px 0; }
 .admin-prototype .adm-pager a,

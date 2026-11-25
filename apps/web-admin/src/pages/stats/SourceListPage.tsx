@@ -26,7 +26,7 @@ export function SourceListPage() {
       {list.isError && <p role="alert">{errorMessage(list.error)}</p>}
       {list.data && (
         <>
-          <TableWrap label="집계자료 목록">
+          <TableWrap centered label="집계자료 목록">
             <table>
               <thead>
                 <tr>
@@ -56,7 +56,7 @@ export function SourceListPage() {
               </tbody>
             </table>
           </TableWrap>
-          {list.data.items.length === 0 && <p>등록한 집계자료가 없습니다.</p>}
+          {list.data.items.length === 0 && <p className="adm-empty">등록한 집계자료가 없습니다.</p>}
         </>
       )}
     </>

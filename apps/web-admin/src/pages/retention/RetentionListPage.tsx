@@ -22,7 +22,7 @@ export function RetentionListPage() {
               {item.label}는 이 목록에서 제외됩니다. {item.reason}
             </p>
           ))}
-          <TableWrap label="파기 예정 목록">
+          <TableWrap centered label="파기 예정 목록">
             <table>
               <thead>
                 <tr>
@@ -48,7 +48,7 @@ export function RetentionListPage() {
               </tbody>
             </table>
           </TableWrap>
-          {list.data.items.length === 0 && <p>파기 예정 자료가 없습니다.</p>}
+          {list.data.items.length === 0 && <p className="adm-empty">파기 예정 자료가 없습니다.</p>}
         </>
       )}
     </>

@@ -43,7 +43,7 @@ export function TermListPage() {
         {list.data && (
           <>
             <ResultCount total={list.data.total} />
-            <TableWrap label="버전 목록">
+            <TableWrap centered label="버전 목록">
               <table>
                 <thead>
                   <tr>
@@ -71,7 +71,7 @@ export function TermListPage() {
                 </tbody>
               </table>
             </TableWrap>
-            {list.data.items.length === 0 && <p>등록된 버전이 없습니다.</p>}
+            {list.data.items.length === 0 && <p className="adm-empty">등록된 버전이 없습니다.</p>}
             <AdminPager page={page} total={list.data.total} size={PAGE_SIZE} hrefFor={(next) => `/mbr/terms?type=${type}${next > 1 ? `&page=${next}` : ''}`} />
           </>
         )}

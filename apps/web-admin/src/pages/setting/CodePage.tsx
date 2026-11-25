@@ -116,7 +116,7 @@ function CodeTable({ list }: { list: Schemas['CodeList'] }) {
 
   return (
     <form aria-label="코드 편집" noValidate onSubmit={submit}>
-      <TableWrap label="코드 목록">
+      <TableWrap centered label="코드 목록">
         <table>
           <thead>
             <tr>
@@ -151,7 +151,7 @@ function CodeTable({ list }: { list: Schemas['CodeList'] }) {
           </tbody>
         </table>
       </TableWrap>
-      {list.items.length === 0 && <p>조건에 맞는 코드가 없습니다.</p>}
+      {list.items.length === 0 && <p className="adm-empty">조건에 맞는 코드가 없습니다.</p>}
       {saved && (
         <p className="adm-message" role="status">
           저장했습니다.

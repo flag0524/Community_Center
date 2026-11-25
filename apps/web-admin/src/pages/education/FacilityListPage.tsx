@@ -24,7 +24,7 @@ export function FacilityListPage() {
         </div>
         {isPending && <p role="status">불러오는 중입니다.</p>}
         {isError && <p role="alert">{errorMessage(error)}</p>}
-        {data && centers.length === 0 && <p>등록된 센터가 없습니다.</p>}
+        {data && centers.length === 0 && <p className="adm-empty">등록된 센터가 없습니다.</p>}
         {centers.length > 0 && (
           <ul className="adm-tree" aria-label="센터·강의실 트리">
             {centers.map((center) => (

@@ -72,7 +72,7 @@ export function ReductionHistoryPage() {
         {list.data && (
           <>
             <ResultCount total={list.data.total} />
-            <TableWrap label="감면 처리 이력">
+            <TableWrap centered label="감면 처리 이력">
               <table>
                 <thead>
                   <tr>
@@ -104,7 +104,7 @@ export function ReductionHistoryPage() {
                 </tbody>
               </table>
             </TableWrap>
-            {list.data.items.length === 0 && <p>조건에 맞는 이력이 없습니다.</p>}
+            {list.data.items.length === 0 && <p className="adm-empty">조건에 맞는 이력이 없습니다.</p>}
             <AdminPager page={page} total={list.data.total} size={PAGE_SIZE} hrefFor={hrefFor} />
           </>
         )}

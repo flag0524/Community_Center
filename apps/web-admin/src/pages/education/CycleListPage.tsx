@@ -32,7 +32,7 @@ export function CycleListPage() {
         {data && (
           <>
             <ResultCount total={data.total} />
-            <TableWrap label="교육기수 목록">
+            <TableWrap centered label="교육기수 목록">
               <table>
                 <thead>
                   <tr>

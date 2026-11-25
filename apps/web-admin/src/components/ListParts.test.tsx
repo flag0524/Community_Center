@@ -83,6 +83,23 @@ describe('TableWrap', () => {
   });
 });
 
+describe('TableWrap 가운데 정렬', () => {
+  it('centered를 준 표 영역에만 가운데 정렬 표시를 붙인다', () => {
+    render(
+      <>
+        <TableWrap label="목록" centered>
+          <table />
+        </TableWrap>
+        <TableWrap label="상세">
+          <table />
+        </TableWrap>
+      </>,
+    );
+    expect(screen.getByRole('region', { name: '목록' })).toHaveClass('adm-table-wrap', 'adm-table-center');
+    expect(screen.getByRole('region', { name: '상세' })).not.toHaveClass('adm-table-center');
+  });
+});
+
 describe('TableWrap 칸 안의 체크박스', () => {
   afterEach(() => vi.unstubAllGlobals());
   const render1 = () =>

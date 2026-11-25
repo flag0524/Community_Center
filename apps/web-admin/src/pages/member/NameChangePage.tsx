@@ -54,7 +54,7 @@ export function NameChangePage() {
       {list.isError && <p role="alert">{errorMessage(list.error)}</p>}
       {list.data && (
         <>
-          <TableWrap label="이름 변경 요청 목록">
+          <TableWrap centered label="이름 변경 요청 목록">
             <table>
               <thead>
                 <tr>
@@ -101,7 +101,7 @@ export function NameChangePage() {
               </tbody>
             </table>
           </TableWrap>
-          {list.data.items.length === 0 && <p>{decided ? '처리한 요청이 없습니다.' : '검토 중인 요청이 없습니다.'}</p>}
+          {list.data.items.length === 0 && <p className="adm-empty">{decided ? '처리한 요청이 없습니다.' : '검토 중인 요청이 없습니다.'}</p>}
         </>
       )}
     </>

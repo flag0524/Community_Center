@@ -19,7 +19,7 @@ export function BoardSettingsPage() {
       {isPending && <p role="status">불러오는 중입니다.</p>}
       {isError && <p role="alert">{errorMessage(error)}</p>}
       {data && (
-        <TableWrap label="게시판 설정 목록">
+        <TableWrap centered label="게시판 설정 목록">
           <table>
             <thead>
               <tr>

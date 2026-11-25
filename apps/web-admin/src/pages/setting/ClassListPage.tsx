@@ -78,7 +78,7 @@ export function ClassListPage() {
       {list.isPending && <p role="status">불러오는 중입니다.</p>}
       {list.isError && <p role="alert">{errorMessage(list.error)}</p>}
       {list.data && (
-        <TableWrap label="분류 목록">
+        <TableWrap centered label="분류 목록">
           <table>
             <thead>
               <tr>

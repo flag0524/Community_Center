@@ -42,7 +42,7 @@ export function SmsListPage() {
         {list.data && (
           <>
             <ResultCount total={list.data.total} />
-            <TableWrap label="알림 이력">
+            <TableWrap centered label="알림 이력">
               <table>
                 <thead>
                   <tr>
@@ -76,7 +76,7 @@ export function SmsListPage() {
                 </tbody>
               </table>
             </TableWrap>
-            {list.data.items.length === 0 && <p>이력이 없습니다.</p>}
+            {list.data.items.length === 0 && <p className="adm-empty">이력이 없습니다.</p>}
             <AdminPager page={page} total={list.data.total} size={PAGE_SIZE} hrefFor={(next) => `/sys/sms?kind=${kind}${next > 1 ? `&page=${next}` : ''}`} />
           </>
         )}

@@ -13,8 +13,9 @@ export function ResultCount({ total }: { total: number }) {
 /**
  * 표를 감싸는 영역. 좁은 화면(CSS)에서는 표의 한 행이 카드 하나로 쌓이고, 칸 앞에 열 이름이 붙는다.
  * 열 이름은 머리글 글자를 칸의 data-label로 옮겨 CSS가 쓴다. 행이 바뀔 때마다 다시 채운다.
+ * 목록 화면은 centered를 줘서 표의 머리글과 칸을 가운데 정렬한다.
  */
-export function TableWrap({ label, children }: { label: string; children: ReactNode }) {
+export function TableWrap({ label, centered, children }: { label: string; centered?: boolean; children: ReactNode }) {
   const wrap = useRef<HTMLDivElement>(null);
   useEffect(() => {
     wrap.current?.querySelectorAll('table').forEach((table) => {
@@ -39,7 +40,7 @@ export function TableWrap({ label, children }: { label: string; children: ReactN
     return () => element.removeEventListener('click', toggleFromCell);
   }, []);
   return (
-    <div className="adm-table-wrap" role="region" aria-label={label} tabIndex={0} ref={wrap}>
+    <div className={centered ? 'adm-table-wrap adm-table-center' : 'adm-table-wrap'} role="region" aria-label={label} tabIndex={0} ref={wrap}>
       {children}
     </div>
   );

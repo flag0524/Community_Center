@@ -72,7 +72,7 @@ export function SchedulePage() {
                 </Link>
               )}
             </div>
-            <TableWrap label="주간 시간표">
+            <TableWrap centered label="주간 시간표">
               <table>
                 <thead>
                   <tr>
@@ -117,7 +117,7 @@ export function SchedulePage() {
                 </tbody>
               </table>
             </TableWrap>
-            {data.data.schedules.length === 0 && <p>등록된 일정이 없습니다.</p>}
+            {data.data.schedules.length === 0 && <p className="adm-empty">등록된 일정이 없습니다.</p>}
           </section>
           <section className="adm-panel">
             <div className="adm-panel-head">
@@ -128,7 +128,7 @@ export function SchedulePage() {
                 </Link>
               )}
             </div>
-            <TableWrap label="휴강·보강 목록">
+            <TableWrap centered label="휴강·보강 목록">
               <table>
                 <thead>
                   <tr>
@@ -162,7 +162,7 @@ export function SchedulePage() {
                 </tbody>
               </table>
             </TableWrap>
-            {data.data.changes.length === 0 && <p>등록된 휴강·보강이 없습니다.</p>}
+            {data.data.changes.length === 0 && <p className="adm-empty">등록된 휴강·보강이 없습니다.</p>}
           </section>
           <p>
             <Link to={`/edu/courses/${courseId}`}>{data.data.courseName} 강좌로 돌아가기</Link>

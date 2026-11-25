@@ -44,7 +44,7 @@ export function ContentListPage() {
         {list.data && (
           <>
             <ResultCount total={list.data.total} />
-            <TableWrap label="콘텐츠 목록">
+            <TableWrap centered label="콘텐츠 목록">
               <table>
                 <thead>
                   <tr>
@@ -74,7 +74,7 @@ export function ContentListPage() {
                 </tbody>
               </table>
             </TableWrap>
-            {list.data.items.length === 0 && <p>등록된 콘텐츠가 없습니다.</p>}
+            {list.data.items.length === 0 && <p className="adm-empty">등록된 콘텐츠가 없습니다.</p>}
             <AdminPager page={page} total={list.data.total} size={PAGE_SIZE} hrefFor={(next) => `/mbr/contents?type=${type}${next > 1 ? `&page=${next}` : ''}`} />
           </>
         )}

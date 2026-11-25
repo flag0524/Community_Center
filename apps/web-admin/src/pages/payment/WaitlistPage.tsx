@@ -27,7 +27,7 @@ export function WaitlistPage() {
         {data && (
           <>
             <ResultCount total={data.total} />
-            <TableWrap label="강좌별 대기 현황">
+            <TableWrap centered label="강좌별 대기 현황">
               <table>
                 <thead>
                   <tr>

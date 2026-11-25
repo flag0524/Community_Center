@@ -96,7 +96,7 @@ export function RefundListPage() {
         {list.data && (
           <>
             <ResultCount total={list.data.total} />
-            <TableWrap label="환불 목록">
+            <TableWrap centered label="환불 목록">
               <table>
                 <thead>
                   <tr>
@@ -128,7 +128,7 @@ export function RefundListPage() {
                 </tbody>
               </table>
             </TableWrap>
-            {list.data.items.length === 0 && <p>조건에 맞는 환불이 없습니다.</p>}
+            {list.data.items.length === 0 && <p className="adm-empty">조건에 맞는 환불이 없습니다.</p>}
             <AdminPager page={page} total={list.data.total} size={PAGE_SIZE} hrefFor={hrefFor} />
           </>
         )}
