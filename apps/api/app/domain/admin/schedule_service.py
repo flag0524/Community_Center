@@ -578,7 +578,14 @@ def _makeup_conflict(
     regular = db.execute(query).first()
     if regular is not None:
         return f"{room.FCLT_NM} {ymd[:4]}-{ymd[4:6]}-{ymd[6:]} {_clock(str(regular.BGNG_TM))}~{_clock(str(regular.END_TM))}에 {regular.CORS_NM}이(가) 있습니다."
-    other = db.execute(
+    return _booked_makeup(db, bundle_sn, room, ymd, start, end, except_change=None)
+
+
+def _booked_makeup(
+    db: Session, bundle_sn: int, room: Any, ymd: str, start: str, end: str, *, except_change: int | None
+) -> str | None:
+    """그 날짜·시설·시간에 걸리는 보강."""
+    query = (
         select(TB_CORS.c.CORS_NM, TB_CORS_SCHDL_CHG.c.CHG_BGNG_TM, TB_CORS_SCHDL_CHG.c.CHG_END_TM)
         .select_from(TB_CORS_SCHDL_CHG.join(TB_CORS, TB_CORS.c.CORS_SN == TB_CORS_SCHDL_CHG.c.CORS_SN))
         .where(
@@ -591,10 +598,40 @@ def _makeup_conflict(
             _overlaps(start, end, TB_CORS_SCHDL_CHG.c.CHG_BGNG_TM, TB_CORS_SCHDL_CHG.c.CHG_END_TM),
         )
         .limit(1)
-    ).first()
+    )
+    if except_change is not None:
+        query = query.where(TB_CORS_SCHDL_CHG.c.CORS_SCHDL_CHG_SN != except_change)
+    other = db.execute(query).first()
     if other is not None:
         return f"{room.FCLT_NM} {ymd[:4]}-{ymd[4:6]}-{ymd[6:]} {_clock(str(other.CHG_BGNG_TM))}~{_clock(str(other.CHG_END_TM))}에 {other.CORS_NM}의 보강이 있습니다."
     return None
+
+
+def _check_restore(db: Session, bundle_sn: int, row: Any) -> None:
+    """휴강·보강을 지우면 원수업이 돌아온다. 비운 자리에 그 사이 보강이 들어왔으면 지우지 못한다(409).
+
+    정규 일정끼리의 겹침은 일정 저장이 휴강과 무관하게 막으므로 보강만 본다.
+    """
+    schedule = db.execute(
+        select(TB_CORS_SCHDL).where(TB_CORS_SCHDL.c.CORS_SCHDL_SN == row.CORS_SCHDL_SN)
+    ).one()
+    # 보강 등록과 같은 순서(강좌 → 시설)로 잠근다. 사용 중지한 강의실이어도 확인한다
+    room = db.execute(
+        select(TB_FCLT)
+        .where(TB_FCLT.c.OPER_BNDL_SN == bundle_sn, TB_FCLT.c.FCLT_SN == schedule.FCLT_SN)
+        .with_for_update()
+    ).one()
+    message = _booked_makeup(
+        db,
+        bundle_sn,
+        room,
+        str(row.ORGNL_LCTR_YMD),
+        str(schedule.BGNG_TM),
+        str(schedule.END_TM),
+        except_change=int(row.CORS_SCHDL_CHG_SN),
+    )
+    if message is not None:
+        raise ApiError(ErrorCode.CONFLICT_STATE, f"{message} 그 보강을 먼저 지워 주세요.")
 
 
 def create_change(
@@ -736,6 +773,7 @@ def delete_change(
     sn = int(row.CORS_SCHDL_CHG_SN)
     if int(db.execute(select(func.count()).where(TB_CORS_ATND.c.CORS_SCHDL_CHG_SN == sn)).scalar_one()):
         raise ApiError(ErrorCode.CONFLICT_STATE, "출석 기록이 있어 지울 수 없습니다.")
+    _check_restore(db, admin.bundle_sn, row)
     db.execute(delete(TB_CORS_SCHDL_CHG).where(TB_CORS_SCHDL_CHG.c.CORS_SCHDL_CHG_SN == sn))
     before = json.dumps(
         {

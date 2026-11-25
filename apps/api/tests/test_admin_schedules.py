@@ -693,7 +693,9 @@ def test_다른_날로_옮기는_보강은_원수업의_자리를_비우지_않�
 
 
 def close_course(w: World, course: dict[str, Any]) -> None:
-    w.db.execute(text("UPDATE TB_CORS SET CORS_STTS_CD='CS.CANCEL' WHERE CORS_SN=:c"), {"c": course["CORS_SN"]})
+    w.db.execute(
+        text("UPDATE TB_CORS SET CORS_STTS_CD='CS.CANCEL' WHERE CORS_SN=:c"), {"c": course["CORS_SN"]}
+    )
     w.db.commit()
 
 
@@ -765,6 +767,55 @@ def test_남의_강좌의_휴보강은_지울_수_없다(world: World) -> None:
         == 404
     )
     assert rows(world, "SELECT COUNT(*) n FROM TB_CORS_SCHDL_CHG")[0]["n"] == 1
+
+
+@pytest.mark.parametrize(
+    "mine_change",
+    ["휴강", "다른 날로 옮긴 보강", "같은 날 시간을 바꾼 보강"],
+)
+def test_비운_자리에_다른_보강이_들어왔으면_휴보강을_지울_수_없다(world: World, mine_change: str) -> None:
+    mine, other = open_course(world, CORS_NM="내 강좌"), open_course(world, CORS_NM="서예")
+    r = room(world, "본관")
+    writer(world)
+    made(world, mine, body(r, startTime="10:00", endTime="11:30"))
+    made(world, other, body(room(world, "다른실"), startTime="08:00", endTime="09:00"))
+    payload = {
+        "휴강": cancel_body(MON1),
+        "다른 날로 옮긴 보강": makeup_body(r, "2026-11-12", original=MON1),
+        "같은 날 시간을 바꾼 보강": makeup_body(r, MON1, original=MON1),
+    }[mine_change]
+    freed = change(world, mine, payload)
+    assert freed.status_code == 201, freed.text
+    taken = change(world, other, makeup_body(r, MON1, original=MON2, start="10:30", end="11:00"))
+    assert taken.status_code == 201, taken.text
+    path = f"/courses/{mine['CORS_SN']}/schedule-changes/{freed.json()['changeId']}"
+
+    refused = call(world, "DELETE", path)
+    assert refused.status_code == 409, refused.text
+    assert "서예" in refused.json()["message"] and MON1 in refused.json()["message"]
+    assert rows(world, "SELECT COUNT(*) n FROM TB_CORS_SCHDL_CHG")[0]["n"] == 2
+
+    removed = f"/courses/{other['CORS_SN']}/schedule-changes/{taken.json()['changeId']}"
+    assert call(world, "DELETE", removed).status_code == 204
+    assert call(world, "DELETE", path).status_code == 204
+
+
+def test_겹치지_않는_보강과_폐강한_강좌의_보강은_휴강_삭제를_막지_않는다(world: World) -> None:
+    mine, other = open_course(world, CORS_NM="내 강좌"), open_course(world, CORS_NM="서예")
+    closed = open_course(world, CORS_NM="폐강 강좌")
+    r = room(world, "본관")
+    writer(world)
+    made(world, mine, body(r, startTime="10:00", endTime="11:30"))
+    made(world, other, body(room(world, "다른실"), startTime="08:00", endTime="09:00"))
+    made(world, closed, body(room(world, "또다른실"), startTime="08:00", endTime="09:00"))
+    cancelled = change(world, mine, cancel_body(MON1)).json()
+    after = change(world, other, makeup_body(r, MON1, original=MON2, start="11:30", end="12:00"))
+    assert after.status_code == 201, after.text  # 원수업이 끝나는 시각에 시작한다
+    overlap = change(world, closed, makeup_body(r, MON1, original=MON2, start="10:00", end="11:00"))
+    assert overlap.status_code == 201, overlap.text
+    close_course(world, closed)
+    path = f"/courses/{mine['CORS_SN']}/schedule-changes/{cancelled['changeId']}"
+    assert call(world, "DELETE", path).status_code == 204
 
 
 def test_적용_기간이_하루인_일정도_등록한다(world: World) -> None:
