@@ -271,6 +271,18 @@ def test_안내_글의_종류는_고칠_때_바꿀_수_없다(world: World) -> N
     assert ok.status_code == 200 and ok.json()["posted"] is False
 
 
+def test_저장한_안내_글을_화면이_받은_본문_그대로_다시_저장할_수_있다(world: World) -> None:
+    use(world, staff(world, "boss", "AU.SITE_W"))
+    made = make(world, guide_body("guide-refund")).json()
+    path = f"/contents/{made['contentId']}"
+    shown = call(world, "GET", path).json()  # 저장한 본문에는 slug가 없다
+    again = {**guide_body("guide-refund", posted=False), "body": shown["body"], "version": shown["version"]}
+    saved = call(world, "PUT", path, again)
+    assert saved.status_code == 200, saved.text
+    kept = rows(world, "SELECT CONTS_ID i, PSTG_YN y FROM TB_SITE_CONTS")
+    assert [(r["i"], r["y"]) for r in kept] == [("guide-refund", "N")]
+
+
 def test_제목_링크_게시기간을_검사한다(world: World) -> None:
     use(world, staff(world, "boss", "AU.SITE_W"))
     assert "title" in make(world, body(title="   "), "key-00000001").json()["fields"]

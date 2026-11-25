@@ -136,7 +136,9 @@ def _fail(field: str, message: str) -> ApiError:
     return ApiError(ErrorCode.RULE_REJECTED, message, fields={field: message})
 
 
-def _checked(body: AdminContentWrite) -> tuple[str, str, str | None, str | None]:
+def _checked(
+    body: AdminContentWrite, current_id: str | None = None
+) -> tuple[str, str, str | None, str | None]:
     """제목·본문·링크를 검사한다. 돌려주는 값은 (제목, 저장할 본문, 링크, 고정 식별자)다.
 
     본문은 허용된 서식만 남긴다. 연혁·안내는 공개 화면이 읽는 JSON 모양이어야 하고, 연락처는 구조 입력을 JSON으로 저장한다.
@@ -168,7 +170,8 @@ def _checked(body: AdminContentWrite) -> tuple[str, str, str | None, str | None]
             parsed = json.loads(body.body)
             if not isinstance(parsed, dict):
                 raise ValueError("객체가 아니다")
-            slug = HISTORY_ID if kind is ContentType.HISTORY else str(parsed.pop("slug", ""))
+            # 안내 글은 slug를 뺀 본문을 저장하므로, 고칠 때 본문에 없으면 이 글의 식별자를 쓴다
+            slug = HISTORY_ID if kind is ContentType.HISTORY else str(parsed.pop("slug", current_id or ""))
             if kind is ContentType.GUIDE and slug not in GUIDE_IDS:
                 raise _fail("body", "안내 본문의 slug는 guide-apply 또는 guide-refund여야 합니다.")
             ContentDocument.model_validate({**parsed, "slug": slug, "title": title})
@@ -280,7 +283,7 @@ def update_content(
     ).one()
     if body.version != int(locked.RCRD_VER):
         raise ApiError(ErrorCode.VERSION_CONFLICT)
-    title, text, url, fixed_id = _checked(body)
+    title, text, url, fixed_id = _checked(body, str(row.CONTS_ID))
     if fixed_id is not None and fixed_id != str(row.CONTS_ID):
         raise _fail("body", "고정 식별자 글의 종류는 바꿀 수 없습니다.")
     db.execute(
