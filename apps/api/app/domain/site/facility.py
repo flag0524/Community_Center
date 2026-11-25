@@ -1,7 +1,7 @@
 # 시설안내 공개 조회. 사용 중인 센터와 강의실을 시설 테이블(TB_FCLT)에서 그대로 읽는다(ADR-117)
 from typing import Any, Literal
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.tables import TB_FCLT
@@ -18,11 +18,25 @@ def _floor(explanation: Any) -> str | None:
     return text.removeprefix(FLOOR_LABEL) if text and text.startswith(FLOOR_LABEL) else None
 
 
+def center_in_use() -> Any:
+    """강의실(TB_FCLT)의 상위 센터가 사용 중인가. 센터를 사용 중지하면 그 강의실은 배정할 수 없다."""
+    center = TB_FCLT.alias("open_center")
+    return or_(
+        TB_FCLT.c.UP_FCLT_SN.is_(None),
+        exists(
+            select(center.c.FCLT_SN).where(center.c.FCLT_SN == TB_FCLT.c.UP_FCLT_SN, center.c.USE_YN == "Y")
+        ).correlate(TB_FCLT),
+    )
+
+
 def list_facilities(db: Session, bundle_sn: int) -> FacilityListResponse:
-    """사용 중인 시설만이다. 센터가 먼저고 그 아래 강의실이 층 순서(층이 없으면 맨 뒤), 이름순으로 온다."""
+    """사용 중인 시설만이며 사용 중지한 센터의 강의실도 뺀다.
+
+    센터가 먼저고 그 아래 강의실이 층 순서(층이 없으면 맨 뒤), 이름순으로 온다.
+    """
     rows = db.execute(
         select(TB_FCLT)
-        .where(TB_FCLT.c.OPER_BNDL_SN == bundle_sn, TB_FCLT.c.USE_YN == "Y")
+        .where(TB_FCLT.c.OPER_BNDL_SN == bundle_sn, TB_FCLT.c.USE_YN == "Y", center_in_use())
         .order_by(
             func.coalesce(TB_FCLT.c.UP_FCLT_SN, TB_FCLT.c.FCLT_SN),
             TB_FCLT.c.UP_FCLT_SN.is_not(None),

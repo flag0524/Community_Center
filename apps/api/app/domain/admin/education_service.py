@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from pydantic import BaseModel
-from sqlalchemy import Select, and_, exists, func, insert, or_, select, update
+from sqlalchemy import Select, and_, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -61,6 +61,7 @@ from app.domain.course.service import _education_state, reception_state, ymd
 from app.domain.payment.service import lock_payment
 from app.domain.refund.service import reserved_amount
 from app.domain.refund.types import COURSE_CANCEL_REASON
+from app.domain.site.facility import center_in_use
 
 DUPLICATE_ENTRY = 1062
 READ = (AU.CORS_R, AU.CORS_W)
@@ -559,17 +560,6 @@ def _detail(db: Session, admin: Admin, now: datetime, course_sn: int) -> AdminCo
 def get_course(db: Session, admin: Admin, *, now: datetime, course_id: str) -> AdminCourse:
     _visible(db, admin, permit_any(db, admin, READ, now), course_id)
     return _detail(db, admin, now, int(course_id))
-
-
-def center_in_use() -> Any:
-    """강의실(TB_FCLT)의 상위 센터가 사용 중인가. 센터를 사용 중지하면 그 강의실은 배정할 수 없다."""
-    center = TB_FCLT.alias("open_center")
-    return or_(
-        TB_FCLT.c.UP_FCLT_SN.is_(None),
-        exists(
-            select(center.c.FCLT_SN).where(center.c.FCLT_SN == TB_FCLT.c.UP_FCLT_SN, center.c.USE_YN == "Y")
-        ).correlate(TB_FCLT),
-    )
 
 
 def get_options(db: Session, admin: Admin, *, now: datetime) -> CourseOptions:

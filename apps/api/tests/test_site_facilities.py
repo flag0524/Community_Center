@@ -76,6 +76,14 @@ def test_사용_중지한_시설과_다른_운영묶음의_시설은_보이지_�
     assert [i["name"] for i in listed(world)] == ["우리 센터"]
 
 
+def test_사용_중지한_센터의_강의실은_사용_중이어도_보이지_않는다(world: World) -> None:
+    closed = facility(world, "중지한 센터", "FT.CENTER", USE_YN="N")
+    facility(world, "남은 강의실", UP_FCLT_SN=closed["FCLT_SN"])
+    center = facility(world, "우리 센터", "FT.CENTER")
+    facility(world, "강당", UP_FCLT_SN=center["FCLT_SN"])
+    assert [i["name"] for i in listed(world)] == ["우리 센터", "강당"]
+
+
 def test_로그인_없이_읽고_쓰기는_받지_않는다(world: World) -> None:
     assert world.client.get(f"{MEMBER}/site/facilities").status_code == 200
     assert world.client.post(f"{MEMBER}/site/facilities", json={}).status_code in (403, 404, 405)

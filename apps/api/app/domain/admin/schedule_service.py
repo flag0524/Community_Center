@@ -13,7 +13,7 @@ from app.auth.admin_access import Admin, permit, permit_any, scope_for
 from app.core.errors import ApiError, ErrorCode
 from app.db.tables import TB_CORS, TB_CORS_ATND, TB_CORS_SCHDL, TB_CORS_SCHDL_CHG, TB_FCLT, TB_JOB_HSTRY
 from app.db.versioned import update_versioned
-from app.domain.admin.education_service import EDITABLE, _visible, center_in_use
+from app.domain.admin.education_service import EDITABLE, _visible
 from app.domain.admin.education_types import ScheduleChangeKind
 from app.domain.admin.schedule_schemas import (
     CourseSchedules,
@@ -26,6 +26,7 @@ from app.domain.admin.schedule_schemas import (
 from app.domain.admin.types import AdminAuthority as AU
 from app.domain.application.seats import lock_course
 from app.domain.course.types import Weekday
+from app.domain.site.facility import center_in_use
 
 WEEKDAYS = list(Weekday)
 LABEL = {"MON": "월", "TUE": "화", "WED": "수", "THU": "목", "FRI": "금", "SAT": "토", "SUN": "일"}
