@@ -7,7 +7,7 @@ description: 조리읍 수강시스템 변경을 실제 API·워커·두 웹 앱
 
 ## 준비
 1. DB 기동: `scripts/db/mariadb-dev.ps1 start` (127.0.0.1:33306).
-2. 개발 DB는 건드리지 않는다. `jori_dev`를 `jori_test`로 복제해 쓴다(DB 시험이 다시 초기화한다). `mariadb-dump.exe`에는 `--skip-add-locks`를 반드시 준다. 없으면 시퀀스 때문에 적재가 실패한다. 접속값은 `%USERPROFILE%\dev-tools\mariadb-credentials.json`이고 비밀번호는 `MYSQL_PWD`로 넘긴다.
+2. 개발 DB는 건드리지 않는다. `jori_dev`를 `jori_test`로 복제해 쓴다. `mariadb-dump.exe`에 `--skip-add-locks`를 주고, **적재하기 전에 덤프의 `` `jori_dev`. `` 문자열을 모두 지운다.** 지우지 않으면 열 기본값이 개발 DB의 시퀀스를 가리켜 복제본의 입력이 개발 DB 번호를 소비한다. 접속값은 `%USERPROFILE%\dev-tools\mariadb-credentials.json`이고 비밀번호는 `MYSQL_PWD`로 넘긴다. 끝나면 `jori_test`의 테이블·시퀀스를 모두 지우고 `alembic upgrade head`로 새로 만든다.
 3. 환경변수는 `docs/시스템_구동_안내서.md` 5.2절을 따르되 DB 이름만 `jori_test`, 첨부 폴더는 임시 폴더로 한다. 모의 PG·문자·검사 어댑터가 켜진다.
 
 ## 띄우기 (각각 백그라운드)
