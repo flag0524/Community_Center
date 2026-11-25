@@ -2,7 +2,8 @@
 # 초안(미검증): 검수를 통과한 빌드 한 벌을 자치회 인스턴스에 올린다. 백업 → 풀기 → 마이그레이션 → 전환 → 건강 확인, 실패하면 이전 버전으로 돌린다.
 # 실제 서버에서 확인하기 전에는 운영에 쓰지 않는다. 먼저 --dry-run으로 순서를 확인한다.
 # 사용법: deploy.sh <인스턴스> <커밋해시> <빌드 산출물 .tar.gz> [--dry-run]
-set -euo pipefail
+# -E: run 함수나 부속 셸 안에서 실패해도 ERR 처리(되돌리기)가 불리게 한다
+set -Eeuo pipefail
 
 INSTANCE="${1:?사용법: deploy.sh <인스턴스> <커밋해시> <빌드 산출물 .tar.gz> [--dry-run]}"
 COMMIT="${2:?커밋 해시가 필요합니다}"
@@ -27,7 +28,15 @@ PREVIOUS=""
 [[ -L "$CURRENT" ]] && PREVIOUS="$(readlink "$CURRENT")"
 
 rollback() {
+  [[ "$BASHPID" == "$$" ]] || return 0   # 부속 셸에서는 하지 않고 본 셸에서 한 번만 되돌린다
+  trap - ERR
   echo "배포 실패. 이전 버전으로 되돌립니다: ${PREVIOUS:-없음}" >&2
+  # 설정에 남긴 커밋 해시를 되살린다. 그대로 두면 이전 버전이 실패한 커밋이라고 답한다
+  if [[ -n "$PREVIOUS_COMMIT_LINE" ]]; then
+    sed -i "s|^JORI_BUILD_COMMIT=.*|${PREVIOUS_COMMIT_LINE}|" "$ENV_FILE" || true
+  else
+    sed -i '/^JORI_BUILD_COMMIT=/d' "$ENV_FILE" || true
+  fi
   if [[ -n "$PREVIOUS" ]]; then
     ln -sfn "$PREVIOUS" "${CURRENT}.new" && mv -T "${CURRENT}.new" "$CURRENT"
     systemctl restart "jori-api@${INSTANCE}" "jori-worker@${INSTANCE}" || true
@@ -46,6 +55,8 @@ say "3/7 파이썬 환경 맞추기"
 run env UV_PROJECT_ENVIRONMENT="${BASE}/venv" uv sync --frozen --no-dev --project "${RELEASE}/apps/api"
 
 say "4/7 설정에 커밋 해시 기록"
+PREVIOUS_COMMIT_LINE=""
+[[ "$DRY_RUN" == 1 ]] || PREVIOUS_COMMIT_LINE="$(grep -m1 '^JORI_BUILD_COMMIT=' "$ENV_FILE" || true)"
 if [[ "$DRY_RUN" == 1 ]]; then
   echo "[dry-run] ${ENV_FILE} 의 JORI_BUILD_COMMIT를 ${COMMIT}로 바꿈"
 else

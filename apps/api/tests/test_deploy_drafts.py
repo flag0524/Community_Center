@@ -102,7 +102,7 @@ def test_스크립트는_문법이_맞고_실패하면_멈추고_dry_run을_받�
     result = bash("-n", posix(path))
     assert result.returncode == 0, result.stderr
     text = path.read_text(encoding="utf-8")
-    assert "set -euo pipefail" in text and "--dry-run" in text and "초안(미검증)" in text
+    assert re.search(r"^set -E?euo pipefail$", text, re.M) and "--dry-run" in text and "초안(미검증)" in text
     assert b"\r" not in path.read_bytes()  # 리눅스에서 줄 끝 문자 때문에 깨지지 않게
 
 
@@ -194,6 +194,55 @@ def test_배포_dry_run은_일곱_단계를_순서대로_보이고_커밋_형식
     assert "JORI_BUILD_COMMIT" in out
     bad = bash(posix(DEPLOY / "deploy.sh"), "jori", "not-a-hash", "/tmp/x", "--dry-run", env=env)
     assert bad.returncode == 2 and "커밋 해시 형식" in bad.stderr
+
+
+def fake_command(path: Path, body: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(f"#!/usr/bin/env bash\n{body}\n".encode())
+    path.chmod(0o755)
+
+
+def run_failing_deploy(tmp_path: Path, **failing: str) -> tuple[subprocess.CompletedProcess[str], str]:
+    """설치 경로만 임시 폴더로 바꾼 배포 스크립트를 가짜 명령으로 돌린다. (결과, 끝난 뒤의 설정 파일)"""
+    base, bin_dir, config = tmp_path / "opt", tmp_path / "bin", tmp_path / "config"
+    script = tmp_path / "deploy/deploy.sh"
+    text = (DEPLOY / "deploy.sh").read_text(encoding="utf-8")
+    assert 'BASE="/opt/jori"' in text
+    script.parent.mkdir(parents=True)
+    script.write_bytes(text.replace('BASE="/opt/jori"', f'BASE="{posix(base)}"').encode())
+    commands = {"uv": "exit 0", "systemctl": "exit 0", "curl": "exit 1", "sleep": "exit 0"}
+    for name, body in {**commands, **failing}.items():
+        fake_command(bin_dir / name, body)
+    fake_command(bin_dir / "tar", 'mkdir -p "$4/apps/api"')
+    fake_command(tmp_path / "deploy/backup/backup.sh", "exit 0")
+    fake_command(base / "venv/bin/alembic", failing.get("alembic", "exit 0"))
+    config.mkdir()
+    env_file = config / "jori.env"
+    env_file.write_bytes(b"JORI_SECRET_KEY=k\nJORI_BUILD_COMMIT=0000000\n")
+    (config / "jori.migrate.env").write_bytes(b"JORI_MIGRATE_DATABASE_URL=x\n")
+    archive = tmp_path / "build.tar.gz"
+    archive.write_bytes(b"x")
+    # 윈도 Git bash는 PATH 앞에 /usr/bin을 붙이므로, 시작할 때 읽는 BASH_ENV에서 가짜 명령을 맨 앞에 둔다
+    startup = tmp_path / "startup.sh"
+    startup.write_bytes(f'export PATH="{posix(bin_dir)}:$PATH"\n'.encode())
+    env = {"PATH": "/usr/bin:/bin", "BASH_ENV": posix(startup), "JORI_CONFIG_DIR": posix(config)}
+    result = bash(posix(script), "jori", "abc1234", posix(archive), env=env)
+    return result, env_file.read_text(encoding="utf-8")
+
+
+@needs_bash
+@pytest.mark.parametrize(
+    "failing",
+    [{"systemctl": "exit 1"}, {"alembic": "exit 1"}, {}],
+    ids=["재시작_실패", "마이그레이션_실패", "건강_확인_실패"],
+)
+def test_전환_전후_어디서_실패해도_한_번_되돌리고_커밋_기록을_되살린다(
+    tmp_path: Path, failing: dict[str, str]
+) -> None:
+    result, env_after = run_failing_deploy(tmp_path, **failing)
+    assert result.returncode != 0
+    assert result.stderr.count("배포 실패") == 1, result.stderr
+    assert "JORI_BUILD_COMMIT=0000000" in env_after and "abc1234" not in env_after
 
 
 def test_배포_스크립트는_구조_변경에_마이그레이션_계정을_쓰고_실패하면_되돌린다() -> None:
