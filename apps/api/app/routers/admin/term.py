@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.auth.admin_access import Admin, require_admin
 from app.auth.deps import Clock, get_clock, request_id_of
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import term_service as service
 from app.domain.admin.term_schemas import (
@@ -37,7 +38,7 @@ def list_term_versions(
     admin: Me,
     clock: Now,
     term_type: Annotated[TermType | None, Query(alias="type")] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> TermVersionPage:
     """문안 종류별 버전 목록. 최신 시행일이 먼저 나온다."""

@@ -15,6 +15,7 @@ from app.auth.deps import (
     require_member_write,
 )
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.bundle import BundleResolver
 from app.db.session import get_db
 from app.domain.board import inquiry, review
@@ -45,7 +46,7 @@ member_router = APIRouter(
 )
 
 PostId = Annotated[str, Path(pattern=r"^[0-9]{1,22}$", description="게시물 일련번호(문자열)")]
-Page_ = Annotated[int, Query(ge=1)]
+Page_ = Annotated[int, Query(ge=1, le=MAX_PAGE)]
 Size = Annotated[int, Query(ge=1, le=50)]
 Db = Annotated[Session, Depends(get_db)]
 Me = Annotated[Member, Depends(require_member)]

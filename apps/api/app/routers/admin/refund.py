@@ -10,6 +10,7 @@ from app.auth.admin_access import Admin, require_admin, require_admin_write
 from app.auth.deps import Clock, get_clock, get_payment_gateway, request_id_of
 from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import refund_service as service
 from app.domain.admin.application_types import RefundRequester
@@ -65,7 +66,7 @@ def list_admin_refunds(
     requester: RefundRequester | None = None,
     from_date: Annotated[date | None, Query(alias="from")] = None,
     to_date: Annotated[date | None, Query(alias="to")] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> AdminRefundPage:
     """검토가 급한 건(접수·보류, 오래된 순)을 먼저 보인다. 담당 범위의 강좌에 걸린 환불만 보인다."""

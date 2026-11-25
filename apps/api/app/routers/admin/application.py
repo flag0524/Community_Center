@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.auth.admin_access import Admin, require_admin
 from app.auth.deps import Clock, get_clock, request_id_of
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import application_service as service
 from app.domain.admin.application_schemas import (
@@ -44,7 +45,7 @@ def list_admin_applications(
     payment_status: Annotated[PaymentStatus | None, Query(alias="paymentStatus")] = None,
     from_date: Annotated[date | None, Query(alias="from")] = None,
     to_date: Annotated[date | None, Query(alias="to")] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> AdminApplicationPage:
     """범위 밖 강좌의 신청은 나오지 않는다. 범위는 신청자 거주지가 아니라 강좌의 운영 동이다."""
@@ -110,7 +111,7 @@ def list_waitlist(
     admin: Me,
     clock: Now,
     cycle_id: Annotated[str | None, Query(alias="cycleId", pattern=r"^[0-9]{1,22}$")] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> WaitlistPage:
     return service.list_waitlist(db, admin, now=clock(), cycle_id=cycle_id, page=page, size=size)

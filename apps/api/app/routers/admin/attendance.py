@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.auth.admin_access import Admin, require_admin
 from app.auth.deps import Clock, get_clock
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import attendance_service as service
 from app.domain.admin.attendance_schemas import AttendanceDetail, AttendancePage
@@ -32,7 +33,7 @@ def list_attendance(
     course_id: Annotated[str | None, Query(alias="courseId", pattern=r"^[0-9]{1,22}$")] = None,
     class_date: Annotated[date | None, Query(alias="classDate")] = None,
     input_status: Annotated[AttendanceInputStatus | None, Query(alias="inputStatus")] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> AttendancePage:
     """출석부는 CSV로 내려받을 수 없다(FN-064)."""

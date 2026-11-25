@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.auth.admin_access import Admin, require_admin
 from app.auth.deps import Clock, get_clock, request_id_of
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import reduction_service as service
 from app.domain.admin.reduction_schemas import (
@@ -37,7 +38,7 @@ def list_reductions(
     clock: Now,
     status: ReductionStatus | None = None,
     cycle_id: Annotated[str | None, Query(alias="cycleId", pattern=r"^[0-9]{1,22}$")] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> ReductionReviewPage:
     """접수된 심사가 먼저, 오래된 신청부터 나온다."""
@@ -89,7 +90,7 @@ def list_reduction_history(
     result: ReductionDecision | None = None,
     from_date: Annotated[date | None, Query(alias="from")] = None,
     to_date: Annotated[date | None, Query(alias="to")] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> ReductionHistoryPage:
     """신청에 적용된 판정 이력. 판정마다 새 행이 쌓이고 고치지 않는다(FN-038)."""

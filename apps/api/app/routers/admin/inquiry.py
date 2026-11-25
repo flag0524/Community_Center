@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.auth.admin_access import Admin, require_admin
 from app.auth.deps import Clock, get_clock, request_id_of
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import inquiry_service as service
 from app.domain.admin.csv_export import csv_response
@@ -45,7 +46,7 @@ def list_admin_inquiries(
     status: InquiryStatus | None = None,
     category_id: CategoryQuery = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> AdminInquiryPage:
     """범위 밖 문의는 나오지 않는다. 접수 상태(답변 대기)가 먼저 나온다."""

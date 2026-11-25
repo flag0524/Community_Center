@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import Clock, get_bundle_resolver, get_clock
 from app.core.errors import ErrorCode
-from app.core.schema import SerialId
+from app.core.schema import MAX_PAGE, SerialId
 from app.db.bundle import BundleResolver
 from app.db.session import get_db
 from app.domain.course import service
@@ -36,7 +36,7 @@ def list_courses(
     category_id: Annotated[SerialId | None, Query(alias="categoryId")] = None,
     day: Annotated[Weekday | None, Query()] = None,
     status: Annotated[ReceptionState | None, Query()] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=50, description="페이지당 건수. 기본 10건(PRD Q13).")] = 10,
 ) -> CoursePage:
     return service.list_courses(

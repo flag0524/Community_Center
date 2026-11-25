@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.auth.admin_access import Admin, require_admin
 from app.auth.deps import Clock, get_clock, request_id_of
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import content_service as service
 from app.domain.admin.content_schemas import (
@@ -34,7 +35,7 @@ def list_admin_contents(
     admin: Me,
     clock: Now,
     content_type: Annotated[ContentType | None, Query(alias="type")] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> AdminContentPage:
     return service.list_contents(db, admin, now=clock(), content_type=content_type, page=page, size=size)

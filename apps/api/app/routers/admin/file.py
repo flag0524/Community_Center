@@ -8,6 +8,7 @@ from app.auth.admin_access import Admin, require_admin, require_admin_write
 from app.auth.deps import Clock, get_clock, request_id_of
 from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import file_service as service
 from app.domain.admin.file_schemas import AdminFile, AdminFilePage
@@ -39,7 +40,7 @@ def list_admin_files(
     owner_kind: Annotated[FileOwnerKind | None, Query(alias="ownerKind")] = None,
     status: FileStatus | None = None,
     q: Annotated[str | None, Query(max_length=100, description="파일명")] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> AdminFilePage:
     """소유 업무에 접근 권한이 없는 파일은 조건과 무관하게 나오지 않는다(RQ-SER-NF-009)."""

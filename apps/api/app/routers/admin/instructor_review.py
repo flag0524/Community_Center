@@ -8,6 +8,7 @@ from app.auth.admin_access import Admin, require_admin
 from app.auth.deps import Clock, get_clock, request_id_of
 from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import instructor_review_service as service
 from app.domain.admin.education_types import ReviewStatus
@@ -42,7 +43,7 @@ def list_instructor_reviews(
     q: Annotated[str | None, Query(max_length=100, description="지원자 또는 희망 강좌")] = None,
     status: ReviewStatus | None = None,
     is_public: Annotated[bool | None, Query(alias="isPublic")] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> InstructorReviewPage:
     return service.list_reviews(

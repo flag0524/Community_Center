@@ -8,6 +8,7 @@ from app.auth.admin_access import Admin, require_admin
 from app.auth.deps import Clock, get_clock, request_id_of
 from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import sms_service as service
 from app.domain.admin.sms_schemas import (
@@ -39,7 +40,7 @@ def list_sms_requests(
     admin: Me,
     clock: Now,
     kind: SmsKind = SmsKind.AUTO,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> SmsRequestPage:
     """자동 알림과 관리자 발송 이력. 최근 요청이 먼저 나온다."""

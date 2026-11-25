@@ -114,3 +114,11 @@ def test_예상하지_못한_예외는_500이고_상세를_숨긴다() -> None:
 def test_문서_화면과_스키마_URL은_열려_있지_않다(client: TestClient) -> None:
     for path in ("/docs", "/redoc", "/openapi.json", "/api/v1/openapi.json"):
         assert client.get(path).status_code == 404, path
+
+
+def test_너무_큰_쪽_번호는_500이_아니라_400이다(client: TestClient) -> None:
+    for page in ("1000001", "99999999999999999999"):
+        response = client.get("/api/v1/courses", params={"page": page})
+        assert response.status_code == 400, page
+        assert_error_shape(response.json(), ErrorCode.VALIDATION_FAILED)
+        assert "page" in response.json()["fields"]

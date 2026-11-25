@@ -1186,3 +1186,15 @@ def test_개인식별_명단은_암호_ZIP을_한_번만_주고_멱등키를_요
     assert spec["components"]["schemas"][body]["required"] == ["target"]
     assert spec["components"]["schemas"]["PiiExportTarget"]["enum"] == ["MEMBERS", "APPLICATIONS"]
     assert "Idempotency-Key" in {p["name"] for p in post["parameters"]}
+
+
+def test_쪽_번호를_받는_모든_조회는_상한이_있다(spec: Schema) -> None:
+    pages = {
+        (method, path): parameter["schema"]
+        for path, item in spec["paths"].items()
+        for method, operation in item.items()
+        for parameter in operation.get("parameters", [])
+        if parameter["in"] == "query" and parameter["name"] == "page"
+    }
+    assert len(pages) >= 30
+    assert [key for key, schema in pages.items() if schema.get("maximum") != 1_000_000] == []

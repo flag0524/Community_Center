@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.auth.admin_access import Admin, require_admin
 from app.auth.deps import Clock, get_clock, request_id_of
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import board_service as service
 from app.domain.admin.board_schemas import (
@@ -61,7 +62,7 @@ def list_admin_posts(
     clock: Now,
     board: BoardKey | None = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> AdminPostPage:
     """상단공지가 먼저 나온다. 삭제한 글은 나오지 않는다."""

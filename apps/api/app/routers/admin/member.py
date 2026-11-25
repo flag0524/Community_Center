@@ -8,6 +8,7 @@ from app.auth.admin_access import Admin, require_admin
 from app.auth.deps import Clock, get_clock, request_id_of
 from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import member_service as service
 from app.domain.admin.member_schemas import (
@@ -41,7 +42,7 @@ def list_members(
     clock: Now,
     q: Annotated[str | None, Query(max_length=100, description="아이디 또는 이름")] = None,
     status: MemberStatus | None = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> AdminMemberPage:
     """연령대는 담지 않는다. 개인 연령은 기관 제공 집계자료로만 다룬다(PRD Q7)."""

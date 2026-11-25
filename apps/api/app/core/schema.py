@@ -38,6 +38,10 @@ ClockTime = Annotated[
 ]
 
 
+# 목록 쪽 번호의 상한. 건너뛸 행 수가 DB가 받는 범위를 넘으면 500이 되므로 입력에서 막는다
+MAX_PAGE = 1_000_000
+
+
 class ServerTimed(ApiModel):
     """결제기한 카운트다운처럼 서버 시각 기준이 필요한 응답에 붙는다."""
 

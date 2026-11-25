@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.auth.deps import Clock, Member, get_clock, request_id_of, require_member, require_member_write
 from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.refund import service
 from app.domain.refund.schemas import Refund, RefundCreate, RefundPage, RefundPreview
@@ -84,7 +85,7 @@ def list_my_refunds(
     db: Db,
     me: Me,
     clock: Now,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=50)] = 10,
 ) -> RefundPage:
     return service.list_mine(

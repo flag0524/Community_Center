@@ -16,6 +16,7 @@ from app.auth.deps import (
 )
 from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.bundle import BundleResolver
 from app.db.session import get_db
 from app.domain.instructor import service
@@ -45,7 +46,7 @@ member_router = APIRouter(
 )
 
 Serial = Annotated[str, Path(pattern=r"^[0-9]{1,22}$", description="일련번호(문자열)")]
-Page_ = Annotated[int, Query(ge=1)]
+Page_ = Annotated[int, Query(ge=1, le=MAX_PAGE)]
 Size = Annotated[int, Query(ge=1, le=50)]
 NOT_FOUND = error_responses(ErrorCode.NOT_FOUND)
 WRITE_ERRORS = error_responses(ErrorCode.NOT_FOUND, ErrorCode.RULE_REJECTED, ErrorCode.IDEMPOTENCY_CONFLICT)

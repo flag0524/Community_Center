@@ -10,6 +10,7 @@ from app.auth.admin_access import Admin, require_admin, require_admin_write
 from app.auth.deps import Clock, get_clock, get_payment_gateway, request_id_of
 from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import transaction_service as service
 from app.domain.admin.csv_export import csv_stream_response
@@ -44,7 +45,7 @@ def list_transactions(
     conflict_only: Annotated[
         bool, Query(alias="conflictOnly", description="충돌 통보가 있는 거래만")
     ] = False,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> TransactionPage:
     """결과 확인 중인 거래를 먼저 보이고 그 안에서는 최근 요청이 앞이다."""

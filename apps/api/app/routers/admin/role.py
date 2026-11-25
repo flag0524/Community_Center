@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.auth.admin_access import Admin, require_admin
 from app.auth.deps import Clock, get_clock, request_id_of
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import role_service as service
 from app.domain.admin.role_schemas import (
@@ -44,7 +45,7 @@ def list_role_assignments(
     clock: Now,
     status: AssignmentStatus | None = None,
     q: Annotated[str | None, Query(max_length=100, description="관리자 이름")] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> RoleAssignmentPage:
     """내 범위 안의 배정만 나온다. 시스템 관리자는 업무 본문을 보지 못하므로 업무 범위 배정은 요약만 본다."""

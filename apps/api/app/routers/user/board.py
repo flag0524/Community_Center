@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.auth.deps import Clock, get_bundle_resolver, get_clock
 from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.bundle import BundleResolver
 from app.db.session import get_db
 from app.domain.board import service
@@ -31,7 +32,7 @@ def list_posts(
     bundles: Bundles,
     clock: Now,
     q: Annotated[str | None, Query(max_length=100, description="제목 검색어")] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=50)] = 10,
 ) -> PostPage:
     """공개된 게시물만 상단공지, 등록일시 내림차순으로 준다."""

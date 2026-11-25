@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.auth.admin_access import Admin, require_admin
 from app.auth.deps import Clock, get_clock
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import setting_service as service
 from app.domain.admin.setting_schemas import SettingDetail, SettingPage
@@ -28,7 +29,7 @@ def list_settings(
     clock: Now,
     status: OperRuleStatus | None = None,
     q: Annotated[str | None, Query(max_length=100, description="항목명")] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> SettingPage:
     """운영 기준과 검토 상태. 확정은 실제 기능에 적용되었다는 뜻이 아니다."""

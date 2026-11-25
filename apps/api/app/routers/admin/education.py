@@ -8,6 +8,7 @@ from app.auth.admin_access import Admin, require_admin, require_admin_write
 from app.auth.deps import Clock, get_clock, request_id_of
 from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode
+from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import education_service as service
 from app.domain.admin.csv_export import csv_response
@@ -38,7 +39,7 @@ router = APIRouter(tags=["admin-education"], responses=MEMBER_ERRORS, dependenci
 
 Serial = Annotated[str, Path(pattern=r"^[0-9]{1,22}$", description="일련번호(문자열)")]
 SerialQuery = Annotated[str | None, Query(pattern=r"^[0-9]{1,22}$")]
-Page_ = Annotated[int, Query(ge=1)]
+Page_ = Annotated[int, Query(ge=1, le=MAX_PAGE)]
 Size = Annotated[int, Query(ge=1, le=100)]
 WRITE_ERRORS = error_responses(
     ErrorCode.NOT_FOUND,
