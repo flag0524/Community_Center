@@ -9,6 +9,8 @@ from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.db.tables import TB_FILE
+from app.domain.admin import file_service
+from app.domain.file.owner import lock_owner
 from app.domain.file.upload import MAX_BYTES
 from tests.test_admin_access import dong
 from tests.test_admin_refunds import Actor, call, refund, staff, use
@@ -150,6 +152,23 @@ def test_폐강하거나_종료한_강좌는_잠겨_올릴_수_없다(world: Wor
     assert shown["canEdit"] is False
     r = upload(world, f"/courses/{target['CORS_SN']}/files")
     assert r.status_code == 409 and r.json()["code"] == "CONFLICT_STATE" and files_of(world) == []
+
+
+def test_잠그기를_기다리는_사이에_강좌가_폐강되면_올리지_않는다(
+    world: World, root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = course(world)
+    writer(world)
+
+    def cancelled_while_waiting(db: Any, bundle_sn: int, owner: Any) -> None:
+        sql = text("UPDATE TB_CORS SET CORS_STTS_CD='CS.CANCEL' WHERE CORS_SN=:c")
+        db.execute(sql, {"c": target["CORS_SN"]})  # 다른 담당자의 폐강이 먼저 확정된 상황
+        lock_owner(db, bundle_sn, owner)
+
+    monkeypatch.setattr(file_service, "lock_owner", cancelled_while_waiting)
+    r = upload(world, f"/courses/{target['CORS_SN']}/files")
+    assert r.status_code == 409 and r.json()["code"] == "CONFLICT_STATE", r.text
+    assert files_of(world) == [] and not [p for p in root.rglob("*") if p.is_file()]
 
 
 def test_강의계획서는_한_개이고_제거한_뒤에는_다시_올릴_수_있다(world: World, root: Path) -> None:

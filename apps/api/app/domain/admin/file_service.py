@@ -281,6 +281,9 @@ def upload_owner_file(
         message = "갤러리에는 이미지(jpg·jpeg·png)만 올릴 수 있습니다."
         raise ApiError(ErrorCode.RULE_REJECTED, message, fields={"file": message})
     lock_owner(db, admin.bundle_sn, owner)
+    owner = owner_of(db, admin, now, kind, sn)  # 기다리는 사이에 업무가 잠겼을 수 있어 잠근 뒤 다시 읽는다
+    if not owner.can_edit:
+        raise ApiError(ErrorCode.CONFLICT_STATE)
     return store_upload(
         db,
         settings,
