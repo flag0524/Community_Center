@@ -42,7 +42,7 @@ from app.domain.admin.refund_schemas import (
 from app.domain.admin.types import AdminAuthority as AU
 from app.domain.application.seats import lock_course, promote_waiters
 from app.domain.payment.service import CODE_METHOD, lock_application, lock_payment, record_event
-from app.domain.refund.calc import reference_amount
+from app.domain.refund.calc import Reference, reference_amount
 from app.domain.refund.service import (
     DEFAULT_REASON,
     DUPLICATE_ENTRY,
@@ -53,7 +53,7 @@ from app.domain.refund.service import (
     paid_payment,
     reserved_amount,
 )
-from app.domain.refund.types import RefundStatus
+from app.domain.refund.types import COURSE_CANCEL_REASON, RefundRule, RefundStatus
 
 VIEW = (AU.RFND_A, AU.RFND_X)
 STATUS_CODE = {value: code for code, value in STATUS.items()}
@@ -104,6 +104,8 @@ def _base(bundle_sn: int) -> Select[Any]:
             TB_CORS.c.DONG_SN,
             TB_CORS.c.EDU_BGNG_YMD,
             TB_CORS.c.EDU_END_YMD,
+            TB_CORS.c.CORS_STTS_CD,
+            TB_ATNLC_APLY.c.RTRCN_RSN,
             TB_MBR.c.MBR_NM.label("MEMBER_NM"),
             requester.c.MNGR_NM.label("REQUESTER_NM"),
             approver.c.MNGR_NM.label("APPROVER_NM"),
@@ -298,6 +300,13 @@ def _manual_account(settings: Settings, row: Any) -> ManualAccount | None:
     )
 
 
+def _baseline(row: Any, paid: int, now: datetime) -> Reference:
+    """환불 상한의 근거. 폐강으로 취소한 신청은 기관 사유라 원결제액 전액이고(ADR-047), 그 밖은 반환 기준액 공식이다."""
+    if row.CORS_STTS_CD == "CS.CANCEL" and row.RTRCN_RSN == COURSE_CANCEL_REASON:
+        return Reference(paid, RefundRule.COURSE_CANCEL, kst_today(now))
+    return reference_amount(paid, str(row.EDU_BGNG_YMD), str(row.EDU_END_YMD), kst_today(now))
+
+
 def _failure_reason(db: Session, refund_sn: int) -> str | None:
     return db.execute(
         select(TB_STLM_EVENT.c.FAIL_RSN)
@@ -311,7 +320,7 @@ def _detail(db: Session, settings: Settings, admin: Admin, now: datetime, refund
     stlm_sn = int(row.STLM_SN)
     paid = int(row.STLM_AMT)
     held = _held_by_others(db, admin.bundle_sn, stlm_sn, refund_sn)
-    ref = reference_amount(paid, str(row.EDU_BGNG_YMD), str(row.EDU_END_YMD), kst_today(now))
+    ref = _baseline(row, paid, now)
     review, execute = scope_for(db, admin, AU.RFND_A, now), scope_for(db, admin, AU.RFND_X, now)
     status = str(row.RFND_STTS_CD)
     # 이체 완료를 확인하면 계좌정보를 파기하므로(R22, ADR-085) 완료된 환불은 PG 취소 번호가 없으면 수동 이체였던 것이다
@@ -548,9 +557,7 @@ def approve(
     if payment.STLM_STTS_CD != "PS.PAID" or amount > int(refund.RFND_AMT):
         raise ApiError(ErrorCode.RULE_REJECTED)
     target = db.execute(_base(admin.bundle_sn).where(TB_RFND.c.RFND_SN == sn)).one()
-    ref = reference_amount(
-        int(payment.STLM_AMT), str(target.EDU_BGNG_YMD), str(target.EDU_END_YMD), kst_today(now)
-    )
+    ref = _baseline(target, int(payment.STLM_AMT), now)
     held = _held_by_others(db, admin.bundle_sn, int(payment.STLM_SN), sn)
     if held + amount > ref.amount:
         raise ApiError(ErrorCode.RFND_LIMIT_EXCEEDED)

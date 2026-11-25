@@ -352,6 +352,54 @@ def test_승인액은_기준액과_같으면_되고_1원이라도_넘으면_거�
     assert ok.status_code == 200
 
 
+def closed_course_refund(w: World, *, cancel_reason: str = "폐강", **values: Any) -> dict[str, Any]:
+    """교육기간이 이미 끝난 폐강 강좌의 환불 한 건. 반환 기준액 공식으로는 0원이다."""
+    row = course(w, CORS_STTS_CD="CS.CANCEL", EDU_BGNG_YMD="20260901", EDU_END_YMD="20261031")
+    made = refund(w, row=row, **values)
+    w.db.execute(
+        text(
+            "UPDATE TB_ATNLC_APLY SET RTRCN_RSN=:r WHERE ATNLC_APLY_SN="
+            "(SELECT ATNLC_APLY_SN FROM TB_STLM WHERE STLM_SN=:s)"
+        ),
+        {"r": cancel_reason, "s": state(w, made)["STLM_SN"]},
+    )
+    return made
+
+
+def test_폐강으로_취소된_신청의_환불은_교육기간이_지나도_전액_승인한다(world: World) -> None:
+    who = staff(world, "boss", "AU.RFND_A")
+    target = closed_course_refund(world)
+    use(world, who)
+    body = call(world, "GET", f"/refunds/{target['RFND_SN']}").json()
+    assert body["baselineAmount"] == 30000 and body["baselineRule"] == "COURSE_CANCEL"
+    r = call(world, "PUT", f"/refunds/{target['RFND_SN']}/approve", {"amount": 30000, "version": 1})
+    assert r.status_code == 200
+    assert state(world, target)["RFND_STTS_CD"] == "RS.APPROVE"
+
+
+def test_폐강_환불도_다른_환불이_차지한_금액을_뺀_만큼만_승인한다(world: World) -> None:
+    who = staff(world, "boss", "AU.RFND_A")
+    first = closed_course_refund(world, status="RS.DONE", amount=10000, RFND_DT=START)
+    second = closed_course_refund(world)
+    world.db.execute(
+        text("UPDATE TB_RFND SET STLM_SN=:s WHERE RFND_SN=:r"),
+        {"s": state(world, first)["STLM_SN"], "r": second["RFND_SN"]},
+    )
+    use(world, who)
+    r = call(world, "PUT", f"/refunds/{second['RFND_SN']}/approve", {"amount": 30000, "version": 1})
+    assert r.status_code == 422 and r.json()["code"] == "RFND_LIMIT_EXCEEDED"
+    rest = call(world, "PUT", f"/refunds/{second['RFND_SN']}/approve", {"amount": 20000, "version": 1})
+    assert rest.status_code == 200
+
+
+def test_폐강_전에_본인이_취소한_신청은_폐강한_강좌여도_기준액_공식을_쓴다(world: World) -> None:
+    who = staff(world, "boss", "AU.RFND_A")
+    target = closed_course_refund(world, cancel_reason="개인 사정")
+    use(world, who)
+    r = call(world, "PUT", f"/refunds/{target['RFND_SN']}/approve", {"amount": 30000, "version": 1})
+    assert r.status_code == 422 and r.json()["code"] == "RFND_LIMIT_EXCEEDED"
+
+
 @pytest.mark.parametrize(
     ("other_status", "holds"),
     [

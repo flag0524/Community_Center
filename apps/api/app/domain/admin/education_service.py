@@ -54,6 +54,7 @@ from app.domain.application.service import ACTIVE, SEAT_STATUSES
 from app.domain.course.service import _education_state, reception_state, ymd
 from app.domain.payment.service import lock_payment
 from app.domain.refund.service import reserved_amount
+from app.domain.refund.types import COURSE_CANCEL_REASON
 
 DUPLICATE_ENTRY = 1062
 READ = (AU.CORS_R, AU.CORS_W)
@@ -78,7 +79,6 @@ DEFAULT_CLASS_CODE = (
     "CC.ETC"  # 센터별 분류는 CORS_CLSF_SN이 정한다. 코드 컬럼은 스키마가 보존용으로 둔 값이다
 )
 PAYMENT_WINDOW_MINUTES = 10
-COURSE_CANCEL_REASON = "폐강"
 NONE_ID = "0"  # 동·분류·강사가 비어 있는 기존 강좌를 계약의 필수 번호 필드에 담을 때 쓴다
 
 

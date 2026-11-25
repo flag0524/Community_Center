@@ -117,7 +117,7 @@ export const REFUND_REQUESTER: Record<Schemas['RefundRequester'], string> = { ME
 
 export const EXECUTION_METHOD: Record<Schemas['ExecutionMethod'], string> = { CANCEL_PAYMENT: '원결제 취소', MANUAL_TRANSFER: '수동 계좌환불' };
 
-export const REFUND_RULE: Record<Schemas['RefundRule'], string> = { BEFORE_START: '개강 전 전액', AFTER_START: '개강 후 당월분 제외' };
+export const REFUND_RULE: Record<Schemas['RefundRule'], string> = { BEFORE_START: '개강 전 전액', AFTER_START: '개강 후 당월분 제외', COURSE_CANCEL: '폐강(전액 반환)' };
 
 export const MEMBER_STATUS: Record<Schemas['MemberStatus'], string> = { ACTIVE: '정상', LOCKED: '잠금', WITHDRAWN: '탈퇴' };
 

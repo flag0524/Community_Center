@@ -36,6 +36,7 @@ function toAccount(form: AccountForm): RefundAccount {
 
 function basisText(basis: RefundPreview['basis']): string {
   if (basis.rule === 'BEFORE_START') return '개강 전이므로 결제한 수강료 전액을 반환합니다.';
+  if (basis.rule === 'COURSE_CANCEL') return '폐강한 강좌라 결제한 수강료 전액을 반환합니다.';
   return `개강 후에는 당월 수강료를 제외하고 반환합니다. (교육 ${basis.educationMonths}개월 중 ${basis.elapsedMonths}개월 경과, 월 수강료 ${formatFee(basis.monthlyFee ?? 0)})`;
 }
 

@@ -24,8 +24,13 @@ class RefundStage(StrEnum):
     REJECTED = "REJECTED"  # 반려 (사유 표시)
 
 
+# 폐강으로 취소한 신청에 남기는 취소 사유. 환불 상한을 정할 때 이 값으로 폐강 환불을 가른다
+COURSE_CANCEL_REASON = "폐강"
+
+
 class RefundRule(StrEnum):
     """반환 기준액을 어떤 규칙으로 산정했는지(TDD 5.6)."""
 
     BEFORE_START = "BEFORE_START"  # 개강 전 전액
     AFTER_START = "AFTER_START"  # 개강 후 당월분 제외
+    COURSE_CANCEL = "COURSE_CANCEL"  # 폐강(기관 사유)이라 반환 기준액 공식을 쓰지 않고 전액(ADR-047)
