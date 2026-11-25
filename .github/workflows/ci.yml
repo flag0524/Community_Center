@@ -25,7 +25,7 @@ jobs:
       JORI_REQUIRE_DB: "1" # DB가 없으면 건너뛰지 않고 실패시킨다(DB 없는 결과를 통과로 보고하지 않는다)
       JORI_TEST_DATABASE_URL: mysql+pymysql://root:ci-only-password@127.0.0.1:3306/jori_test?charset=utf8mb4
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # 운영과 같은 설정(READ COMMITTED, ROW 바이너리 로그, utf8mb4, UTC)으로 띄운다. 서비스 컨테이너로는 설정 파일을 줄 수 없다
       - name: MariaDB 10.11 기동
@@ -42,7 +42,7 @@ jobs:
           docker logs jori-mariadb
           exit 1
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v10.4.0 # v8부터 주 버전 태그가 없어 전체 버전으로 적는다
         with:
           enable-cache: true
           cache-dependency-glob: apps/api/uv.lock
@@ -56,7 +56,7 @@ jobs:
           COVERAGE_CORE: sysmon # 기본 추적기보다 훨씬 빠르다
         run: uv run pytest -q --cov=app --cov-report=term:skip-covered --cov-report=xml
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: api-coverage
@@ -67,14 +67,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4 # 버전은 package.json의 packageManager를 따른다
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6 # 버전은 package.json의 packageManager를 따른다
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
       # 웹 계약(api-client)은 API의 OpenAPI에서 만들므로 Python 환경이 필요하다
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v10.4.0 # v8부터 주 버전 태그가 없어 전체 버전으로 적는다
         with:
           enable-cache: true
           cache-dependency-glob: apps/api/uv.lock
