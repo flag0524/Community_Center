@@ -126,6 +126,17 @@ describe('신청 상세', () => {
     expect(screen.getByRole('button', { name: '신청 취소' })).toBeInTheDocument();
   });
 
+  it('감면을 예정한 대기 신청은 자리가 배정될 때 결제금액이 달라질 수 있음을 알린다', async () => {
+    await signInAsDemo();
+    const waiting = await apply('3');
+    server.use(
+      http.get('/api/v1/me/applications/:applicationId', () => HttpResponse.json({ ...waiting, reductionAmount: 30000 })),
+    );
+    renderApp(`/me/applications/${waiting.applicationId}`);
+
+    expect(await screen.findByText(/감면은 자리가 배정될 때 다시 확인합니다/)).toBeInTheDocument();
+  });
+
   it('없는 신청 번호는 찾을 수 없음이다', async () => {
     await signInAsDemo();
     renderApp('/me/applications/9999999999999999999999');

@@ -6,6 +6,7 @@ import { createApplication } from '../../api/applications';
 import { applicationQuery, applyPreviewQuery } from '../../api/queries';
 import { FormMessage } from '../../components/FormMessage';
 import { QueryFallback } from '../../components/QueryFallback';
+import { WaitingReductionHint } from '../../components/WaitingReductionHint';
 import { ServicePage } from '../../layout/SubLayout';
 import { categoryText, formatFee, instructorText } from '../../lib/course';
 import { errorMessage } from '../../lib/errors';
@@ -108,6 +109,7 @@ export function ApplyPage() {
                 정원이 모두 찼습니다. 대기신청을 하면 순번이 정해지고 자리가 나면 결제할 수 있습니다.
               </p>
             ) : null}
+            {waitingOnly && preview.reductionAmount > 0 ? <WaitingReductionHint /> : null}
             {preview.payableAmount > 0 ? (
               <p className="proto-hint">
                 자리를 배정받으면 {minutes}분({preview.paymentWindowSeconds}초) 안에 결제해야 합니다. 새로고침·재접속·결제수단

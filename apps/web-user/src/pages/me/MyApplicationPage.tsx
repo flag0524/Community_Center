@@ -6,6 +6,7 @@ import { cancelApplication } from '../../api/applications';
 import { applicationQuery, sessionQuery } from '../../api/queries';
 import { FormMessage } from '../../components/FormMessage';
 import { QueryFallback } from '../../components/QueryFallback';
+import { WaitingReductionHint } from '../../components/WaitingReductionHint';
 import { MyPageLayout } from '../../layout/SubLayout';
 import { applicationStateText, refundStageText } from '../../lib/applicationLabels';
 import { errorMessage } from '../../lib/errors';
@@ -60,6 +61,7 @@ export function MyApplicationPage() {
             <dd>{application.refundStage ? refundStageText(application.refundStage) : '신청 전'}</dd>
           </div>
         </dl>
+        {application.displayState === 'WAITING' && application.reductionAmount > 0 ? <WaitingReductionHint /> : null}
 
         {confirming ? (
           <div className="proto-consent" role="group" aria-label="신청 취소 확인">

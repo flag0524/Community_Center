@@ -1,8 +1,10 @@
 // 수강신청 화면과 접수 결과(결제 대기·무료 등록·대기신청) 화면이 서버 판정대로 그려지고 신청이 한 번만 전송되는지 확인하는 시험
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { join, login, logout, requestJoinOtp, verifyOtp } from '../../api/auth';
+import { getJson } from '../../api/http';
 import { DEMO } from '../../mocks/auth';
 import { setMockNow } from '../../mocks/clock';
 import { renderApp, server, signInAsDemo, useMockServer } from '../../test/render';
@@ -219,5 +221,38 @@ describe('신청과 접수 결과', () => {
     await signInAsDemo();
     renderApp('/applications/9999999999999999999999/done');
     expect(await screen.findByRole('heading', { name: /찾을 수 없/ })).toBeInTheDocument();
+  });
+});
+
+describe('대기신청의 감면 안내', () => {
+  const HINT = /감면은 자리가 배정될 때 다시 확인합니다/;
+
+  it('감면을 적용해 대기신청하는 화면과 접수 결과에 결제금액이 달라질 수 있음을 알린다', async () => {
+    await signInAsDemo();
+    const preview = await getJson<object>(`/courses/${FULL}/apply-preview`);
+    server.use(
+      http.get('/api/v1/courses/:courseId/apply-preview', () =>
+        HttpResponse.json({ ...preview, reductionAmount: 30000, payableAmount: 30000 }),
+      ),
+    );
+    const { router } = renderApp(`/apply/${FULL}`);
+    expect(await screen.findByText(HINT)).toBeInTheDocument();
+
+    await user().click(screen.getByRole('button', { name: '대기신청' }));
+    await screen.findByRole('heading', { level: 1, name: '대기신청 접수' });
+    const applicationId = router.state.location.pathname.split('/')[2]!;
+    const saved = await getJson<object>(`/me/applications/${applicationId}`);
+    server.use(
+      http.get('/api/v1/me/applications/:applicationId', () => HttpResponse.json({ ...saved, reductionAmount: 30000 })),
+    );
+    renderApp(`/applications/${applicationId}/done`);
+    expect(await screen.findByText(HINT)).toBeInTheDocument();
+  });
+
+  it('감면이 없는 대기신청에는 알리지 않는다', async () => {
+    await signInAsDemo();
+    renderApp(`/apply/${FULL}`);
+    await screen.findByRole('button', { name: '대기신청' });
+    expect(screen.queryByText(HINT)).not.toBeInTheDocument();
   });
 });

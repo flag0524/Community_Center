@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { applicationQuery, sessionQuery } from '../../api/queries';
 import { QueryFallback } from '../../components/QueryFallback';
+import { WaitingReductionHint } from '../../components/WaitingReductionHint';
 import { ServicePage } from '../../layout/SubLayout';
 import { formatFee, instructorText } from '../../lib/course';
 import { formatDate } from '../../lib/format';
@@ -87,6 +88,7 @@ export function ApplicationDonePage() {
           </div>
         </dl>
         {kind === 'free' ? <p className="proto-hint">감면 자격과 증빙 확인 절차는 운영 검토 후 확정합니다.</p> : null}
+        {kind === 'wait' && application.reductionAmount > 0 ? <WaitingReductionHint /> : null}
         {kind === 'wait' ? (
           <p className="proto-hint">
             취소·미결제 만료 시 다음 유효 대기자에게 자동 배정합니다. 새 유료 자리 배정 시 10분의 결제기한이 시작됩니다.
