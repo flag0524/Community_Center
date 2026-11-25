@@ -714,22 +714,25 @@ GET  /api/v1/files/{id}                   → 판정: FS.SAFE ∧ 소유 업무 
 - 글자 크기(FN-007): `html { font-size: calc(16px * var(--scale)) }`, scale 0.9~1.3(가정) 10% 단위, localStorage 저장 실패 시 메모리 유지.
 
 ### 9.2 주민 앱 라우트
+2026-11-25에 `apps/web-user/src/app/routes.tsx`와 맞췄다.
+
 | 경로 | 화면 ID |
 |---|---|
 | `/` | USR-MAI-001 |
 | `/courses?q&field&day&page` | USR-CRS-001 |
 | `/courses/open`, `/courses/upcoming` | USR-CRS-002 |
-| `/courses/field/:clsf` | USR-CRS-003 |
-| `/courses/:id`, `/courses/:id/plan` | USR-CRS-004, 005 |
+| `/courses/field/:categoryId` | USR-CRS-003 |
+| `/courses/:courseId`, `/courses/:courseId/plan` | USR-CRS-004, 005 |
 | `/guide/apply`, `/guide/refund` | USR-CRS-006, 007 |
-| `/instructors`, `/instructors/:id` | USR-TCH-001, 002 |
-| `/instructors/recruit`, `/recruit/:id`, `/recruit/:id/apply`, `/me/instructor-applications` | USR-TCH-003~006 |
-| `/teach/attendance` | USR-TCH-007 |
-| `/board/:bbs`, `/board/:bbs/:id`, `/board/review/write`, `/board/qna/write` | USR-COM-* |
-| `/center/history`, `/center/facility`, `/center/contact`, `/center/map` | USR-CEN-001~004 |
-| `/login`, `/join/*`, `/find-id`, `/reset-password`, `/terms/:type` | USR-MEM-* |
-| `/apply/:courseId`, `/apply/:aplyId/result`, `/pay/:aplyId`, `/pay/result` | USR-APL-* |
-| `/me/applications`, `/me/applications/:id`, `/me/receipts/:stlmId`, `/me/refunds/*`, `/me/profile`, `/me/password`, `/me/withdraw`, `/me/inquiries`, `/me/reviews` | USR-MYP-* |
+| `/instructors`, `/instructors/:instructorId` | USR-TCH-001, 002 |
+| `/instructors/recruit`, `/instructors/recruit/:recruitmentId`, `/instructors/recruit/:recruitmentId/apply`, `/me/instructor-applications`, `/me/instructor-applications/:applicationId/edit` | USR-TCH-003~006 |
+| **미구현** (계획 경로 `/teach/attendance`) | USR-TCH-007 |
+| `/board/{notice,news,resources,gallery,faq}`, `/board/{notice,news,resources,gallery}/:postId`, `/board/review`, `/board/review/:postId`, `/board/review/write`, `/board/review/:postId/edit`, `/board/qna`, `/board/qna/:postId`, `/board/qna/write`, `/board/qna/:postId/edit` | USR-COM-* |
+| `/center/history`, `/center/facility`, `/center/contact` (찾아오시는 길은 별도 경로 없이 위치 및 연락처 안) | USR-CEN-001~004 |
+| `/login`, `/join`, `/join/verify`, `/join/info`, `/join/complete`, `/find-id`, `/reset-password`, `/terms/:slug` | USR-MEM-* |
+| `/apply/:courseId`, `/applications/:applicationId/done`, `/payment/:applicationId`, `/payment/:applicationId/result` | USR-APL-001~009 |
+| 별도 경로 없음. 신청 취소 결과의 「다시 신청하기」가 `/apply/:courseId`로 간다 | USR-APL-010 |
+| `/me/applications`, `/me/applications/:applicationId`, `…/cancelled`, `…/refund`, `/me/receipts/:paymentId`, `/me/refunds`, `/me/reductions`, `/me/reductions/new`, `/me/reductions/:reviewId`, `/me/profile`, `/me/name-change`, `/me/password`, `/me/withdraw`, `/withdraw/done`, `/me/inquiries`, `/me/reviews` | USR-MYP-* |
 | 별도 경로 없음. 같은 경로에 `?view=easy` (홈·강좌 목록·마이페이지) | USR-EZY-001, 002, 006 (DV39) |
 
 ### 9.3 관리자 앱 라우트
@@ -754,29 +757,35 @@ GET  /api/v1/files/{id}                   → 판정: FS.SAFE ∧ 소유 업무 
 - 상태값은 DB 코드(`ES.HOLD`)가 아니라 영문 상수(`HOLD`)로 낸다. 화면 표시 상태(`displayState`)와 가능 여부(`canCancel`, `canPay`, `canRequestRefund`)는 서버가 판정한다(DV36).
 
 ### 10.2 주민 API (주요)
+2026-11-25에 앱이 내보내는 OpenAPI 계약과 맞췄다. 전체 목록은 계약 파일이 기준이다.
+
 | 메서드·경로 | 설명 | RQ |
 |---|---|---|
 | GET `/home` | 비주얼·바로가기·소식 탭·분야별 대표 강좌·배너·교육기수(`cycle`) | 004~006, 071 |
-| GET `/site/contact` | 공통 연락처·운영시간·주차·주소 (저장 위치 PRD Q23) | 011, 072 |
+| GET `/site/contact` | 공통 연락처·운영시간·주차·주소 (ADR-092) | 011, 072 |
+| GET `/site/facilities` | 사용 중인 센터와 강의실 (ADR-117) | 022 |
+| GET `/contents/{slug}` | 안내·연혁 같은 홈페이지 콘텐츠 | 016, 017, 022 |
 | GET `/courses` | 목록 (q, field, day, status, page). 일정은 `schedules`(행 목록), 교육 상태 `educationState`, 기준 기수 `criteria.cycle` | 012, 013 |
 | GET `/categories` | 분야 선택지 | 012 |
 | GET `/courses/{id}` | 상세 + 일정 + 휴보강 + 접수상태 + 관외 개방시각 + 기수명(`cycleName`) + 내 신청 여부 | 014, 015 |
 | GET `/courses/{id}/plan` | 강의계획(`LCTR_PLAN_CN`) + 계획서 파일(FP.PLAN) | 015 |
 | GET `/instructors`, `/instructors/{id}` | 공개 강사 (`IS.APPROVE` + `RLS_YN='Y'`) | 018 |
-| GET `/recruits`, `/recruits/{id}` | 강사 모집 | 019 |
-| POST `/me/instructor-applications` | 강사 지원 (`IC.ONLINE`) | 027 |
-| GET `/boards/{bbs}/posts`, `/posts/{id}` | 게시물 | 020, 021 |
-| POST/PUT/DELETE `/me/posts` | 후기·문의 작성·수정·삭제 | 020, 053 |
-| GET `/files/{id}` | 첨부 다운로드 | 021, NF-SER-002 |
-| GET `/center/*` | 연혁·시설·위치 | 022 |
+| GET `/instructor-recruitments`, `/instructor-recruitments/{id}` | 강사 모집 | 019 |
+| GET/POST `/me/instructor-applications`, GET/PUT `…/{id}`, GET/POST `…/{id}/files` | 강사 지원 (`IC.ONLINE`)·증빙 | 027 |
+| GET `/boards/{board}/posts`, `/posts/{id}` | 게시물 | 020, 021 |
+| GET `/reviews`, `/reviews/{id}`, GET `/inquiries`, `/inquiries/{id}`, GET `/inquiry-categories` | 공개 후기·문의 | 020, 053 |
+| GET/POST `/me/reviews`, PUT/DELETE `/me/reviews/{id}`, GET `/me/reviewable-courses` | 후기 작성·수정·삭제 | 020 |
+| GET/POST `/me/inquiries`, PUT/DELETE `/me/inquiries/{id}`, GET/POST `…/{id}/files` | 문의 작성·수정·삭제·첨부 | 053 |
+| GET `/files/{id}`, GET/DELETE `/me/files/{id}` | 공개 첨부·내 첨부 | 021, NF-SER-002 |
 | POST `/auth/*` | 8.1 참조 | 024, 061, 062 |
 | GET `/auth/session` | 새로 고침 뒤 로그인 여부와 `csrfToken` 확인 (조회만으로 연장하지 않음) | 024 |
 | GET `/terms/{type}`(버전 지정 가능) | 약관 | 030, 055 |
 | POST `/join` | 가입 {certRequestId, code, loginId, password, email, agreements[]} | 029, 030 |
 | GET `/join/check-id` | 아이디 중복 확인 | 029 |
-| GET/PUT `/me/profile`, PUT `/me/password`, PUT `/me/phone` | 회원정보 | 031 |
+| GET/PUT `/me/profile`, PUT `/me/password` | 회원정보. 휴대전화 변경은 이번 범위에서 제외(spec DV82) | 031 |
+| GET/POST `/me/name-change-requests` | 이름 변경 요청 (ADR-090) | 031 |
 | POST `/me/withdraw` | 탈퇴 | 032 |
-| GET `/me/reductions`, POST `/me/reductions` | 사전 감면 심사 신청·조회 (증빙 첨부) | 038 |
+| GET `/me/reduction-options`, GET/POST `/me/reduction-reviews`, GET `…/{id}`, POST `…/{id}/withdraw`, GET/POST `…/{id}/files` | 사전 감면 심사 신청·조회·철회·증빙 | 038 |
 | GET `/courses/{id}/apply-preview` | 신청 화면 요약·금액·자격(우선접수·감면) | 025, 038 |
 | POST `/me/applications` | 신청 생성 (Idempotency-Key) | 025, 033~035, 039 |
 | GET `/me/applications`, `/me/applications/{id}` | 내역·상세 | 023, 026 |
@@ -786,7 +795,7 @@ GET  /api/v1/files/{id}                   → 판정: FS.SAFE ∧ 소유 업무 
 | GET `/me/payments/{id}/receipt` | 영수증 (`PS.PAID`만) | 063 |
 | GET `/me/applications/{id}/refund-preview` | 서버가 산정한 반환 기준액과 근거 | 043 |
 | POST `/me/refunds`, GET `/me/refunds` | 환불 신청·내역 | 043, 044 |
-| GET `/teach/attendance?cors&date`, PUT `/teach/attendance/{id}` | 강사 출석 (`RCRD_VER` 대조) | 064 |
+| **미구현** (계획: GET `/teach/attendance?cors&date`, PUT `/teach/attendance/{id}`) | 강사 출석 입력 (`RCRD_VER` 대조) | 064 |
 
 ### 10.3 관리자 API (주요)
 | 영역 | 경로 | 권한 | RQ |
