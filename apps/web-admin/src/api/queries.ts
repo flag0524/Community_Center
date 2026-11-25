@@ -75,8 +75,6 @@ export interface AdminCourseParams {
   dongId?: string;
   status?: Schemas['CourseAdminStatus'];
   page?: number;
-  /** 선택 목록처럼 한꺼번에 받을 때만 쓴다. 비우면 서버 기본 크기다. */
-  size?: number;
 }
 
 export const adminCourseListQuery = (params: AdminCourseParams) =>

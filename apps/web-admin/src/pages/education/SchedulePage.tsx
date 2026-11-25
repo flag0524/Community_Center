@@ -2,7 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { deleteSchedule, deleteScheduleChange } from '../../api/campus';
-import { adminCourseListQuery, courseSchedulesQuery } from '../../api/queries';
+import { courseOptionsQuery, courseSchedulesQuery } from '../../api/queries';
 import { ConfirmButton } from '../../components/ConfirmButton';
 import { TableWrap } from '../../components/ListParts';
 import { errorMessage } from '../../lib/errors';
@@ -13,7 +13,8 @@ export function SchedulePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const courseId = params.get('courseId') ?? '';
-  const courses = useQuery(adminCourseListQuery({ size: 100 }));
+  // 목록 API는 한 번에 100개까지라, 범위 안의 강좌를 모두 담는 선택지를 쓴다
+  const options = useQuery(courseOptionsQuery);
   const data = useQuery({ ...courseSchedulesQuery(courseId), enabled: courseId !== '' });
 
   const refresh = () => {
@@ -42,15 +43,15 @@ export function SchedulePage() {
               onChange={(event) => void navigate(event.target.value ? `/edu/schedules?courseId=${event.target.value}` : '/edu/schedules')}
             >
               <option value="">강좌를 선택하세요</option>
-              {courses.data?.items.map((course) => (
-                <option key={course.courseId} value={course.courseId}>
+              {options.data?.courses.map((course) => (
+                <option key={course.id} value={course.id}>
                   {course.name}
                 </option>
               ))}
             </select>
           </label>
         </form>
-        {courses.isError && <p role="alert">{errorMessage(courses.error)}</p>}
+        {options.isError && <p role="alert">{errorMessage(options.error)}</p>}
       </section>
       {courseId === '' && <p className="adm-notice">일정을 보려면 강좌를 선택해 주세요.</p>}
       {data.isPending && courseId !== '' && <p role="status">불러오는 중입니다.</p>}

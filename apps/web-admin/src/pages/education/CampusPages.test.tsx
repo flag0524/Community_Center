@@ -83,7 +83,8 @@ describe('일정', () => {
     await signInAs('group');
     const { router } = renderApp('/edu/schedules');
     expect(await screen.findByText('일정을 보려면 강좌를 선택해 주세요.')).toBeInTheDocument();
-    await userEvent.selectOptions(await screen.findByLabelText('강좌'), '초급컴퓨터');
+    await screen.findByRole('option', { name: '초급컴퓨터' }); // 선택지가 도착한 뒤에 고른다
+    await userEvent.selectOptions(screen.getByLabelText('강좌'), '초급컴퓨터');
     await waitFor(() => expect(router.state.location.search).toBe(`?courseId=${COURSE_1}`));
     const region = await screen.findByRole('region', { name: '주간 시간표' });
     const rows = within(region).getAllByRole('row').slice(1);
@@ -91,6 +92,17 @@ describe('일정', () => {
       ['화', '10:00~11:30', '강의실 1'],
       ['목', '10:00~11:30', '강의실 1'],
     ]);
+  });
+
+  it('강좌가 100개를 넘어도 강좌 선택에 모두 담는다', async () => {
+    await signInAs('group');
+    const courses = Array.from({ length: 150 }, (_, n) => ({ id: `4${String(n + 1).padStart(21, '0')}`, name: `강좌 ${n + 1}` }));
+    server.use(
+      http.get('/api/admin/v1/course-options', () => Response.json({ cycles: [], dongs: [], classes: [], instructors: [], rooms: [], courses })),
+    );
+    renderApp('/edu/schedules');
+    expect(await screen.findByRole('option', { name: '강좌 150' })).toBeInTheDocument();
+    expect(within(screen.getByLabelText('강좌')).getAllByRole('option')).toHaveLength(151);
   });
 
   it('같은 시설·요일·시간에 다른 강좌가 있으면 서버 안내를 시설 항목 아래에 보인다', async () => {
@@ -147,7 +159,7 @@ describe('일정', () => {
     await signInAs('group');
     server.use(
       http.get('/api/admin/v1/course-options', () =>
-        Response.json({ cycles: [], dongs: [], classes: [], instructors: [], rooms: [{ id: '7000000000000000000003', name: '조리읍 주민자치센터 강의실 2' }] }),
+        Response.json({ cycles: [], dongs: [], classes: [], instructors: [], courses: [], rooms: [{ id: '7000000000000000000003', name: '조리읍 주민자치센터 강의실 2' }] }),
       ),
     );
     renderApp(`/edu/schedules?courseId=${COURSE_1}`);
