@@ -27,12 +27,14 @@ export function SmsSendPage() {
   const [preview, setPreview] = useState<SmsPreview | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [stale, setStale] = useState(false);
+  const [discarded, setDiscarded] = useState(false); // 조건이 바뀌어 미리보기를 지웠음을 알린다
   const [missing, setMissing] = useState<Record<string, string>>({});
 
   const audience = (): SmsAudience => ({ scope, courseIds: scope === 'COURSE' ? courseIds : [], statuses, content });
   // 대상·문안이 바뀔 때마다 올린다. 늦게 도착한 옛 조건의 미리보기는 버린다(확인하지 않은 대상에게 발송되지 않게).
   const revision = useRef(0);
   const changed = () => {
+    if (preview !== null || previewMutation.isPending) setDiscarded(true);
     revision.current += 1;
     setPreview(null);
     setConfirmed(false);
@@ -45,7 +47,10 @@ export function SmsSendPage() {
       if (request.revision === revision.current) setPreview(data);
     },
   });
-  const requestPreview = () => previewMutation.mutate({ revision: revision.current, audience: audience() });
+  const requestPreview = () => {
+    setDiscarded(false);
+    previewMutation.mutate({ revision: revision.current, audience: audience() });
+  };
   const sendMutation = useMutation({
     mutationFn: () => sendSms({ ...audience(), confirmed: true, expectedRecipientCount: preview?.recipientCount ?? 0 }, key.current()),
     onSuccess: (result) => {
@@ -144,6 +149,11 @@ export function SmsSendPage() {
         </div>
       </form>
 
+      {discarded && (
+        <p className="adm-notice" role="status">
+          대상이나 문안이 바뀌어 미리보기를 지웠습니다. 미리보기를 다시 눌러 주세요.
+        </p>
+      )}
       {stale && (
         <p className="adm-message error" role="alert">
           수신 대상이 바뀌었습니다. 아래 수신자 수를 다시 확인해 주세요.

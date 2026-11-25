@@ -79,6 +79,8 @@ describe('알림 이력', () => {
   });
 });
 
+const DISCARDED = '대상이나 문안이 바뀌어 미리보기를 지웠습니다. 미리보기를 다시 눌러 주세요.';
+
 describe('문자 발송', () => {
   it('미리보기를 기다리는 동안 문안을 바꾸면 늦게 온 옛 미리보기를 보이지 않아 발송할 수 없다', async () => {
     let release = () => {};
@@ -102,6 +104,20 @@ describe('문자 발송', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: '미리보기' })).toBeEnabled());
     expect(screen.queryByRole('heading', { name: '미리보기' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '발송 요청' })).not.toBeInTheDocument();
+    expect(screen.getByText(DISCARDED)).toBeInTheDocument();
+  });
+
+  it('미리보기를 본 뒤 문안을 바꾸면 지웠다고 알리고 다시 미리보면 안내가 사라진다', async () => {
+    await openSend();
+    await typeMessage();
+    expect(screen.queryByText(DISCARDED)).not.toBeInTheDocument();
+    await preview();
+    await screen.findByRole('button', { name: '발송 요청' });
+    await typeMessage(' 추가');
+    expect(screen.getByText(DISCARDED)).toBeInTheDocument();
+    await preview();
+    await screen.findByRole('button', { name: '발송 요청' });
+    expect(screen.queryByText(DISCARDED)).not.toBeInTheDocument();
   });
 
   it('문안 길이를 바이트로 안내하고 센터 전체 미리보기에서 중복을 뺀 수신자 수를 보인다', async () => {
