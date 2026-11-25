@@ -301,7 +301,7 @@ function validateChange(body: ScheduleChangeWrite, course: CourseInfo, cid: stri
     if (!body.endTime) fields.endTime = '보강 종료 시각을 입력해 주세요.';
     else if (body.startTime && toMinutes(body.endTime) <= toMinutes(body.startTime)) fields.endTime = '종료 시각은 시작 시각 이후여야 합니다.';
     if (Object.keys(fields).length === 0) {
-      const weekday = WEEKDAYS[new Date(`${body.classDate}T00:00:00+09:00`).getDay()]!;
+      const weekday = WEEKDAYS[new Date(`${body.classDate}T00:00:00Z`).getUTCDay()]!; // 실행 기기의 시간대와 무관하게 날짜의 요일
       const conflict = conflictMessage(body.facilityId!, weekday, body.startTime!, body.endTime!, body.classDate, body.classDate, cid);
       if (conflict) fields.facilityId = conflict;
     }
