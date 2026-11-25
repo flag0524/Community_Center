@@ -31,6 +31,20 @@ describe('세션 시간', () => {
     expect(screen.getByText(/^세션 02:0[01]$/)).toBeInTheDocument();
   });
 
+  it('안내 창은 상단 도구 모음 밖에 두고 열리면 계속 사용에 초점을 준다', async () => {
+    setMockIdleSeconds(121);
+    await signInAs('group');
+    renderApp('/dashboard');
+    const dialog = await waitFor(() => {
+      const element = document.querySelector('.adm-session-dialog');
+      expect(element).toHaveAttribute('open');
+      return element as HTMLElement;
+    }, { timeout: 4000 });
+    // 도구 모음 안에 있으면 그 버튼 꾸밈(테두리·배경 없음)과 작은 글자가 창에 옮아온다
+    expect(dialog.closest('.adm-top-tools')).toBeNull();
+    expect(within(dialog).getByRole('button', { name: '계속 사용' })).toHaveFocus();
+  });
+
   it('안내 창의 로그아웃 버튼은 로그인 화면으로 보낸다', async () => {
     setMockIdleSeconds(121);
     await signInAs('group');

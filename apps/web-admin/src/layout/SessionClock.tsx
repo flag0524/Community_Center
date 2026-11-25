@@ -1,6 +1,7 @@
 // 관리자 세션 남은 시간 표시, 만료 2분 전 연장 안내, 만료 시 로그인으로 보내는 컴포넌트 (RQ-SER-NF-008)
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { extendSession, readSession } from '../api/auth';
 import { ApiRequestError } from '../api/http';
 import { sessionQuery } from '../api/queries';
@@ -20,6 +21,7 @@ export function SessionClock() {
 function Clock({ expiresAt, serverNow }: { expiresAt: string; serverNow: string }) {
   const queryClient = useQueryClient();
   const dialog = useRef<HTMLDialogElement>(null);
+  const keepButton = useRef<HTMLButtonElement>(null);
   const logout = useLogout();
 
   const expire = useExpire();
@@ -54,42 +56,49 @@ function Clock({ expiresAt, serverNow }: { expiresAt: string; serverNow: string 
   useEffect(() => {
     const element = dialog.current;
     if (!element) return;
-    if (confirmed && !element.open) element.showModal();
+    if (confirmed && !element.open) {
+      element.showModal();
+      keepButton.current?.focus(); // 그대로 두면 첫 버튼(로그아웃)에 초점이 가서 Enter 한 번에 나가게 된다
+    }
     if (!confirmed && element.open) element.close();
   }, [confirmed]);
 
   return (
     <>
       <small className="adm-session">세션 {formatCountdown(seconds)}</small>
-      <dialog
-        ref={dialog}
-        className="adm-dialog adm-session-dialog"
-        aria-labelledby="adm-session-title"
-        // 안내를 Esc로 닫으면 연장도 로그아웃도 하지 않은 채 남으므로 두 버튼 중 하나로만 닫는다.
-        onCancel={(event) => event.preventDefault()}
-      >
-        <div className="adm-dialog-head">
-          <h2 id="adm-session-title">계속 사용하시겠습니까?</h2>
-        </div>
-        <div className="adm-dialog-context">
-          <p>
-            오래 사용하지 않아 <strong>{formatCountdown(seconds)}</strong> 뒤에 자동으로 로그아웃됩니다.
-          </p>
-          {extend.isError && !(extend.error instanceof ApiRequestError && extend.error.status === 401) && (
-            <p className="adm-message error" role="alert">
-              {errorMessage(extend.error)}
+      {/* 상단 도구 모음의 버튼·글자 꾸밈이 옮아오지 않게 창은 본문 바로 아래에 둔다 */}
+      {createPortal(
+        <dialog
+          ref={dialog}
+          className="adm-dialog adm-session-dialog"
+          aria-labelledby="adm-session-title"
+          // 안내를 Esc로 닫으면 연장도 로그아웃도 하지 않은 채 남으므로 두 버튼 중 하나로만 닫는다.
+          onCancel={(event) => event.preventDefault()}
+        >
+          <div className="adm-dialog-head">
+            <h2 id="adm-session-title">계속 사용하시겠습니까?</h2>
+          </div>
+          <div className="adm-dialog-context">
+            <p>
+              오래 사용하지 않아 <strong>{formatCountdown(seconds)}</strong> 뒤에 자동으로 로그아웃됩니다.
             </p>
-          )}
-        </div>
-        <div className="adm-dialog-actions">
-          <button type="button" className="adm-button secondary" onClick={() => logout.mutate()} disabled={logout.isPending}>
-            로그아웃
-          </button>
-          <button type="button" className="adm-button" onClick={() => extend.mutate()} disabled={extend.isPending}>
-            계속 사용
-          </button>
-        </div>
-      </dialog>
+            {extend.isError && !(extend.error instanceof ApiRequestError && extend.error.status === 401) && (
+              <p className="adm-message error" role="alert">
+                {errorMessage(extend.error)}
+              </p>
+            )}
+          </div>
+          <div className="adm-dialog-actions">
+            <button type="button" className="adm-button secondary" onClick={() => logout.mutate()} disabled={logout.isPending}>
+              로그아웃
+            </button>
+            <button ref={keepButton} type="button" className="adm-button" onClick={() => extend.mutate()} disabled={extend.isPending}>
+              계속 사용
+            </button>
+          </div>
+        </dialog>,
+        document.body,
+      )}
     </>
   );
 }
