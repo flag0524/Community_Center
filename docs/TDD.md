@@ -728,7 +728,7 @@ GET  /api/v1/files/{id}                   → 판정: FS.SAFE ∧ 소유 업무 
 | `/login`, `/join/*`, `/find-id`, `/reset-password`, `/terms/:type` | USR-MEM-* |
 | `/apply/:courseId`, `/apply/:aplyId/result`, `/pay/:aplyId`, `/pay/result` | USR-APL-* |
 | `/me/applications`, `/me/applications/:id`, `/me/receipts/:stlmId`, `/me/refunds/*`, `/me/profile`, `/me/password`, `/me/withdraw`, `/me/inquiries`, `/me/reviews` | USR-MYP-* |
-| `/easy`, `/easy/courses`, `/easy/me` | USR-EZY-* |
+| 별도 경로 없음. 같은 경로에 `?view=easy` (홈·강좌 목록·마이페이지) | USR-EZY-001, 002, 006 (DV39) |
 
 ### 9.3 관리자 앱 라우트
 `/login`, `/dashboard`, `/stats`, `/edu/courses`, `/edu/cycles`, `/edu/schedules`, `/edu/instructors`, `/edu/facilities`, `/edu/attendance`, `/pay/applications`, `/pay/waitlist`, `/pay/transactions`, `/pay/refunds`, `/pay/reductions`, `/pay/reduction-history`, `/mbr/members`, `/mbr/posts`, `/mbr/boards`, `/mbr/inquiries`, `/mbr/contents`, `/mbr/terms`, `/mbr/files`, `/sys/sms`, `/sys/roles`, `/sys/settings`, `/sys/retention`, `/sys/codes`
@@ -748,14 +748,17 @@ GET  /api/v1/files/{id}                   → 판정: FS.SAFE ∧ 소유 업무 
   ```
 - HTTP: 400 검증, 401 미인증, 403 권한, 404 없음(타인 리소스 포함), 409 상태 충돌·멱등 충돌·버전 충돌(`RCRD_VER`), 422 업무 규칙 거절, 429 OTP 제한(로그인 잠금은 계정 존재 여부를 숨기려고 401 `LOGIN_FAILED`와 같은 응답이다. ADR-115).
 - 수정 요청은 화면이 읽은 `RCRD_VER`를 함께 보내고, 다르면 409를 반환한다.
+- 상태 변경 요청(POST·PUT·DELETE)은 `X-CSRF-Token` 헤더를 확인한다. 토큰은 로그인 뒤에는 세션, 로그인 전에는 시드 쿠키에서 파생하며 `GET /auth/session`이 준다. PG 웹훅은 서명 검증이 있어 제외한다(DV17, DV18, ADR-031).
+- 상태값은 DB 코드(`ES.HOLD`)가 아니라 영문 상수(`HOLD`)로 낸다. 화면 표시 상태(`displayState`)와 가능 여부(`canCancel`, `canPay`, `canRequestRefund`)는 서버가 판정한다(DV36).
 
 ### 10.2 주민 API (주요)
 | 메서드·경로 | 설명 | RQ |
 |---|---|---|
-| GET `/home` | 비주얼·바로가기·소식 탭·분야별 대표 강좌·배너 | 004~006, 071 |
+| GET `/home` | 비주얼·바로가기·소식 탭·분야별 대표 강좌·배너·교육기수(`cycle`) | 004~006, 071 |
 | GET `/site/contact` | 공통 연락처·운영시간·주차·주소 (저장 위치 PRD Q23) | 011, 072 |
-| GET `/courses` | 목록 (q, field, day, status, page) | 012, 013 |
-| GET `/courses/{id}` | 상세 + 일정 + 휴보강 + 접수상태 + 관외 개방시각 + 내 신청 여부 | 014, 015 |
+| GET `/courses` | 목록 (q, field, day, status, page). 일정은 `schedules`(행 목록), 교육 상태 `educationState`, 기준 기수 `criteria.cycle` | 012, 013 |
+| GET `/categories` | 분야 선택지 | 012 |
+| GET `/courses/{id}` | 상세 + 일정 + 휴보강 + 접수상태 + 관외 개방시각 + 기수명(`cycleName`) + 내 신청 여부 | 014, 015 |
 | GET `/courses/{id}/plan` | 강의계획(`LCTR_PLAN_CN`) + 계획서 파일(FP.PLAN) | 015 |
 | GET `/instructors`, `/instructors/{id}` | 공개 강사 (`IS.APPROVE` + `RLS_YN='Y'`) | 018 |
 | GET `/recruits`, `/recruits/{id}` | 강사 모집 | 019 |
@@ -765,6 +768,7 @@ GET  /api/v1/files/{id}                   → 판정: FS.SAFE ∧ 소유 업무 
 | GET `/files/{id}` | 첨부 다운로드 | 021, NF-SER-002 |
 | GET `/center/*` | 연혁·시설·위치 | 022 |
 | POST `/auth/*` | 8.1 참조 | 024, 061, 062 |
+| GET `/auth/session` | 새로 고침 뒤 로그인 여부와 `csrfToken` 확인 (조회만으로 연장하지 않음) | 024 |
 | GET `/terms/{type}`(버전 지정 가능) | 약관 | 030, 055 |
 | POST `/join` | 가입 {certRequestId, code, loginId, password, email, agreements[]} | 029, 030 |
 | GET `/join/check-id` | 아이디 중복 확인 | 029 |
@@ -778,6 +782,7 @@ GET  /api/v1/files/{id}                   → 판정: FS.SAFE ∧ 소유 업무 
 | POST `/me/applications/{id}/payments` | 결제 요청 | 040 |
 | POST `/payments/confirm` | 결제 승인 확인 | 040~042 |
 | GET `/me/payments/{id}/receipt` | 영수증 (`PS.PAID`만) | 063 |
+| GET `/me/applications/{id}/refund-preview` | 서버가 산정한 반환 기준액과 근거 | 043 |
 | POST `/me/refunds`, GET `/me/refunds` | 환불 신청·내역 | 043, 044 |
 | GET `/teach/attendance?cors&date`, PUT `/teach/attendance/{id}` | 강사 출석 (`RCRD_VER` 대조) | 064 |
 
