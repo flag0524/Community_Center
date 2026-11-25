@@ -1,5 +1,6 @@
 # 가입, 본인확인 OTP, 로그인 세션 API의 요청·응답 모델
 from datetime import date
+from typing import Annotated
 
 from pydantic import AwareDatetime, Field
 
@@ -8,6 +9,8 @@ from app.domain.member.types import OtpPurpose, ResidenceDeclared, ResidenceStat
 
 PHONE_PATTERN = r"^01[0-9]{8,9}$"
 EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+# 인증 요청 식별자는 순차 번호가 아니라 발급할 때 만든 무작위 값이다(CERT_DMND_ID, ADR-124)
+CertRequestId = Annotated[str, Field(pattern=r"^[0-9a-f]{32}$")]
 
 
 class MemberBrief(ApiModel):
@@ -38,13 +41,13 @@ class OtpRequest(ApiModel):
 class OtpIssued(ServerTimed):
     """대상 존재 여부를 알려 주지 않도록 모든 목적에서 같은 형태로 응답한다(FN-061)."""
 
-    cert_request_id: SerialId
+    cert_request_id: CertRequestId
     expires_at: AwareDatetime
     resend_available_at: AwareDatetime
 
 
 class OtpVerifyRequest(ApiModel):
-    cert_request_id: SerialId
+    cert_request_id: CertRequestId
     code: str = Field(pattern=r"^[0-9]{6}$")
 
 
@@ -66,7 +69,7 @@ class AgreementItem(ApiModel):
 class JoinRequest(ApiModel):
     """가입 요청. 화면의 가입 입력 항목(join-info)을 옮길 때 필드를 맞춘다."""
 
-    cert_request_id: SerialId
+    cert_request_id: CertRequestId
     code: str = Field(pattern=r"^[0-9]{6}$")
     login_id: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=10, max_length=64)
@@ -106,7 +109,7 @@ class PasswordChange(ApiModel):
 class FindIdRequest(ApiModel):
     """OTP(목적 ID_FIND)를 확인한 뒤 같은 인증 요청 번호와 코드로 결과를 받는다."""
 
-    cert_request_id: SerialId
+    cert_request_id: CertRequestId
     code: str = Field(pattern=r"^[0-9]{6}$")
 
 
@@ -119,7 +122,7 @@ class FindIdResult(ApiModel):
 class PasswordResetRequest(ApiModel):
     """OTP(목적 PASSWORD_RESET)를 확인한 뒤 새 비밀번호를 정한다. 성공하면 기존 세션이 모두 끊긴다."""
 
-    cert_request_id: SerialId
+    cert_request_id: CertRequestId
     code: str = Field(pattern=r"^[0-9]{6}$")
     login_id: str = Field(min_length=1, max_length=64)
     new_password: str = Field(min_length=10, max_length=64)

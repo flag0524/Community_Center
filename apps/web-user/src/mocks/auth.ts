@@ -227,7 +227,7 @@ export const authHandlers = [
     }
     state.lastOtpAt.set(body.phone, now);
     state.certSeq += 1;
-    const certRequestId = serialOf(state.certSeq);
+    const certRequestId = state.certSeq.toString(16).padStart(32, '0'); // 서버처럼 32자리 16진수
     state.certs.set(certRequestId, {
       purpose: body.purpose,
       phone: body.phone,

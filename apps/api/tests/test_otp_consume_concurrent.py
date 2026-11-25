@@ -105,7 +105,7 @@ def test_인증_소비와_재발급이_겹쳐도_가입과_복구가_완료된�
             db.execute(text("SET SESSION innodb_lock_wait_timeout=3"))
             common: dict[str, Any] = dict(
                 bundle_sn=bundle,
-                cert_sn=issued.cert_sn,
+                cert_id=issued.cert_id,
                 code=code,
                 request_id=uuid.uuid4().hex,
                 now=START,

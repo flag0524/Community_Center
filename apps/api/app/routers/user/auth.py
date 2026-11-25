@@ -88,7 +88,7 @@ def request_otp(
     set_cookie(response, settings, GATE_COOKIE, make_gate(settings.secret_key, now))
     return OtpIssued(
         server_now=now.replace(tzinfo=UTC),
-        cert_request_id=str(issued.cert_sn),
+        cert_request_id=issued.cert_id,
         expires_at=issued.expires_at.replace(tzinfo=UTC),
         resend_available_at=issued.resend_available_at.replace(tzinfo=UTC),
     )
@@ -106,7 +106,7 @@ def verify_otp(
     now = clock()
     record = current_session(request, "member", db, now)
     verify_csrf(request, settings, "member", record)
-    result = check_otp(db, settings, cert_sn=int(body.cert_request_id), code=body.code, now=now)
+    result = check_otp(db, settings, cert_id=body.cert_request_id, code=body.code, now=now)
     return OtpVerifyResult(verified=result.verified, remaining_attempts=result.remaining_attempts)
 
 
@@ -235,7 +235,7 @@ def join(
         db,
         settings,
         bundle_sn=bundles.resolve(db),
-        cert_sn=int(body.cert_request_id),
+        cert_id=body.cert_request_id,
         code=body.code,
         login_id=body.login_id,
         password=body.password,
@@ -262,7 +262,7 @@ def find_id(
         db,
         settings,
         bundle_sn=bundles.resolve(db),
-        cert_sn=int(body.cert_request_id),
+        cert_id=body.cert_request_id,
         code=body.code,
         request_id=request_id_of(request),
         now=now,
@@ -291,7 +291,7 @@ def reset_password(
         db,
         settings,
         bundle_sn=bundles.resolve(db),
-        cert_sn=int(body.cert_request_id),
+        cert_id=body.cert_request_id,
         code=body.code,
         login_id=body.login_id,
         new_password=body.new_password,

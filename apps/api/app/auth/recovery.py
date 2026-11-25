@@ -19,16 +19,16 @@ def find_login_id(
     settings: Settings,
     *,
     bundle_sn: int,
-    cert_sn: int,
+    cert_id: str,
     code: str,
     request_id: str,
     now: datetime,
 ) -> str | None:
     """일치하는 회원이 있으면 마스킹한 아이디를, 없으면 None을 돌려준다(FN-061)."""
     row = consume_otp(
-        db, settings, cert_sn=cert_sn, code=code, purpose=OtpPurpose.ID_FIND, bundle_sn=bundle_sn, now=now
+        db, settings, cert_id=cert_id, code=code, purpose=OtpPurpose.ID_FIND, bundle_sn=bundle_sn, now=now
     )
-    mark_used(db, cert_sn, now)
+    mark_used(db, int(row.CERT_DMND_SN), now)
     if row.MBR_SN is None:  # 가짜 인증(회원이 없는 대상). 실제와 같은 모양으로 비어 있다고만 답한다
         return None
     login_id = db.execute(select(TB_MBR.c.LGN_ID).where(TB_MBR.c.MBR_SN == row.MBR_SN)).scalar_one()
@@ -52,7 +52,7 @@ def reset_password(
     settings: Settings,
     *,
     bundle_sn: int,
-    cert_sn: int,
+    cert_id: str,
     code: str,
     login_id: str,
     new_password: str,
@@ -63,7 +63,7 @@ def reset_password(
     row = consume_otp(
         db,
         settings,
-        cert_sn=cert_sn,
+        cert_id=cert_id,
         code=code,
         purpose=OtpPurpose.PASSWORD_RESET,
         bundle_sn=bundle_sn,
@@ -82,7 +82,7 @@ def reset_password(
         .where(TB_MBR.c.MBR_SN == member_sn)
         .values(PSWD_HASH_VL=hash_password(new_password, settings.pbkdf2_iterations))
     )
-    mark_used(db, cert_sn, now)
+    mark_used(db, int(row.CERT_DMND_SN), now)
     discard_all(db, member_sn=member_sn, reason="PASSWORD_RESET", now=now)  # 기존 로그인은 모두 끊는다
     record_job(
         db,

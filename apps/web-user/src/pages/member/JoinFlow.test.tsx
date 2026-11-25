@@ -306,7 +306,7 @@ describe('3단계 정보입력', () => {
         { termType: 'MARKETING_CONSENT', version: '2026-시험', agreed: marketing },
       ],
     });
-    expect(body).toHaveProperty('certRequestId', expect.stringMatching(/^[0-9]{22}$/));
+    expect(body).toHaveProperty('certRequestId', expect.stringMatching(/^[0-9a-f]{32}$/));
   });
 
   it('가입을 마친 뒤에는 같은 본인확인 결과로 정보입력 화면에 다시 들어올 수 없다', async () => {

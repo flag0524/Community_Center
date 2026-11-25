@@ -105,7 +105,7 @@ def join_member(
     settings: Settings,
     *,
     bundle_sn: int,
-    cert_sn: int,
+    cert_id: str,
     code: str,
     login_id: str,
     password: str,
@@ -115,8 +115,9 @@ def join_member(
     now: datetime,
 ) -> Joined:
     row = consume_otp(
-        db, settings, cert_sn=cert_sn, code=code, purpose=OtpPurpose.JOIN, bundle_sn=bundle_sn, now=now
+        db, settings, cert_id=cert_id, code=code, purpose=OtpPurpose.JOIN, bundle_sn=bundle_sn, now=now
     )
+    cert_sn = int(row.CERT_DMND_SN)
     try:
         payload = json.loads(decrypt(settings.secret_key, str(row.TELNO_ENCPT_VL)))
     except (DecryptError, ValueError):

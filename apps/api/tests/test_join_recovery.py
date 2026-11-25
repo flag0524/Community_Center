@@ -288,7 +288,7 @@ def test_다른_운영묶음의_인증으로는_가입할_수_없다(world: Worl
     try:
         world.db.execute(
             tables.TB_CERT_DMND.update()
-            .where(tables.TB_CERT_DMND.c.CERT_DMND_SN == int(cert))
+            .where(tables.TB_CERT_DMND.c.CERT_DMND_ID == cert)
             .values(OPER_BNDL_SN=other)
         )
     finally:
@@ -368,7 +368,7 @@ def test_다른_목적의_인증으로는_가입할_수_없다(world: World) -> 
 
 def test_없는_인증_번호로는_가입할_수_없다(world: World) -> None:
     publish_defaults(world)
-    assert join(world, "999999999", "123456").json()["code"] == "OTP_INVALID"
+    assert join(world, "9" * 32, "123456").json()["code"] == "OTP_INVALID"
 
 
 def test_가입_요청은_CSRF_토큰이_없으면_403이다(world: World) -> None:

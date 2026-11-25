@@ -638,6 +638,7 @@ POST /api/v1/auth/otp/verify   {certRequestId, code} → 일치 여부만 확인
 POST /api/v1/auth/login        {loginId, password}
 POST /api/v1/auth/logout
 ```
+- `certRequestId`는 `CERT_DMND_ID`(발급할 때 만든 32자리 16진 무작위 값)다. 순차 일련번호 `CERT_DMND_SN`은 API에 내지 않는다. 남의 번호를 짐작해 인증을 무효화하지 못하게 한다(ADR-124).
 - TB_CERT_DMND에는 `OTP_HASH_VL`(별도 비밀키 HMAC)과 `KEY_VER_ID`만 저장한다. 인증번호 원문은 DB·로그·문자 저장 문안에 남기지 않는다(AUTH-03, G05).
 - 목적 코드는 `AP.JOIN/ID_FIND/PSWD/PHONE`이다. `AP.ADMIN`(관리자추가인증)은 MFA 제외 결정으로 쓰지 않는다.
 - 가입 인증은 회원 없이 운영묶음만 지정한다. 다른 목적은 대상 회원(또는 관리자)이 필수이며 회원·관리자를 동시에 연결하지 않는다(AUTH-01).

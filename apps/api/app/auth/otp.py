@@ -43,6 +43,7 @@ GATE_COOKIE = "jori_otp_gate"
 @dataclass(frozen=True)
 class Issued:
     cert_sn: int
+    cert_id: str  # API에 주는 인증 요청 식별자
     expires_at: datetime
     resend_available_at: datetime
 
@@ -207,7 +208,7 @@ def issue_otp(
         .returning(TB_CERT_DMND.c.CERT_DMND_SN)
     ).scalar_one()
     cert_sn = int(cert_sn)
-    issued = Issued(cert_sn, now + OTP_VALID, now + RESEND_INTERVAL)
+    issued = Issued(cert_sn, cert_id, now + OTP_VALID, now + RESEND_INTERVAL)
 
     # 일치하는 회원이 없으면 문자는 보내지 않고 인증 행만 남긴다. 확인도 같은 모양으로 실패해
     # 회원 존재를 알 수 없다(FN-061).
@@ -285,7 +286,8 @@ class Verification:
     remaining_attempts: int | None
 
 
-def load_for_update(db: Session, cert_sn: int, *, bundle_sn: int | None = None) -> Any:
+def load_for_update(db: Session, cert_id: str, *, bundle_sn: int | None = None) -> Any:
+    """API가 받은 무작위 식별자로 인증 행을 잠근다. 순차 일련번호는 남의 요청을 짐작할 수 있어 받지 않는다."""
     return db.execute(
         select(
             TB_CERT_DMND.c.CERT_DMND_SN,
@@ -299,7 +301,7 @@ def load_for_update(db: Session, cert_sn: int, *, bundle_sn: int | None = None) 
             TB_CERT_DMND.c.CERT_USE_CMPTN_DT,
             TB_CERT_DMND.c.FAIL_NMTM,
         )
-        .where(TB_CERT_DMND.c.CERT_DMND_SN == cert_sn)
+        .where(TB_CERT_DMND.c.CERT_DMND_ID == cert_id)
         .where(true() if bundle_sn is None else TB_CERT_DMND.c.OPER_BNDL_SN == bundle_sn)
         .with_for_update()  # 성공·실패 횟수 갱신을 원자적으로 한다(AUTH-02)
     ).first()
@@ -321,16 +323,16 @@ def check_code(db: Session, settings: Settings, row: Any, code: str, now: dateti
     return Verification(False, max(MAX_FAILURES - failures, 0))
 
 
-def verify_otp(db: Session, settings: Settings, *, cert_sn: int, code: str, now: datetime) -> Verification:
+def verify_otp(db: Session, settings: Settings, *, cert_id: str, code: str, now: datetime) -> Verification:
     """일치 여부만 확인한다. 사용 완료로 표시하지 않는다(최종 업무 API가 다시 검증하고 표시한다)."""
-    return check_code(db, settings, load_for_update(db, cert_sn), code, now)
+    return check_code(db, settings, load_for_update(db, cert_id), code, now)
 
 
 def consume_otp(
     db: Session,
     settings: Settings,
     *,
-    cert_sn: int,
+    cert_id: str,
     code: str,
     purpose: OtpPurpose,
     bundle_sn: int,
@@ -339,7 +341,7 @@ def consume_otp(
     """업무 확정 API가 인증을 소비하기 전에 다시 검증한다. 인증 행을 잠근 채 돌려주므로 같은 트랜잭션에서
     사용 완료(mark_used)와 업무 변경을 함께 확정한다. 틀린 코드는 횟수를 올리고 커밋한 뒤 거절한다."""
     lock_bundle(db, bundle_sn)
-    row = load_for_update(db, cert_sn, bundle_sn=bundle_sn)
+    row = load_for_update(db, cert_id, bundle_sn=bundle_sn)
     if row is not None and (row.CERT_PRPS_CD != PURPOSE_CODES[purpose] or int(row.OPER_BNDL_SN) != bundle_sn):
         row = None  # 다른 목적·다른 묶음의 인증은 없는 것과 같다
     if not check_code(db, settings, row, code, now).verified:

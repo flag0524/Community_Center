@@ -43,7 +43,7 @@ def verify(w: World, cert_id: str, code: str) -> Any:
 
 def cert_row(w: World, cert_id: str) -> Any:
     return w.db.execute(
-        select(tables.TB_CERT_DMND).where(tables.TB_CERT_DMND.c.CERT_DMND_SN == int(cert_id))
+        select(tables.TB_CERT_DMND).where(tables.TB_CERT_DMND.c.CERT_DMND_ID == cert_id)
     ).one()
 
 
@@ -298,14 +298,28 @@ def test_5분이_지나면_만료되고_정확히_5분_직전까지는_유효하
 
 
 def test_없는_인증_번호와_사용한_인증은_무효다(world: World) -> None:
-    assert verify(world, "999999999", "123456").json()["code"] == "OTP_INVALID"
+    assert verify(world, "9" * 32, "123456").json()["code"] == "OTP_INVALID"
     cert = request_otp(world).json()["certRequestId"]
     world.db.execute(
         tables.TB_CERT_DMND.update()
-        .where(tables.TB_CERT_DMND.c.CERT_DMND_SN == int(cert))
+        .where(tables.TB_CERT_DMND.c.CERT_DMND_ID == cert)
         .values(CERT_USE_CMPTN_DT=START)
     )
     assert verify(world, cert, sent_code(world)).json()["code"] == "OTP_INVALID"
+
+
+def test_인증_요청_번호는_무작위_값이라_남의_인증을_짐작해_건드릴_수_없다(world: World) -> None:
+    cert = request_otp(world).json()["certRequestId"]
+    code = sent_code(world)
+    wrong = "000000" if code != "000000" else "111111"
+    assert re.fullmatch(r"[0-9a-f]{32}", cert)
+    serial = str(int(cert_row(world, cert).CERT_DMND_SN))
+    for guess in (serial, serial.zfill(22)):  # 순차 일련번호는 요청 식별자로 받지 않는다
+        assert verify(world, guess, wrong).status_code == 400, guess
+    for guess in ("0" * 32, "f" * 32):
+        assert verify(world, guess, wrong).json()["code"] == "OTP_INVALID"
+    assert int(cert_row(world, cert).FAIL_NMTM) == 0
+    assert verify(world, cert, code).json()["verified"] is True
 
 
 def test_코드_형식이_틀리면_검증_오류다(world: World) -> None:
@@ -324,7 +338,7 @@ def test_CSRF_토큰이_없으면_발급도_확인도_403이다(world: World) ->
     )
     assert (
         world.client.post(
-            f"{MEMBER}/auth/otp/verify", json={"certRequestId": "1", "code": "123456"}
+            f"{MEMBER}/auth/otp/verify", json={"certRequestId": "0" * 32, "code": "123456"}
         ).status_code
         == 403
     )
