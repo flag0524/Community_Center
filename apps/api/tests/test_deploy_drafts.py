@@ -3,11 +3,12 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
-from app.tools.generate_grants import AUDIT_TABLE, generate
+from app.tools.generate_grants import AUDIT_TABLE, generate, generate_table_grants
 from app.tools.schema_ddl import sequence_name
 from app.tools.schema_doc import parse_schema_doc
 from app.worker.schedule import DAILY_HOURS
@@ -47,14 +48,25 @@ def bash(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedP
 # --- DB 계정 권한 SQL ------------------------------------------------------------------------
 
 
-def test_계정_SQL은_설계안에서_만든_것과_같다() -> None:
-    committed = (DEPLOY / "mariadb/accounts.sql").read_text(encoding="utf-8")
-    assert committed == generate(), "python -m app.tools.generate_grants 로 다시 만든다"
+@pytest.mark.parametrize(("name", "make"), [("accounts", generate), ("grants", generate_table_grants)])
+def test_계정_SQL과_권한_SQL은_설계안에서_만든_것과_같다(name: str, make: Callable[[], str]) -> None:
+    committed = (DEPLOY / f"mariadb/{name}.sql").read_text(encoding="utf-8")
+    assert committed == make(), "python -m app.tools.generate_grants 로 다시 만든다"
+
+
+def test_계정_SQL은_테이블이_없는_새_DB에서도_끝까지_적용되게_테이블_권한을_담지_않는다() -> None:
+    accounts, grants = generate(), generate_table_grants()
+    # MariaDB는 없는 테이블에 대한 GRANT에서 멈춘다. 계정 SQL은 DB 전체·전역 권한만 준다
+    assert re.findall(r"ON `jori`\.`\w+`", accounts) == []
+    assert "CREATE DATABASE" in accounts and "TO 'migrate_jori'@" in accounts
+    # 테이블 권한 SQL은 마이그레이션 뒤에 적용하며 계정이나 DB를 만들지 않는다
+    assert "CREATE " not in grants and "IDENTIFIED BY" not in grants and "{{" not in grants
+    assert "ON `jori`.`TB_JOB_HSTRY`" in grants and grants.rstrip().endswith("FLUSH PRIVILEGES;")
 
 
 def test_API와_워커_계정은_모든_테이블과_시퀀스에_필요한_권한만_갖는다() -> None:
     schema = parse_schema_doc()
-    sql = generate()
+    sql = generate_table_grants()
     tables = {table.name for table in schema.tables}
     sequences = {name for name in (sequence_name(table) for table in schema.tables) if name}
     assert len(tables) == 45 and sequences
@@ -78,12 +90,14 @@ def test_구조_변경_권한은_마이그레이션_계정에만_있고_백업_�
 
 
 def test_다른_자치회_이름으로도_같은_모양의_계정_SQL을_만든다() -> None:
-    base, other = generate(), generate("hwaseong")
-    assert other == base.replace("jori", "hwaseong")  # 이름만 다르고 권한 구조는 같다
-    assert "CREATE DATABASE IF NOT EXISTS `hwaseong`" in other and "app_hwaseong" in other
-    for bad in ("Jori", "a", "1abc", "has-dash", "x" * 17, ""):
-        with pytest.raises(ValueError, match="인스턴스 이름"):
-            generate(bad)
+    for make in (generate, generate_table_grants):
+        base, other = make(), make("hwaseong")
+        assert other == base.replace("jori", "hwaseong")  # 이름만 다르고 권한 구조는 같다
+        assert "app_hwaseong" in other
+        for bad in ("Jori", "a", "1abc", "has-dash", "x" * 17, ""):
+            with pytest.raises(ValueError, match="인스턴스 이름"):
+                make(bad)
+    assert "CREATE DATABASE IF NOT EXISTS `hwaseong`" in generate("hwaseong")
 
 
 def test_계정_SQL에는_실제_비밀번호가_없고_자리표시만_있다() -> None:

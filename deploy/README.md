@@ -37,9 +37,10 @@
 ## 3. 처음 올리는 순서
 
 1. 계정·폴더: `useradd --system --home /opt/jori --shell /usr/sbin/nologin jori`, `install -d -o jori -g jori /data/jori/jori/files /opt/jori`, `install -d -m 0750 -o root -g jori /etc/jori`
-2. MariaDB: 설정 파일을 두고 재시작한 뒤 `SELECT @@transaction_isolation, @@binlog_format`로 확인한다. 스키마와 `app_jori` 계정을 만든다.
+2. MariaDB: 설정 파일을 두고 재시작한 뒤 `SELECT @@transaction_isolation, @@binlog_format`로 확인한다. DB와 계정은 `mariadb/accounts.sql`(비밀번호 자리표시를 바꿔서)로 만든다.
 3. 코드: 검수 통과 빌드를 `/opt/jori/releases/<해시>`에 풀고 `current`를 바꾼 뒤 `UV_PROJECT_ENVIRONMENT=/opt/jori/venv uv sync --frozen --no-dev`로 파이썬 환경을 맞춘다. 웹 앱은 `apps/web-user/dist`, `apps/web-admin/dist` 빌드 결과를 둔다.
 4. 마이그레이션: 백업 후 `alembic upgrade head`(코드표 초기값은 마이그레이션이 넣는다). 0005(휴대전화번호 암호화)는 평문을 암호문으로 바꾸므로 운영과 같은 `JORI_SECRET_KEY`가 환경에 있어야 하고(deploy.sh가 앱 설정 파일에서 읽어 준다), 번호가 있는 행이 있는데 키가 없거나 32자 미만이면 아무것도 바꾸지 않고 중단한다. 이행 뒤 이 키를 바꾸면 모든 번호를 읽을 수 없게 되므로 키를 바꾸지 않는다(교체 도구는 만들지 않았다).
+   마이그레이션은 `migrate_jori` 계정으로 하고, 끝나면 `mariadb/grants.sql`을 적용해 API·워커 계정에 테이블 권한을 준다(테이블이 없으면 이 SQL은 중간에 멈춘다). 테이블을 더하는 마이그레이션 뒤에도 다시 적용한다.
    그다음 **최초 설정**을 한 번 한다. 운영묶음·행정동·최초 관리자를 한 트랜잭션으로 만들고, 이미 관리자가 있으면 거부한다(ADR-104).
    `uv run python -m app.tools.bootstrap --site-id jori --bundle-name <묶음명> --site-name <사이트명> --url https://user.<도메인> --dongs-file <기관 행정동 명단.txt> --admin-id <아이디> --admin-name <이름>`
    (`JORI_DATABASE_URL`은 API 계정 주소, 비밀번호는 프롬프트로 두 번 입력한다. 자동화는 `--password-stdin`.) 행정동 명단은 기관이 확정한 것만 쓴다. 최초 관리자는 모든 권한을 가지므로 담당자를 위임한 뒤 사용 중지를 권장한다.
@@ -66,7 +67,8 @@
 
 | 파일 | 내용 |
 |---|---|
-| `mariadb/accounts.sql` | DB·계정 4개(`app_jori`, `worker_jori`, `backup_jori`, `migrate_jori`)와 권한. `python -m app.tools.generate_grants`로 설계안에서 만든다. 비밀번호는 `{{…_PASSWORD}}` 자리표시 |
+| `mariadb/accounts.sql` | 마이그레이션 **전**에 적용. DB·계정 4개(`app_jori`, `worker_jori`, `backup_jori`, `migrate_jori`)와 마이그레이션·백업 권한. 비밀번호는 `{{…_PASSWORD}}` 자리표시 |
+| `mariadb/grants.sql` | 마이그레이션 **뒤**에 적용. API·워커 계정의 테이블·시퀀스 권한. 두 파일 모두 `python -m app.tools.generate_grants`로 설계안에서 만든다 |
 | `env/jori.migrate.env.example` | `deploy.sh`가 구조 변경 계정으로 마이그레이션할 때 읽는 접속 주소 |
 | `systemd/jori-worker@.service` | `/etc/jori/<인스턴스>.worker.env`가 있으면 워커만 `worker_jori`로 접속하게 덮어쓴다 |
 | `backup/backup.sh` | 전체 백업(mariabackup 스트림을 바로 암호화, 첨부 사본, 해시, 별도 저장소 전송, 30일 정리) |
@@ -82,7 +84,7 @@
 - 빌드 PC에서 `build-release.sh`로 실제 산출물을 한 번 만들어 보고(`pnpm install --frozen-lockfile`, 운영 빌드), `deploy.sh <인스턴스> <커밋> <산출물.tar.gz> --dry-run`과 `backup.sh <인스턴스> --dry-run`으로 순서를 본다.
 - `mariabackup`·`mbstream`·`mariadbd`·`rsync`·`openssl`·`uv`가 설치되어 있는지, `backup_jori`의 권한(`RELOAD, PROCESS, LOCK TABLES, BINLOG MONITOR`)으로 백업이 되는지
 - 백업 유닛을 root로 돌리는 것을 줄일 수 있는지, 별도 저장소(`JORI_BACKUP_DEST`)와 암호화 키의 별도 보관 방법
-- `accounts.sql`을 적용한 뒤 API·워커가 필요한 권한만으로 동작하는지(권한이 모자라면 시퀀스·작업 이력부터 본다)
+- `accounts.sql`, 마이그레이션, `grants.sql`을 차례로 적용한 뒤 API·워커가 필요한 권한만으로 동작하는지(권한이 모자라면 시퀀스·작업 이력부터 본다)
 - 복구시험을 스테이징 서버에서 한 번 실제로 돌려 결과 보고서를 확인한다
 - 이 초안은 `retention_{자치회}` 계정을 두지 않았다. 파기는 워커 계정으로 돈다
 
@@ -91,9 +93,9 @@
 자치회마다 WAS·DB·DB 계정을 따로 둔다(ADR-002). 같은 서버에 더하는 경우의 순서다. `<이름>`은 영소문자·숫자 2~16자(예: `hwaseong`)이고 유닛·설정 파일·DB·계정 이름이 모두 이 이름을 따른다.
 
 1. **정할 것**: 인스턴스 이름, 사이트 식별자(`SITE_ID`, 소문자·숫자·하이픈), 다른 자치회와 겹치지 않는 API 포트(`JORI_API_PORT`), 도메인
-2. **DB·계정**: `uv run python -m app.tools.generate_grants --instance <이름> > accounts-<이름>.sql`로 만들고 `{{…_PASSWORD}}`를 서버에서 바꿔 적용한다
+2. **DB·계정**: `uv run python -m app.tools.generate_grants --instance <이름> > accounts-<이름>.sql`과 `… --instance <이름> --grants > grants-<이름>.sql`로 만든다. `accounts-<이름>.sql`은 `{{…_PASSWORD}}`를 서버에서 바꿔 지금 적용하고, `grants-<이름>.sql`은 4번의 마이그레이션 뒤에 적용한다
 3. **폴더·설정**: `install -d -o jori -g jori /data/jori/<이름>/files`, `/etc/jori/<이름>.env`(`jori.env.example`을 복사해 `JORI_DATABASE_URL`·`JORI_SITE_ID`·`JORI_FILE_ROOT`·`JORI_WORKER_STATUS_FILE=/run/jori/<이름>/worker-status.json`·`JORI_API_PORT`를 이 자치회 값으로, `JORI_SECRET_KEY`는 **새로 만든다**), `<이름>.migrate.env`, `<이름>.backup.env`. 비밀키·계정 비밀번호를 다른 자치회와 같게 쓰지 않는다
-4. **마이그레이션과 최초 설정**: 3장 4번과 같다(`migrate_<이름>` 계정, 이어서 `bootstrap`)
+4. **마이그레이션, 권한, 최초 설정**: 3장 4번과 같다(`migrate_<이름>` 계정으로 마이그레이션, `grants-<이름>.sql` 적용, 이어서 `bootstrap`)
 5. **Nginx**: `nginx/jori.conf.template`의 `{{DOMAIN}}`·`{{API_PORT}}`를 바꿔 새 사이트 파일로 둔다
 6. **서비스**: `systemctl enable --now jori-api@<이름> jori-worker@<이름> jori-backup@<이름>.timer jori-binlog-sync@<이름>.timer`
 7. **확인**: 최초 관리자로 로그인, `/api/health`, `/api/health/version`(커밋·리비전·코드표 체크섬이 다른 자치회와 같은지, R24), 백업 한 번 실행과 복구시험
