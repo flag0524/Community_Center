@@ -148,6 +148,11 @@ export function setMockIdleSeconds(value: number | null): void {
   idleOverride = value;
 }
 
+/** 시험에서 업무 요청이 서버 세션을 늘린 상황을 만든다. 화면이 받은 만료 시각은 그대로다. */
+export function touchMockSession(seconds: number): void {
+  state.expiresAt = Date.now() + seconds * 1000;
+}
+
 function idleSeconds(): number {
   if (idleOverride !== null) return idleOverride;
   try {

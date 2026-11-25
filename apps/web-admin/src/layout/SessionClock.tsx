@@ -1,7 +1,7 @@
 // 관리자 세션 남은 시간 표시, 만료 2분 전 연장 안내, 만료 시 로그인으로 보내는 컴포넌트 (RQ-SER-NF-008)
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
-import { extendSession } from '../api/auth';
+import { useEffect, useRef, useState } from 'react';
+import { extendSession, readSession } from '../api/auth';
 import { ApiRequestError } from '../api/http';
 import { sessionQuery } from '../api/queries';
 import { formatCountdown, useCountdown } from '../lib/countdown';
@@ -23,8 +23,25 @@ function Clock({ expiresAt, serverNow }: { expiresAt: string; serverNow: string 
   const logout = useLogout();
 
   const expire = useExpire();
-  const seconds = useCountdown(expiresAt, serverNow, expire);
+  // 업무 요청은 서버의 유휴 만료를 늘리지만 화면이 받은 시각은 그대로다. 안내하거나 내보내기 전에 서버에 다시 묻는다.
+  const sync = async () => {
+    const latest = await readSession();
+    if (latest.authenticated) queryClient.setQueryData(sessionQuery.queryKey, latest);
+    else expire();
+  };
+  const seconds = useCountdown(expiresAt, serverNow, () => void sync().catch(expire));
   const warning = seconds > 0 && seconds <= WARNING_SECONDS;
+  const [checked, setChecked] = useState<string | null>(null); // 서버에 확인을 마친 만료 시각
+  const confirmed = warning && checked === expiresAt;
+
+  useEffect(() => {
+    if (!warning || checked === expiresAt) return;
+    // 확인하지 못해도 안내는 띄운다. 연장하거나 로그아웃할 기회를 잃지 않게 한다.
+    void sync()
+      .catch(() => undefined)
+      .finally(() => setChecked(expiresAt));
+    // sync는 렌더마다 새로 만들어지므로 의존성에 넣지 않는다. 만료 시각마다 한 번만 확인한다.
+  }, [warning, expiresAt, checked]);
 
   const extend = useMutation({
     mutationFn: extendSession,
@@ -37,9 +54,9 @@ function Clock({ expiresAt, serverNow }: { expiresAt: string; serverNow: string 
   useEffect(() => {
     const element = dialog.current;
     if (!element) return;
-    if (warning && !element.open) element.showModal();
-    if (!warning && element.open) element.close();
-  }, [warning]);
+    if (confirmed && !element.open) element.showModal();
+    if (!confirmed && element.open) element.close();
+  }, [confirmed]);
 
   return (
     <>
