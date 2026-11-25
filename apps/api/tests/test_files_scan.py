@@ -12,7 +12,7 @@ from sqlalchemy import text
 
 from app.adapters.scan.mock import EICAR, MockScanner
 from app.core.config import get_settings
-from app.files.storage import new_key, write_blob
+from app.files.storage import blob_path, new_key, write_blob
 from app.worker import jobs
 from tests.test_admin_refunds import call, staff, use
 from tests.test_applications_read import open_course as _open_course
@@ -191,3 +191,18 @@ def test_올리기부터_검사와_내려받기까지_이어지고_악성_파일
     assert call(world, "GET", f"/files/{bad}/download").status_code == 404
     assert call(world, "GET", f"/files/{bad}").json()["status"] == "BLOCK"
     assert call(world, "GET", f"/courses/{other['CORS_SN']}/files").json()["items"][0]["blockReason"] is None
+
+
+def test_읽을_수_없는_파일이_배치를_채워도_다음_파일을_검사한다(
+    world: World, root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(jobs, "BATCH", 1)
+    broken = stored(world, root)
+    blob_path(str(root), str(broken["STRG_KEY"])).unlink()  # 저장소에서 사라진 파일
+    good = stored(world, root)
+    cursors: dict[str, int] = {}
+    world.db.commit()
+    settings = replace(world.settings, file_root=str(root))
+    for _ in range(2):
+        jobs.scan_files(world.db, settings, MockScanner(), world.bundle, world.clock, cursors)
+    assert state(world, good) == "FS.SAFE" and state(world, broken) == "FS.PENDING"

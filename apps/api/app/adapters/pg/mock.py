@@ -62,6 +62,8 @@ class MockPaymentGateway:
     next_cancel: CancelOutcome = CancelOutcome.DONE
     answer_cancel_amount: int | None = None
     cancel_raises: bool = False
+    cancel_unreachable: bool = False  # 취소 요청이 PG에 닿지 않는 상황(받은 기록도 남지 않는다)
+    received: set[str] = field(default_factory=set)  # PG가 받은 취소 멱등키
     cancel_delay_seconds: float = 0.0
     _ids: "count[int]" = field(default_factory=lambda: count(1))
     _lock: Lock = field(default_factory=Lock)
@@ -106,8 +108,11 @@ class MockPaymentGateway:
         )
 
     def cancel(self, *, order_no: str, amount: int, idempotency_key: str) -> CancelResult:
+        if self.cancel_unreachable:
+            raise ConnectionError("모의 연결 실패")
         with self._lock:
             self.cancel_calls.append(CancelCall(order_no, amount, idempotency_key))
+            self.received.add(idempotency_key)
             done = self.canceled.get(idempotency_key)  # 같은 키는 한 번만 취소하고 같은 결과를 돌려준다
             outcome = self.next_cancel
             self.next_cancel = CancelOutcome.DONE
@@ -132,9 +137,14 @@ class MockPaymentGateway:
         with self._lock:
             self.cancel_lookups.append(idempotency_key)
             found = self.canceled.get(idempotency_key)
+            received = idempotency_key in self.received
         if self.lookup_raises:
             raise TimeoutError("모의 통신 오류")
-        return found or CancelResult(CancelOutcome.UNKNOWN, failure_code="MOCK_TIMEOUT")
+        if found is not None:
+            return found
+        if received:
+            return CancelResult(CancelOutcome.UNKNOWN, failure_code="MOCK_TIMEOUT")
+        return CancelResult(CancelOutcome.NOT_FOUND, failure_code="MOCK_NOT_FOUND")
 
     def sign(self, body: bytes) -> str:
         return hmac.new(self.webhook_secret.encode(), body, hashlib.sha256).hexdigest()

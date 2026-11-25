@@ -64,6 +64,7 @@ const JOB_LABEL: Record<string, string> = {
   RFND_REJECT: '환불 반려',
   RFND_HOLD: '환불 보류',
   RFND_RELEASE: '환불 보류 해제',
+  RFND_RESEND: '환불 취소 재전송',
   RFND_EXECUTE: '환불 집행',
   RFND_DONE: '환불 완료',
   RFND_FAIL: '환불 실패',

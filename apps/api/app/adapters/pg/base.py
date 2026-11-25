@@ -49,6 +49,8 @@ class CancelOutcome(StrEnum):
     DONE = "DONE"  # 취소(환불)가 완료됐다
     REJECTED = "REJECTED"  # 취소가 거절·실패했음이 확인됐다
     UNKNOWN = "UNKNOWN"  # 시간 초과·통신 오류처럼 결과를 알 수 없다. 같은 멱등키로 조회해 확인한다
+    # 공급자가 이 멱등키의 취소를 받은 적이 없다고 확인했다. 확실할 때만 돌려주고 아니면 UNKNOWN이다
+    NOT_FOUND = "NOT_FOUND"
 
 
 @dataclass(frozen=True)

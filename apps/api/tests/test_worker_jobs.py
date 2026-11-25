@@ -11,10 +11,11 @@ from sqlalchemy import create_engine, text
 from app.adapters.pg.base import ApproveOutcome, ApproveResult, CancelOutcome, CancelResult
 from app.adapters.scan.mock import MockScanner
 from app.domain.admin.refund_service import pg_key
+from app.domain.admin.transaction_service import RECHECK_MAX
 from app.worker import jobs
 from app.worker.runner import Job, build_jobs, run_guarded
 from app.worker.status import is_stale, record_run
-from tests.test_admin_refunds import Actor, refund, staff
+from tests.test_admin_refunds import Actor, execute, refund, staff, two, use
 from tests.test_admin_transactions import app_state, approved, course, events, pay_row, pending
 from tests.test_applications_read import RESIDENT, application, payment
 from tests.world import START, World, make_member
@@ -385,11 +386,80 @@ def test_PG가_취소를_거절했다고_하면_실패로_두어_담당자가_�
 
 def test_PG에서도_결과를_모르면_처리_중으로_두고_사건을_남기지_않는다(world: World) -> None:
     r = pending_refund(world)
+    world.pg.received.add(key_of(world, r))  # PG는 받았지만 결과를 아직 모른다
     aged(world)
     assert recheck_refunds(world) == 1 and refund_state(world, r)["RFND_STTS_CD"] == "RS.PENDING"
     assert world.db.execute(text("SELECT COUNT(*) FROM TB_STLM_EVENT")).scalar() == 0
     world.pg.lookup_raises = True
     assert recheck_refunds(world) == 1 and refund_state(world, r)["RFND_STTS_CD"] == "RS.PENDING"
+
+
+def test_PG가_받은_적이_없는_취소는_10분_뒤_같은_키로_다시_보낸다(world: World) -> None:
+    r = pending_refund(world)  # 서버가 PG를 부르기 전에 죽은 상황
+    world.clock.advance(minutes=9)
+    recheck_refunds(world)
+    assert world.pg.cancel_calls == [] and refund_state(world, r)["RFND_STTS_CD"] == "RS.PENDING"
+    world.clock.advance(minutes=2)
+    recheck_refunds(world)
+    [call] = world.pg.cancel_calls
+    assert (call.idempotency_key, call.amount) == (key_of(world, r), 30000)
+    assert refund_state(world, r)["RFND_STTS_CD"] == "RS.DONE"
+    resent = world.db.execute(text("SELECT ACTR_TYPE_CD a FROM TB_JOB_HSTRY WHERE JOB_CD='RFND_RESEND'")).all()
+    assert [row.a for row in resent] == ["AK.SYSTEM"]
+
+
+def test_PG가_받았지만_결과를_모르는_취소는_다시_보내지_않는다(world: World) -> None:
+    r = pending_refund(world)
+    world.pg.received.add(key_of(world, r))
+    world.clock.advance(minutes=60)
+    recheck_refunds(world)
+    assert world.pg.cancel_calls == [] and refund_state(world, r)["RFND_STTS_CD"] == "RS.PENDING"
+
+
+def test_집행_중_PG에_닿지_못한_환불은_워커가_이어서_끝낸다(world: World) -> None:
+    approver, executor = two(world)
+    r = refund(world, status="RS.APPROVE", approver=approver)
+    world.pg.cancel_unreachable = True
+    use(world, executor)
+    assert execute(world, r).json()["status"] == "PENDING"
+    world.pg.cancel_unreachable = False
+    world.clock.advance(minutes=11)
+    recheck_refunds(world)
+    assert refund_state(world, r)["RFND_STTS_CD"] == "RS.DONE" and len(world.pg.canceled) == 1
+
+
+def test_결과를_모르는_환불이_배치를_채워도_다음_환불을_이어서_조회한다(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(jobs, "BATCH", 1)
+    stuck, ready = pending_refund(world), pending_refund(world)
+    world.pg.received.add(key_of(world, stuck))
+    world.pg.canceled[key_of(world, ready)] = CancelResult(CancelOutcome.DONE, cancel_id="c", amount=30000)
+    aged(world)
+    cursors: dict[str, int] = {}
+    world.db.commit()
+    for _ in range(2):
+        jobs.recheck_refunds(world.db, world.pg, world.bundle, world.clock, cursors)
+    assert refund_state(world, ready)["RFND_STTS_CD"] == "RS.DONE"
+    world.db.commit()
+    jobs.recheck_refunds(world.db, world.pg, world.bundle, world.clock, cursors)  # 처음으로 돌아간다
+    assert world.pg.cancel_lookups.count(key_of(world, stuck)) == 2
+
+
+def test_재조회_한도를_넘긴_결제가_많아도_새_결제를_재조회한다(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(jobs, "BATCH", 1)
+    old = [pending(world) for _ in range(4)]  # BATCH*4건을 모두 한도 초과로 만든다
+    aged(world)
+    for _ in range(RECHECK_MAX * len(old) + len(old)):
+        recheck(world)
+        world.clock.advance(seconds=61)
+    assert len(world.pg.lookups) == RECHECK_MAX * len(old)
+    app, pay = pending(world)
+    aged(world)
+    assert recheck(world) == 1
+    assert str(pay["STLM_NO"]) == world.pg.lookups[-1] and app
 
 
 def test_취소_금액이_다르면_완료로_보지_않고_확인_필요_사건을_남긴다(world: World) -> None:

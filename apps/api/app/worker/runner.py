@@ -37,19 +37,20 @@ def build_jobs(
     clock: Callable[[], datetime],
 ) -> list[Job]:
     """TDD 7의 주기(문자 5초, 파일 검사·만료 10초, 재조회 30초, 점검 매일 03:00)를 따른다. 정리는 이어서 더한다."""
+    cursors: dict[str, int] = {}  # 해결되지 않는 건이 배치를 막지 않도록 주기마다 이어서 본다
     return [
         Job(
             "sms_dispatch",
             INTERVAL_SECONDS["sms_dispatch"],
             lambda db: (
                 jobs.dispatch_sms(db, settings, sender, bundle_sn, clock)
-                + jobs.recheck_sms(db, sender, bundle_sn, clock)
+                + jobs.recheck_sms(db, sender, bundle_sn, clock, cursors)
             ),
         ),
         Job(
             "file_scan",
             INTERVAL_SECONDS["file_scan"],
-            lambda db: jobs.scan_files(db, settings, scanner, bundle_sn, clock),
+            lambda db: jobs.scan_files(db, settings, scanner, bundle_sn, clock, cursors),
         ),
         Job(
             "expire_payments",
@@ -69,7 +70,7 @@ def build_jobs(
         Job(
             "recheck_refunds",
             INTERVAL_SECONDS["recheck_refunds"],
-            lambda db: jobs.recheck_refunds(db, gateway, bundle_sn, clock),
+            lambda db: jobs.recheck_refunds(db, gateway, bundle_sn, clock, cursors),
         ),
         Job(
             "consistency_check",

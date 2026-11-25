@@ -5,7 +5,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import exists, func, insert, or_, select, update
+from sqlalchemy import Select, exists, func, insert, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.adapters.pg.base import ApproveOutcome, ApproveResult, CancelOutcome, CancelResult, PaymentGateway
@@ -41,11 +41,30 @@ SETTLE_GRACE = timedelta(
     seconds=30
 )  # 결제·환불 요청 직후에는 요청 처리가 아직 PG 응답을 기다리는 중일 수 있어 건드리지 않는다
 
+# PG가 받은 적 없다고 확인한 취소를 다시 보내기까지 기다리는 시간. 집행 요청이 아직 PG 응답을 기다릴 수 있다
+RESEND_AFTER = timedelta(minutes=10)
+
 Clock = Callable[[], datetime]
 
 
 def _request_id() -> str:
     return f"worker-{new_token()[:16]}"
+
+
+def _next_batch(
+    db: Session, query: Select[Any], key: Any, cursors: dict[str, int] | None, name: str
+) -> list[Any]:
+    """해결되지 않는 건이 앞을 막지 않도록 지난 주기에 본 번호 다음부터 BATCH건을 집고, 끝이면 처음으로 돌아간다.
+
+    query의 첫 열이 key다. cursors는 워커 프로세스가 들고 있으며 다시 시작하면 처음부터 본다.
+    """
+    after = cursors.get(name, 0) if cursors is not None else 0
+    rows = list(db.execute(query.where(key > after).order_by(key).limit(BATCH)).all())
+    if not rows and after:
+        rows = list(db.execute(query.order_by(key).limit(BATCH)).all())
+    if cursors is not None:
+        cursors[name] = int(rows[-1][0]) if len(rows) == BATCH else 0
+    return rows
 
 
 # --- 결제기한 만료 ------------------------------------------------------------------------------
@@ -114,9 +133,24 @@ def expire_payments(db: Session, settings: Settings, bundle_sn: int, clock: Cloc
 
 def _due_payments(db: Session, bundle_sn: int, now: datetime) -> list[Any]:
     """재조회할 차례인 결과 확인 중 결제. 재조회 사건이 한도 미만이고 마지막 재조회가 1분 전인 것이다."""
+    checks = (
+        select(func.count())
+        .where(
+            TB_STLM_EVENT.c.OPER_BNDL_SN == TB_STLM.c.OPER_BNDL_SN,
+            TB_STLM_EVENT.c.STLM_SN == TB_STLM.c.STLM_SN,
+            TB_STLM_EVENT.c.EVENT_TYPE_CD == "ET.RECON",
+            TB_STLM_EVENT.c.EVENT_ID.like(f"{RECHECK_PREFIX}%"),
+        )
+        .correlate(TB_STLM)
+        .scalar_subquery()
+    )
     pending = db.execute(
         select(TB_STLM.c.STLM_SN, TB_STLM.c.STLM_DMND_DT, TB_STLM.c.MDFCN_DT, TB_STLM.c.ATNLC_APLY_SN)
-        .where(TB_STLM.c.OPER_BNDL_SN == bundle_sn, TB_STLM.c.STLM_STTS_CD == "PS.PENDING")
+        .where(
+            TB_STLM.c.OPER_BNDL_SN == bundle_sn,
+            TB_STLM.c.STLM_STTS_CD == "PS.PENDING",
+            checks < RECHECK_MAX,  # 자동 재조회는 여기까지다. 한도를 넘긴 건이 앞을 막지 않게 SQL에서 뺀다
+        )
         .order_by(TB_STLM.c.STLM_SN)
         .limit(BATCH * 4)
     ).all()
@@ -133,8 +167,6 @@ def _due_payments(db: Session, bundle_sn: int, now: datetime) -> list[Any]:
                 TB_STLM_EVENT.c.EVENT_ID.like(f"{RECHECK_PREFIX}%"),
             )
         ).all()
-        if len(events) >= RECHECK_MAX:  # 자동 재조회는 여기까지다. 이후는 담당자가 대사한다(TDD 5.4)
-            continue
         if events and now - max(e.RCPTN_DT for e in events) < RECHECK_INTERVAL:
             continue
         due.append(payment)
@@ -316,23 +348,56 @@ def retry_webhooks(
 # --- 환불 결과 조회 -----------------------------------------------------------------------------
 
 
-def recheck_refunds(db: Session, gateway: PaymentGateway, bundle_sn: int, clock: Clock) -> int:
+def _resend_cancel(
+    db: Session, gateway: PaymentGateway, bundle_sn: int, refund_sn: int
+) -> CancelResult | None:
+    """PG가 받은 적 없다고 확인한 취소를 같은 멱등키로 다시 보낸다. 보낼 수 없는 상태가 됐으면 None이다."""
+    row = db.execute(
+        select(TB_RFND.c.RFND_AMT, TB_RFND.c.RFND_STTS_CD, TB_STLM.c.STLM_NO, TB_STLM.c.STLM_STTS_CD)
+        .join(
+            TB_STLM,
+            (TB_STLM.c.OPER_BNDL_SN == TB_RFND.c.OPER_BNDL_SN) & (TB_STLM.c.STLM_SN == TB_RFND.c.STLM_SN),
+        )
+        .where(TB_RFND.c.OPER_BNDL_SN == bundle_sn, TB_RFND.c.RFND_SN == refund_sn)
+    ).one()
+    db.rollback()  # 트랜잭션 밖에서 PG를 부른다
+    if row.RFND_STTS_CD != "RS.PENDING" or row.STLM_STTS_CD != "PS.PAID":
+        return None
+    try:
+        return gateway.cancel(
+            order_no=str(row.STLM_NO),
+            amount=int(row.RFND_AMT),
+            idempotency_key=pg_key(bundle_sn, refund_sn),
+        )
+    except Exception:  # 외부 호출 실패는 결과 불명이다. 다음 주기에 다시 조회한다
+        return CancelResult(CancelOutcome.UNKNOWN, failure_code="CANCEL_CALL_ERROR")
+
+
+def recheck_refunds(
+    db: Session,
+    gateway: PaymentGateway,
+    bundle_sn: int,
+    clock: Clock,
+    cursors: dict[str, int] | None = None,
+) -> int:
     """PG에 취소를 요청한 뒤 결과를 모르는 환불(RS.PENDING)을 같은 멱등키로 조회해 확정한다(TDD 7.2, FN-046).
 
+    PG가 받은 적 없다고 확인하면 집행 요청 10분 뒤부터 같은 키로 다시 보낸다(ADR-120).
     수동 계좌환불은 PG를 부르지 않으므로 대상이 아니다. 조회한 수를 돌려준다.
     """
     now = clock()
-    due = db.execute(
-        select(TB_RFND.c.RFND_SN)
-        .where(
+    due = _next_batch(
+        db,
+        select(TB_RFND.c.RFND_SN, TB_RFND.c.IMPL_DMND_DT).where(
             TB_RFND.c.OPER_BNDL_SN == bundle_sn,
             TB_RFND.c.RFND_STTS_CD == "RS.PENDING",
             TB_RFND.c.RFND_ACTNO_ENCPT_VL.is_(None),
             TB_RFND.c.IMPL_DMND_DT <= now - SETTLE_GRACE,
-        )
-        .order_by(TB_RFND.c.RFND_SN)
-        .limit(BATCH)
-    ).all()
+        ),
+        TB_RFND.c.RFND_SN,
+        cursors,
+        "refunds",
+    )
     db.rollback()
     checked = 0
     for item in due:
@@ -342,6 +407,11 @@ def recheck_refunds(db: Session, gateway: PaymentGateway, bundle_sn: int, clock:
             result = gateway.lookup_cancel(idempotency_key=key)
         except Exception:
             result = CancelResult(CancelOutcome.UNKNOWN, failure_code="CANCEL_LOOKUP_ERROR")
+        resent = False
+        if result.outcome is CancelOutcome.NOT_FOUND and clock() - item.IMPL_DMND_DT >= RESEND_AFTER:
+            again = _resend_cancel(db, gateway, bundle_sn, refund_sn)
+            if again is not None:
+                result, resent = again, True
         now = clock()
         stlm = db.execute(select(TB_RFND.c.STLM_SN).where(TB_RFND.c.RFND_SN == refund_sn)).scalar_one()
         lock_payment(db, int(stlm))  # 결제 → 환불 순서(C07)
@@ -353,9 +423,20 @@ def recheck_refunds(db: Session, gateway: PaymentGateway, bundle_sn: int, clock:
         if refund.RFND_STTS_CD != "RS.PENDING":  # 그 사이 다른 경로가 끝냈다
             db.rollback()
             continue
-        settle_cancel(
-            db, None, refund, result, amount=int(refund.RFND_AMT), request_id=_request_id(), now=now
-        )
+        request_id = _request_id()
+        if resent:
+            record_job(
+                db,
+                actor="AK.SYSTEM",
+                job="RFND_RESEND",
+                table="TB_RFND",
+                key=refund_sn,
+                request_id=request_id,
+                now=now,
+                bundle_sn=bundle_sn,
+                change="PG에 접수되지 않은 취소를 같은 멱등키로 다시 보냄",
+            )
+        settle_cancel(db, None, refund, result, amount=int(refund.RFND_AMT), request_id=request_id, now=now)
         db.commit()
         checked += 1
     return checked
@@ -457,7 +538,9 @@ def dispatch_sms(db: Session, settings: Settings, sender: SmsSender, bundle_sn: 
     return sent
 
 
-def recheck_sms(db: Session, sender: SmsSender, bundle_sn: int, clock: Clock) -> int:
+def recheck_sms(
+    db: Session, sender: SmsSender, bundle_sn: int, clock: Clock, cursors: dict[str, int] | None = None
+) -> int:
     """공급자가 접수한 문자(SS.SENDING)의 최종 전달과 결과를 모르는 문자(SS.UNKNOWN)의 실제 발송 여부를 조회한다.
 
     전달 확인이면 SS.SENT, 실패 확인이면 SS.FAIL로 바꾼다. 아직 모르면 그대로 두고 새로 보내지 않는다. 조회한 수를 돌려준다.
@@ -469,7 +552,8 @@ def recheck_sms(db: Session, sender: SmsSender, bundle_sn: int, clock: Clock) ->
         .correlate(TB_SMS_TRGT)
         .scalar_subquery()
     )
-    due = db.execute(
+    due = _next_batch(
+        db,
         select(TB_SMS_TRGT.c.SMS_TRGT_SN, TB_SMS_SNDNG_HSTRY.c.IDEM_KEY, TB_SMS_SNDNG_HSTRY.c.SPLR_MSG_ID)
         .join(TB_SMS_DMND, TB_SMS_DMND.c.SMS_DMND_SN == TB_SMS_TRGT.c.SMS_DMND_SN)
         .join(
@@ -482,10 +566,11 @@ def recheck_sms(db: Session, sender: SmsSender, bundle_sn: int, clock: Clock) ->
             TB_SMS_TRGT.c.TRGT_STTS_CD.in_(("SS.SENDING", "SS.UNKNOWN")),
             TB_SMS_SNDNG_HSTRY.c.SNDNG_DMND_DT <= now - SETTLE_GRACE,
             NOT_OTP,
-        )
-        .order_by(TB_SMS_TRGT.c.SMS_TRGT_SN)
-        .limit(BATCH)
-    ).all()
+        ),
+        TB_SMS_TRGT.c.SMS_TRGT_SN,
+        cursors,
+        "sms",
+    )
     db.rollback()
     checked = 0
     for item in due:
@@ -533,18 +618,30 @@ def recheck_sms(db: Session, sender: SmsSender, bundle_sn: int, clock: Clock) ->
 # --- 파일 검사 ----------------------------------------------------------------------------------
 
 
-def scan_files(db: Session, settings: Settings, scanner: FileScanner, bundle_sn: int, clock: Clock) -> int:
+def scan_files(
+    db: Session,
+    settings: Settings,
+    scanner: FileScanner,
+    bundle_sn: int,
+    clock: Clock,
+    cursors: dict[str, int] | None = None,
+) -> int:
     """검사 대기(FS.PENDING) 파일을 검사해 통과(FS.SAFE)나 차단(FS.BLOCK)으로 정한다(TDD 7.4, NF-SER-002). 정한 수를 돌려준다.
 
     저장된 내용의 해시가 올릴 때의 값과 다르면 바뀐 파일이라 차단한다. 검사기에 닿지 못하거나 파일을 읽지 못하면
     통과로 보지 않고 검사 대기로 두어 다음 주기에 다시 한다. 차단 사유(탐지 이름)는 로그·이력에 남기지 않는다.
     """
-    due = db.execute(
+    pending = (
         select(TB_FILE.c.FILE_SN)
         .where(TB_FILE.c.OPER_BNDL_SN == bundle_sn, TB_FILE.c.FILE_STTS_CD == "FS.PENDING")
         .order_by(TB_FILE.c.REG_DT, TB_FILE.c.FILE_SN)
         .limit(BATCH)
-    ).all()
+    )
+    # 읽거나 검사하지 못해 대기로 남는 파일이 배치를 막지 않도록, 지난 주기까지 남은 건수만큼 건너뛰어 이어 본다
+    skip = cursors.get("files", 0) if cursors is not None else 0
+    due = db.execute(pending.offset(skip)).all()
+    if not due and skip:
+        skip, due = 0, db.execute(pending).all()
     db.rollback()
     decided = 0
     for item in due:
@@ -593,4 +690,6 @@ def scan_files(db: Session, settings: Settings, scanner: FileScanner, bundle_sn:
         )
         db.commit()
         decided += 1
+    if cursors is not None:  # 이번에 정한 파일은 대기에서 빠지므로 남은 건수만 건너뛴다
+        cursors["files"] = skip + len(due) - decided if len(due) == BATCH else 0
     return decided
