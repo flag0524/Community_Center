@@ -63,7 +63,8 @@ function FacilityForm({ centers, facility }: { centers: Facility[]; facility?: F
     onSuccess: (result) => {
       key.renew();
       // 시설이 바뀌면 일정 양식의 강의실 선택지도 달라진다.
-      queryClient.removeQueries({ queryKey: ['facilities', 'list'] });
+      // 이 화면이 목록을 보고 있어 지우면 폼이 다시 만들어지며 저장 안내가 사라진다. 낡음 표시만 하고 새로 읽는다.
+      void queryClient.invalidateQueries({ queryKey: ['facilities', 'list'] });
       queryClient.removeQueries({ queryKey: ['course-options'] });
       if (facility) {
         queryClient.setQueryData(facilityQuery(result.facilityId).queryKey, result);

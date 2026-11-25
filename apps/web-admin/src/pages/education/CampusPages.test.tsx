@@ -71,6 +71,23 @@ describe('센터·강의실', () => {
     expect(screen.getByText('이 시설을 쓰는 일정이 7건 있습니다.')).toBeInTheDocument();
   });
 
+  it('저장한 뒤에도 안내가 남고 화면을 다시 불러오지 않으며 이어서 저장할 수 있다', async () => {
+    await signInAs('group');
+    renderApp('/edu/facilities/7000000000000000000002');
+    await heading('센터·강의실 수정');
+    const floor = field('층');
+    await userEvent.type(floor, ' 동관');
+    await userEvent.click(screen.getByRole('button', { name: '저장' }));
+    expect(await screen.findByText('저장했습니다.')).toBeInTheDocument();
+    expect(floor).toBeInTheDocument(); // 폼이 다시 만들어지지 않았다
+    await userEvent.type(floor, ' 1');
+    expect(screen.queryByText('저장했습니다.')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '저장' }));
+    expect(await screen.findByText('저장했습니다.')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(floor).toHaveValue('3층 동관 1');
+  });
+
   it('시설 권한이 없는 담당자는 화면을 열 수 없다', async () => {
     await signInAs('course');
     renderApp('/edu/facilities');
