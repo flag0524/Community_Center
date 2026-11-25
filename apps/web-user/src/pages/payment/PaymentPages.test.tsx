@@ -1,6 +1,7 @@
 // 결제 화면과 결제 결과 4종(성공·실패·결과 확인 중·기한 만료)이 서버 판정대로 그려지고 요청이 한 번만 나가는지 확인하는 시험
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApplication } from '../../api/applications';
 import { setMockNow } from '../../mocks/clock';
@@ -94,6 +95,43 @@ describe('결제 화면', () => {
     expect(seen[0]!.body).toEqual({ method: 'TRANSFER' });
     expect(seen[1]!.path).toBe('/api/v1/payments/confirm');
     expect(seen[1]!.body).toMatchObject({ amount: 60000, paymentKey: expect.any(String), orderNo: expect.any(String) });
+  });
+});
+
+describe('결제 재시도의 멱등키', () => {
+  it('같은 수단으로 다시 하면 같은 키를 쓰고, 결제수단을 바꾸면 새 키를 쓴다', async () => {
+    const id = await dueApplication();
+    const keys: string[] = [];
+    const listener = ({ request }: { request: Request }) => {
+      if (request.method === 'POST' && new URL(request.url).pathname.endsWith('/payments')) {
+        keys.push(request.headers.get('Idempotency-Key') ?? '');
+      }
+    };
+    server.events.on('request:start', listener);
+    server.use(
+      http.post('/api/v1/payments/confirm', () =>
+        HttpResponse.json({ code: 'INTERNAL_ERROR', message: '오류', requestId: 'r' }, { status: 500 }),
+      ),
+    );
+    try {
+      renderApp(`/payment/${id}`);
+      const u = user();
+      const attempt = async (count: number) => {
+        await waitFor(() => expect(screen.getByRole('button', { name: '결제하기' })).toBeEnabled());
+        await u.click(screen.getByRole('button', { name: '결제하기' }));
+        await waitFor(() => expect(keys).toHaveLength(count));
+        await waitFor(() => expect(document.querySelector('.form-message.is-error')).not.toBeEmptyDOMElement());
+      };
+      await screen.findByRole('button', { name: '결제하기' });
+      await attempt(1);
+      await attempt(2);
+      await u.click(screen.getByRole('radio', { name: '실시간 계좌이체' }));
+      await attempt(3);
+    } finally {
+      server.events.removeListener('request:start', listener);
+    }
+    expect(keys[1]).toBe(keys[0]);
+    expect(keys[2]).not.toBe(keys[1]);
   });
 });
 

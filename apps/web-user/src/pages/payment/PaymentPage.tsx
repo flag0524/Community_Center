@@ -34,7 +34,8 @@ export function PaymentPage() {
   const query = useQuery(applicationQuery(applicationId));
   usePageTitle(TITLE);
   const [method, setMethod] = useState<PaymentMethod>('CARD');
-  // 화면을 연 동안의 결제 시도는 같은 멱등키를 쓴다. 결과 화면에서 다시 결제하러 돌아오면 화면이 새로 만들어져 새 키를 쓴다.
+  // 같은 수단의 결제 시도는 같은 멱등키를 쓴다. 수단을 바꾸면 내용이 달라지므로 새 키를 쓴다(같은 키에 다른 수단은 서버가 충돌로 본다).
+  // 결과 화면에서 다시 결제하러 돌아오면 화면이 새로 만들어져 새 키를 쓴다.
   const idempotencyKey = useRef(crypto.randomUUID());
   const sending = useRef(false);
 
@@ -89,7 +90,10 @@ export function PaymentPage() {
                 name="method"
                 value={item.value}
                 checked={method === item.value}
-                onChange={() => setMethod(item.value)}
+                onChange={() => {
+                  idempotencyKey.current = crypto.randomUUID();
+                  setMethod(item.value);
+                }}
               />{' '}
               {item.label}
             </label>
