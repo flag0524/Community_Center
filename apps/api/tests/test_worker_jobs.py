@@ -394,6 +394,22 @@ def test_PG에서도_결과를_모르면_처리_중으로_두고_사건을_남�
     assert recheck_refunds(world) == 1 and refund_state(world, r)["RFND_STTS_CD"] == "RS.PENDING"
 
 
+def test_취소_금액이_어긋난_답을_거듭_받아도_확인_필요_사건은_한_번만_남긴다(world: World) -> None:
+    r = pending_refund(world)
+    world.pg.canceled[key_of(world, r)] = CancelResult(CancelOutcome.DONE, cancel_id="c-1", amount=29000)
+    aged(world)
+    for _ in range(3):
+        assert recheck_refunds(world) == 1
+    assert refund_state(world, r)["RFND_STTS_CD"] == "RS.PENDING"
+    sql = text("SELECT FAIL_RSN f FROM TB_STLM_EVENT WHERE RFND_SN=:r ORDER BY STLM_EVENT_SN")
+    [only] = world.db.execute(sql, {"r": r["RFND_SN"]}).all()
+    assert "불일치" in only.f
+    # PG의 답이 바뀌면 새 사건을 남기고 확정한다
+    world.pg.canceled[key_of(world, r)] = CancelResult(CancelOutcome.DONE, cancel_id="c-1", amount=30000)
+    assert recheck_refunds(world) == 1 and refund_state(world, r)["RFND_STTS_CD"] == "RS.DONE"
+    assert len(world.db.execute(sql, {"r": r["RFND_SN"]}).all()) == 2
+
+
 def test_PG가_받은_적이_없는_취소는_10분_뒤_같은_키로_다시_보낸다(world: World) -> None:
     r = pending_refund(world)  # 서버가 PG를 부르기 전에 죽은 상황
     world.clock.advance(minutes=9)

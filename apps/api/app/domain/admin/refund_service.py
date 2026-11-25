@@ -1,4 +1,5 @@
 # 관리자 환불 검토·집행: 조회, 대리 접수, 보류·승인·반려, PG 취소 집행, 수동 이체 확인(TDD 5.6, FN-043~046, R14·R15)
+import json
 from collections.abc import Callable, Iterator
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
@@ -705,6 +706,17 @@ def _cancel_event(
     )
 
 
+def _repeats_last_event(db: Session, refund_sn: int, content: dict[str, Any]) -> bool:
+    """이 환불의 마지막 PG 사건과 같은 답인가."""
+    last = db.execute(
+        select(TB_STLM_EVENT.c.EVENT_CN)
+        .where(TB_STLM_EVENT.c.RFND_SN == refund_sn)
+        .order_by(TB_STLM_EVENT.c.STLM_EVENT_SN.desc())
+        .limit(1)
+    ).scalar()
+    return bool(last == json.dumps(content, ensure_ascii=False, sort_keys=True))  # record_event의 저장 형식
+
+
 def settle_cancel(
     db: Session,
     admin: Admin | None,
@@ -722,15 +734,17 @@ def settle_cancel(
     bundle_sn, sn = int(refund.OPER_BNDL_SN), int(refund.RFND_SN)
     content = {"outcome": result.outcome.value, "amount": result.amount, "cancelId": result.cancel_id}
     if result.outcome is CancelOutcome.DONE and result.amount != amount:
-        _cancel_event(
-            db,
-            bundle_sn,
-            refund,
-            status="EP.FAIL",
-            content=content,
-            now=now,
-            fail_reason=f"취소 금액 불일치(요청 {amount}원) 확인 필요",
-        )
+        # 워커가 거듭 조회하므로 같은 답에는 확인 필요 사건을 한 번만 남긴다
+        if not _repeats_last_event(db, sn, content):
+            _cancel_event(
+                db,
+                bundle_sn,
+                refund,
+                status="EP.FAIL",
+                content=content,
+                now=now,
+                fail_reason=f"취소 금액 불일치(요청 {amount}원) 확인 필요",
+            )
         return "RS.PENDING"
     if result.outcome is CancelOutcome.DONE:
         values = {"RFND_STTS_CD": "RS.DONE", "RFND_DT": now, "PG_RFND_ID": result.cancel_id}
