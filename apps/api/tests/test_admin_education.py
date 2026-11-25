@@ -363,6 +363,44 @@ def test_결제대기와_수강확정만_점유로_세고_대기와_취소는_�
     assert call(world, "PUT", f"/courses/{sn}", {**kit.body(capacity=1), "version": 2}).status_code == 422
 
 
+def waiting_course(w: World, kit: Kit) -> tuple[int, dict[str, Any]]:
+    """정원 1명이 찼고 대기자가 한 명 있는 접수 중 강좌. (강좌 번호, 대기 신청)"""
+    sn = int(post_course(w, kit.body(capacity=1)).json()["courseId"])
+    w.db.execute(text("UPDATE TB_CORS SET CORS_STTS_CD='CS.OPEN' WHERE CORS_SN=:c"), {"c": sn})
+    application(w, make_member(w, f"a{next(_keys)}", **RESIDENT), {"CORS_SN": sn}, "ES.CONFIRM")
+    waiter = application(
+        w,
+        make_member(w, f"a{next(_keys)}", MBL_TELNO="01012345678", **RESIDENT),
+        {"CORS_SN": sn},
+        "ES.WAIT",
+    )
+    w.db.commit()
+    return sn, waiter
+
+
+def application_state(w: World, app: dict[str, Any]) -> str:
+    found = row(w, "SELECT APLY_STTS_CD s FROM TB_ATNLC_APLY WHERE ATNLC_APLY_SN=:a", a=app["ATNLC_APLY_SN"])
+    return str(found["s"])
+
+
+def test_정원을_늘리면_대기자가_바로_승격되고_결제_안내가_쌓인다(world: World) -> None:
+    kit = Kit(world)
+    boss(world)
+    sn, waiter = waiting_course(world, kit)
+    done = call(world, "PUT", f"/courses/{sn}", {**kit.body(capacity=2), "version": 1})
+    assert done.status_code == 200 and done.json()["occupied"] == 2 and done.json()["waiting"] == 0
+    assert application_state(world, waiter) == "ES.HOLD"
+    assert row(world, "SELECT COUNT(*) c FROM TB_SMS_DMND")["c"] == 1
+
+
+def test_정원이_그대로면_수정해도_대기자를_건드리지_않는다(world: World) -> None:
+    kit = Kit(world)
+    boss(world)
+    sn, waiter = waiting_course(world, kit)
+    done = call(world, "PUT", f"/courses/{sn}", {**kit.body(capacity=1, name="수정"), "version": 1})
+    assert done.status_code == 200 and application_state(world, waiter) == "ES.WAIT"
+
+
 def test_강좌_수정은_버전이_맞아야_하고_폐강한_강좌는_고칠_수_없다(world: World) -> None:
     kit = Kit(world)
     boss(world)

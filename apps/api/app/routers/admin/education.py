@@ -173,11 +173,23 @@ def get_admin_course(course_id: Serial, db: Db, admin: Me, clock: Now) -> AdminC
 
 @router.put("/courses/{course_id}", responses=WRITE_ERRORS, dependencies=[Depends(csrf_header)])
 def update_admin_course(
-    course_id: Serial, body: CourseUpdate, request: Request, db: Db, admin: MeWrite, clock: Now
+    course_id: Serial,
+    body: CourseUpdate,
+    request: Request,
+    db: Db,
+    admin: MeWrite,
+    clock: Now,
+    settings: Config,
 ) -> AdminCourse:
-    """모집정원은 현재 점유보다 작게 줄일 수 없다(화면설계서 ADM-EDU-001P)."""
+    """모집정원은 현재 점유보다 작게 줄일 수 없고, 늘리면 대기자를 바로 승격한다(화면설계서 ADM-EDU-001P)."""
     return service.update_course(
-        db, admin, now=clock(), request_id=request_id_of(request), course_id=course_id, body=body
+        db,
+        settings,
+        admin,
+        now=clock(),
+        request_id=request_id_of(request),
+        course_id=course_id,
+        body=body,
     )
 
 

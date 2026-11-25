@@ -49,7 +49,13 @@ from app.domain.admin.education_schemas import (
 from app.domain.admin.education_types import CourseAdminStatus, CycleStatus
 from app.domain.admin.refund_service import kst_start, scoped
 from app.domain.admin.types import AdminAuthority as AU
-from app.domain.application.seats import cancel_ready_payments, count_by_status, lock_course, set_status
+from app.domain.application.seats import (
+    cancel_ready_payments,
+    count_by_status,
+    lock_course,
+    promote_waiters,
+    set_status,
+)
 from app.domain.application.service import ACTIVE, SEAT_STATUSES
 from app.domain.course.service import _education_state, reception_state, ymd
 from app.domain.payment.service import lock_payment
@@ -738,7 +744,14 @@ def _locked(db: Session, admin: Admin, scope: Scope, course_id: str) -> Any:
 
 
 def update_course(
-    db: Session, admin: Admin, *, now: datetime, request_id: str, course_id: str, body: CourseUpdate
+    db: Session,
+    settings: Settings,
+    admin: Admin,
+    *,
+    now: datetime,
+    request_id: str,
+    course_id: str,
+    body: CourseUpdate,
 ) -> AdminCourse:
     scope = permit(db, admin, AU.CORS_W, now)
     course = _locked(db, admin, scope, course_id)
@@ -755,6 +768,11 @@ def update_course(
         db, TB_CORS, {"OPER_BNDL_SN": admin.bundle_sn, "CORS_SN": course_sn}, body.version, values
     )
     _audit(db, admin, "CORS_UPDATE", "TB_CORS", course_sn, request_id, now, "강좌 수정")
+    if body.capacity > int(course.RCRT_NOPE):  # 늘어난 자리는 같은 강좌 잠금 아래에서 대기자에게 먼저 준다
+        changed = db.execute(
+            select(TB_CORS).where(TB_CORS.c.OPER_BNDL_SN == admin.bundle_sn, TB_CORS.c.CORS_SN == course_sn)
+        ).one()
+        promote_waiters(db, settings, changed, now=now, request_id=request_id)
     return _detail(db, admin, now, course_sn)
 
 
