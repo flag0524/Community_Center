@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApplication } from '../../api/applications';
+import { getJson } from '../../api/http';
 import { confirmPayment, requestPayment } from '../../api/payments';
 import { setMockNow } from '../../mocks/clock';
 import { setMockPayOutcome } from '../../mocks/payOutcome';
@@ -536,5 +537,25 @@ describe('마이페이지 좌측 메뉴', () => {
     renderApp('/me/password');
     const menu = await screen.findByRole('navigation', { name: '마이페이지 하위 메뉴' });
     expect(within(menu).getByRole('link', { name: /회원정보수정/ })).toHaveAttribute('aria-current', 'page');
+  });
+});
+
+describe('영수증 링크', () => {
+  it.each([
+    ['FAILED', false],
+    ['PENDING', false],
+    ['PAID', true],
+  ] as const)('결제상태가 %s이면 영수증 링크 표시가 %s이다', async (paymentStatus, shown) => {
+    await signInAsDemo();
+    const { applicationId } = await apply('1');
+    const detail = await getJson<Record<string, unknown>>(`/me/applications/${applicationId}`);
+    server.use(
+      http.get(`/api/v1/me/applications/${applicationId}`, () =>
+        HttpResponse.json({ ...detail, paymentId: '3000000000000000000001', paymentStatus }),
+      ),
+    );
+    renderApp(`/me/applications/${applicationId}`);
+    await screen.findByRole('link', { name: '목록' });
+    expect(screen.queryByRole('link', { name: '영수증' }) !== null).toBe(shown);
   });
 });

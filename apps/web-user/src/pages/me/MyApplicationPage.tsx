@@ -82,7 +82,8 @@ export function MyApplicationPage() {
               결제하기
             </Link>
           ) : null}
-          {application.paymentId ? (
+          {/* 영수증은 결제완료만 열린다. paymentId는 실패·확인 중인 결제도 가리킨다. */}
+          {application.paymentId && application.paymentStatus === 'PAID' ? (
             <Link className="button secondary" to={`/me/receipts/${application.paymentId}`}>
               영수증
             </Link>
