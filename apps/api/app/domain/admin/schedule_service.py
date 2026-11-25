@@ -13,7 +13,7 @@ from app.auth.admin_access import Admin, permit, permit_any, scope_for
 from app.core.errors import ApiError, ErrorCode
 from app.db.tables import TB_CORS, TB_CORS_ATND, TB_CORS_SCHDL, TB_CORS_SCHDL_CHG, TB_FCLT, TB_JOB_HSTRY
 from app.db.versioned import update_versioned
-from app.domain.admin.education_service import EDITABLE, _visible
+from app.domain.admin.education_service import EDITABLE, _visible, center_in_use
 from app.domain.admin.education_types import ScheduleChangeKind
 from app.domain.admin.schedule_schemas import (
     CourseSchedules,
@@ -216,6 +216,7 @@ def _room(db: Session, bundle_sn: int, facility_id: str) -> Any:
             TB_FCLT.c.FCLT_SN == int(facility_id),
             TB_FCLT.c.FCLT_TYPE_CD == "FT.ROOM",
             TB_FCLT.c.USE_YN == "Y",
+            center_in_use(),
         )
         .with_for_update()
     ).first()

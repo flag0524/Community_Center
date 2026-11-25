@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from pydantic import BaseModel
-from sqlalchemy import Select, and_, func, insert, select, update
+from sqlalchemy import Select, and_, exists, func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -561,6 +561,17 @@ def get_course(db: Session, admin: Admin, *, now: datetime, course_id: str) -> A
     return _detail(db, admin, now, int(course_id))
 
 
+def center_in_use() -> Any:
+    """강의실(TB_FCLT)의 상위 센터가 사용 중인가. 센터를 사용 중지하면 그 강의실은 배정할 수 없다."""
+    center = TB_FCLT.alias("open_center")
+    return or_(
+        TB_FCLT.c.UP_FCLT_SN.is_(None),
+        exists(
+            select(center.c.FCLT_SN).where(center.c.FCLT_SN == TB_FCLT.c.UP_FCLT_SN, center.c.USE_YN == "Y")
+        ).correlate(TB_FCLT),
+    )
+
+
 def get_options(db: Session, admin: Admin, *, now: datetime) -> CourseOptions:
     """등록·수정 화면과 목록 조건의 선택지. 강좌는 이 담당자의 범위 안의 것만 담는다."""
     scope = permit_any(db, admin, OPTION_READERS, now)
@@ -576,7 +587,12 @@ def get_options(db: Session, admin: Admin, *, now: datetime) -> CourseOptions:
     rooms = db.execute(
         select(TB_FCLT.c.FCLT_SN, TB_FCLT.c.FCLT_NM, parent.c.FCLT_NM)
         .outerjoin(parent, parent.c.FCLT_SN == TB_FCLT.c.UP_FCLT_SN)
-        .where(TB_FCLT.c.OPER_BNDL_SN == bundle, TB_FCLT.c.FCLT_TYPE_CD == "FT.ROOM", TB_FCLT.c.USE_YN == "Y")
+        .where(
+            TB_FCLT.c.OPER_BNDL_SN == bundle,
+            TB_FCLT.c.FCLT_TYPE_CD == "FT.ROOM",
+            TB_FCLT.c.USE_YN == "Y",
+            center_in_use(),
+        )
         .order_by(TB_FCLT.c.FCLT_SN)
     ).all()
     return CourseOptions(

@@ -692,6 +692,21 @@ def test_다른_날로_옮기는_보강은_원수업의_자리를_비우지_않�
     )  # 수요일 자기 수업과 겹친다
 
 
+def test_사용_중지한_센터의_강의실은_선택지에_없고_일정과_보강에_쓸_수_없다(world: World) -> None:
+    c = open_course(world)
+    r, closed = room(world, "본관"), room(world, "닫은 센터 강의실")
+    world.db.execute(text("UPDATE TB_FCLT SET USE_YN='N' WHERE FCLT_SN=:s"), {"s": closed["UP_FCLT_SN"]})
+    world.db.commit()
+    writer(world)
+    made(world, c, body(r))
+    options = call(world, "GET", "/course-options").json()
+    assert [o["id"] for o in options["rooms"]] == [str(r["FCLT_SN"])]
+    regular = add(world, c, body(closed, weekday="WED"))
+    assert regular.status_code == 422 and "facilityId" in regular.json()["fields"], regular.text
+    makeup = change(world, c, makeup_body(closed, "2026-11-12"))
+    assert makeup.status_code == 422 and "facilityId" in makeup.json()["fields"], makeup.text
+
+
 def close_course(w: World, course: dict[str, Any]) -> None:
     w.db.execute(
         text("UPDATE TB_CORS SET CORS_STTS_CD='CS.CANCEL' WHERE CORS_SN=:c"), {"c": course["CORS_SN"]}
