@@ -331,6 +331,7 @@ def test_승인액이_승인_시점의_반환_기준액을_넘으면_거절한�
     use(world, who)
     r = call(world, "PUT", f"/refunds/{over['RFND_SN']}/approve", {"amount": 70000, "version": 1})
     assert r.status_code == 422 and r.json()["code"] == "RFND_LIMIT_EXCEEDED"
+    assert "승인할 수 있는 금액은 60,000원" in r.json()["message"]
     assert state(world, over)["RFND_STTS_CD"] == "RS.REQUEST"
     assert (
         call(world, "PUT", f"/refunds/{ok['RFND_SN']}/approve", {"amount": 60000, "version": 1}).status_code
@@ -604,6 +605,7 @@ def test_재처리도_한도를_다시_검사한다(world: World) -> None:
     use(world, executor)
     r = execute(world, failed)
     assert r.status_code == 422 and r.json()["code"] == "RFND_LIMIT_EXCEEDED" and world.pg.cancel_calls == []
+    assert "원결제액을 넘어 집행할 수 없습니다" in r.json()["message"]
 
 
 # --- 수동 계좌환불 ------------------------------------------------------------------------------
@@ -759,6 +761,7 @@ def test_대리_접수는_원결제액을_넘는_금액과_진행_중_환불을_
     use(world, who)
     over = create(world, app["ATNLC_APLY_SN"], 30001)
     assert over.status_code == 422 and over.json()["code"] == "RFND_LIMIT_EXCEEDED"
+    assert "접수할 수 있는 금액은 30,000원" in over.json()["message"]
     assert world.db.execute(text("SELECT APLY_STTS_CD FROM TB_ATNLC_APLY")).scalar() == "ES.CONFIRM"
 
 

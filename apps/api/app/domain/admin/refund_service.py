@@ -561,7 +561,9 @@ def approve(
     ref = _baseline(target, int(payment.STLM_AMT), now)
     held = _held_by_others(db, admin.bundle_sn, int(payment.STLM_SN), sn)
     if held + amount > ref.amount:
-        raise ApiError(ErrorCode.RFND_LIMIT_EXCEEDED)
+        left = max(ref.amount - held, 0)
+        message = f"반환 기준액을 넘습니다. 지금 승인할 수 있는 금액은 {left:,}원까지입니다."
+        raise ApiError(ErrorCode.RFND_LIMIT_EXCEEDED, message)
     _move(
         db,
         admin,
@@ -634,8 +636,11 @@ def create_by_admin(
     lock_payment(db, stlm_sn)
     if in_progress(db, admin.bundle_sn, stlm_sn):
         raise ApiError(ErrorCode.RULE_REJECTED)
-    if reserved_amount(db, admin.bundle_sn, stlm_sn) + body.requested_amount > int(payment.STLM_AMT):
-        raise ApiError(ErrorCode.RFND_LIMIT_EXCEEDED)  # 접수 때도 원결제액을 넘지 못한다(R14)
+    reserved = reserved_amount(db, admin.bundle_sn, stlm_sn)
+    if reserved + body.requested_amount > int(payment.STLM_AMT):  # 접수 때도 원결제액을 넘지 못한다(R14)
+        left = max(int(payment.STLM_AMT) - reserved, 0)
+        message = f"원결제액을 넘습니다. 지금 접수할 수 있는 금액은 {left:,}원까지입니다."
+        raise ApiError(ErrorCode.RFND_LIMIT_EXCEEDED, message)
     try:
         refund_sn = int(
             db.execute(
@@ -817,7 +822,11 @@ def execute(
     if payment.STLM_STTS_CD != "PS.PAID" or _held_by_others(
         db, admin.bundle_sn, int(payment.STLM_SN), sn
     ) + amount > int(payment.STLM_AMT):
-        raise ApiError(ErrorCode.RFND_LIMIT_EXCEEDED)
+        message = (
+            "결제 상태가 바뀌었거나 다른 환불과 합쳐 원결제액을 넘어 집행할 수 없습니다. "
+            "이 신청의 환불 내역을 확인해 주세요."
+        )
+        raise ApiError(ErrorCode.RFND_LIMIT_EXCEEDED, message)
     manual = _manual_account(settings, refund) is not None
     _move(
         db,

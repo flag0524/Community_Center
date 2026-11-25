@@ -187,6 +187,7 @@ def test_잠그기를_기다리는_사이에_강좌가_폐강되면_지우지_�
     monkeypatch.setattr(file_service, "lock_owner", cancelled_while_waiting)
     r = call(world, "DELETE", f"/files/{uploaded['fileId']}")
     assert r.status_code == 409 and r.json()["code"] == "CONFLICT_STATE", r.text
+    assert "폐강하거나 종료한 강좌" in r.json()["message"]
     [row] = files_of(world)
     assert row["FILE_STTS_CD"] == "FS.PENDING" and jobs(world, "FILE_DELETE") == []
 
@@ -444,6 +445,7 @@ def test_소유_업무가_잠겼거나_권한이_없으면_삭제할_수_없다(
     )
     locked = call(world, "DELETE", f"/files/{plan}")
     assert locked.status_code == 409 and locked.json()["code"] == "CONFLICT_STATE"
+    assert "폐강하거나 종료한 강좌" in locked.json()["message"]
     use(world, staff(world, "x", "AU.RFND_X"))
     forbidden = call(world, "DELETE", f"/files/{proof}")
     assert forbidden.status_code == 403

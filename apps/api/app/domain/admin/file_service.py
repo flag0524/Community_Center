@@ -57,6 +57,13 @@ PURPOSE = {
 COURSE_EDITABLE = ("CS.DRAFT", "CS.OPEN", "CS.RUN", "CS.CLOSE")  # 폐강·종료한 강좌는 잠긴다
 REFUND_EDITABLE = ("RS.REQUEST", "RS.HOLD")  # 접수·보류 상태에서만 증빙을 더하고 뺀다
 IMAGE_CONTENT_TYPES = ("CT.VISUAL", "CT.BANNER", "CT.POPUP")
+# 소유 업무가 잠겨 파일을 올리거나 지울 수 없을 때의 이유
+LOCKED_REASON = {
+    FileOwnerKind.COURSE: "폐강하거나 종료한 강좌라",
+    FileOwnerKind.REFUND: "검토 단계(접수·보류)가 지난 환불이라",
+    FileOwnerKind.POST: "첨부를 끈 게시판의 글이거나 회원이 쓴 글이라",
+    FileOwnerKind.INSTRUCTOR_APPLICATION: "서류 검토가 끝난 강사 지원서라",
+}
 EVIDENCE_VIEW_JOB = "RDCT_EVIDENCE_VIEW"
 GALLERY_IMAGES = 10
 IMAGE_EXTENSIONS = ("jpg", "jpeg", "png")
@@ -254,6 +261,12 @@ def list_owner_files(
     )
 
 
+def _locked_error(owner: Owner) -> ApiError:
+    reason = LOCKED_REASON.get(owner.kind, "파일을 바꿀 수 없는 상태의 업무라")
+    message = f"{reason} 파일을 올리거나 지울 수 없습니다. 화면을 새로 열어 상태를 확인해 주세요."
+    return ApiError(ErrorCode.CONFLICT_STATE, message)
+
+
 def upload_owner_file(
     db: Session,
     settings: Settings,
@@ -275,7 +288,7 @@ def upload_owner_file(
         message = "이 유형의 콘텐츠는 이미지를 쓰지 않습니다."
         raise ApiError(ErrorCode.RULE_REJECTED, message, fields={"file": message})
     if not owner.can_edit:
-        raise ApiError(ErrorCode.CONFLICT_STATE)  # 소유 업무가 잠겼다(폐강·종료, 환불 승인 이후)
+        raise _locked_error(owner)
     upload = validate_upload(filename, data)
     if owner.purpose == "FP.IMAGE" and upload.extension not in IMAGE_EXTENSIONS:
         message = "갤러리에는 이미지(jpg·jpeg·png)만 올릴 수 있습니다."
@@ -283,7 +296,7 @@ def upload_owner_file(
     lock_owner(db, admin.bundle_sn, owner)
     owner = owner_of(db, admin, now, kind, sn)  # 기다리는 사이에 업무가 잠겼을 수 있어 잠근 뒤 다시 읽는다
     if not owner.can_edit:
-        raise ApiError(ErrorCode.CONFLICT_STATE)
+        raise _locked_error(owner)
     return store_upload(
         db,
         settings,
@@ -518,7 +531,7 @@ def delete_file(db: Session, admin: Admin, *, now: datetime, request_id: str, fi
     if not owner.can_write:
         raise ApiError(ErrorCode.FORBIDDEN)
     if not owner.can_edit:
-        raise ApiError(ErrorCode.CONFLICT_STATE)
+        raise _locked_error(owner)
     db.execute(
         update(TB_FILE).where(TB_FILE.c.FILE_SN == row.FILE_SN).values(FILE_STTS_CD="FS.DELETE", MDFCN_DT=now)
     )
