@@ -692,6 +692,40 @@ def test_다른_날로_옮기는_보강은_원수업의_자리를_비우지_않�
     )  # 수요일 자기 수업과 겹친다
 
 
+def close_course(w: World, course: dict[str, Any]) -> None:
+    w.db.execute(text("UPDATE TB_CORS SET CORS_STTS_CD='CS.CANCEL' WHERE CORS_SN=:c"), {"c": course["CORS_SN"]})
+    w.db.commit()
+
+
+def test_폐강한_강좌의_정규_일정은_새_일정과_보강을_막지_않는다(world: World) -> None:
+    mine, closed = open_course(world, CORS_NM="내 강좌"), open_course(world, CORS_NM="폐강 강좌")
+    r = room(world, "본관")
+    writer(world)
+    made(world, closed, body(r, weekday="MON", startTime="10:00", endTime="11:30"))
+    made(world, closed, body(r, weekday="THU", startTime="10:00", endTime="11:30"))
+    close_course(world, closed)
+    assert add(world, mine, body(r, startTime="10:00", endTime="11:30")).status_code == 201
+    moved = change(world, mine, makeup_body(r, "2026-11-12", original=MON1, start="10:00", end="11:00"))
+    assert moved.status_code == 201, moved.text
+
+
+def test_폐강한_강좌의_보강은_새_일정과_보강을_막지_않는다(world: World) -> None:
+    mine, closed = open_course(world, CORS_NM="내 강좌"), open_course(world, CORS_NM="폐강 강좌")
+    r = room(world, "본관")
+    writer(world)
+    made(world, closed, body(room(world, "다른실"), weekday="MON", startTime="09:00", endTime="10:00"))
+    first = change(world, closed, makeup_body(r, "2026-11-12", original=MON1, start="14:00", end="15:30"))
+    assert first.status_code == 201, first.text
+    close_course(world, closed)
+    regular = add(world, mine, body(r, weekday="THU", startTime="14:00", endTime="15:30"))
+    assert regular.status_code == 201, regular.text
+    other = open_course(world, CORS_NM="서예")
+    made(world, other, body(room(world, "또다른실"), weekday="MON", startTime="08:00", endTime="09:00"))
+    # 같은 날 같은 시설의 보강도 폐강한 강좌의 보강에는 막히지 않는다(내 정규 일정과는 겹치지 않는 시간)
+    makeup = change(world, other, makeup_body(r, "2026-11-12", original=MON1, start="15:30", end="16:00"))
+    assert makeup.status_code == 201, makeup.text
+
+
 # --- 휴보강 삭제 --------------------------------------------------------------------------------
 
 

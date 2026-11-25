@@ -234,6 +234,10 @@ def _inside(course: Any, start: date, end: date, field: str) -> None:
         raise _fail(field, "강좌 교육기간 안이어야 합니다.")
 
 
+# 폐강한 강좌의 일정·보강은 고치거나 지울 수 없으므로 강의실을 점유한 것으로 보지 않는다
+HOLDS_ROOM = TB_CORS.c.CORS_STTS_CD != "CS.CANCEL"
+
+
 def _overlaps(a_start: str, a_end: str, b_start: Any, b_end: Any) -> Any:
     return and_(a_start < b_end, b_start < a_end)  # 종료와 다음 시작이 같은 것은 겹치지 않는다
 
@@ -260,6 +264,7 @@ def _regular_conflict(
         .select_from(TB_CORS_SCHDL.join(TB_CORS, TB_CORS.c.CORS_SN == TB_CORS_SCHDL.c.CORS_SN))
         .where(
             TB_CORS_SCHDL.c.OPER_BNDL_SN == bundle_sn,
+            HOLDS_ROOM,
             TB_CORS_SCHDL.c.FCLT_SN == room.FCLT_SN,
             TB_CORS_SCHDL.c.DOW_CD == weekday,
             TB_CORS_SCHDL.c.CORS_SN != own_course,
@@ -302,6 +307,7 @@ def _makeup_conflict_in_period(
         .select_from(TB_CORS_SCHDL_CHG.join(TB_CORS, TB_CORS.c.CORS_SN == TB_CORS_SCHDL_CHG.c.CORS_SN))
         .where(
             TB_CORS_SCHDL_CHG.c.OPER_BNDL_SN == bundle_sn,
+            HOLDS_ROOM,
             TB_CORS_SCHDL_CHG.c.CHG_TYPE_CD == "SC.MAKEUP",
             TB_CORS_SCHDL_CHG.c.APLCN_YN == "Y",
             TB_CORS_SCHDL_CHG.c.CHG_FCLT_SN == room.FCLT_SN,
@@ -557,6 +563,7 @@ def _makeup_conflict(
         .select_from(TB_CORS_SCHDL.join(TB_CORS, TB_CORS.c.CORS_SN == TB_CORS_SCHDL.c.CORS_SN))
         .where(
             TB_CORS_SCHDL.c.OPER_BNDL_SN == bundle_sn,
+            HOLDS_ROOM,
             TB_CORS_SCHDL.c.FCLT_SN == room.FCLT_SN,
             TB_CORS_SCHDL.c.DOW_CD == _day_code(day),
             TB_CORS_SCHDL.c.APLCN_BGNG_YMD <= ymd,
@@ -576,6 +583,7 @@ def _makeup_conflict(
         .select_from(TB_CORS_SCHDL_CHG.join(TB_CORS, TB_CORS.c.CORS_SN == TB_CORS_SCHDL_CHG.c.CORS_SN))
         .where(
             TB_CORS_SCHDL_CHG.c.OPER_BNDL_SN == bundle_sn,
+            HOLDS_ROOM,
             TB_CORS_SCHDL_CHG.c.CHG_TYPE_CD == "SC.MAKEUP",
             TB_CORS_SCHDL_CHG.c.APLCN_YN == "Y",
             TB_CORS_SCHDL_CHG.c.CHG_FCLT_SN == room.FCLT_SN,
