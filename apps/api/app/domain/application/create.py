@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 from app.audit import record_job
 from app.core.errors import ApiError, ErrorCode
 from app.db.idempotent import find_prior
-from app.db.tables import TB_ATNLC_APLY, TB_MBR, TB_RDCT_HSTRY
-from app.domain.application.pricing import REDUCTION_REASON, quote
+from app.db.tables import TB_ATNLC_APLY, TB_MBR
+from app.domain.application.pricing import REDUCTION_REASON, quote, record_applied
 from app.domain.application.schemas import Application
 from app.domain.application.seats import lock_course, next_wait_seq, seat_counts
 from app.domain.application.service import (
@@ -116,21 +116,9 @@ def create_application(
     except IntegrityError as error:
         raise _business_error(error) from None
 
-    if price.approval is not None and price.reduction > 0:
-        # 감면 이력은 INSERT만 한다. 이 행이 있어야 같은 기수에 감면을 다시 쓰지 못한다(RDCT-BFHD-02)
-        db.execute(
-            insert(TB_RDCT_HSTRY).values(
-                OPER_BNDL_SN=bundle_sn,
-                ATNLC_APLY_SN=application_sn,
-                DCSN_RSLT_CD="DR.APPROVE",
-                RDCT_AMT=price.reduction,
-                DCSN_RSN=REDUCTION_REASON[price.approval.type_code],
-                DCSN_MNGR_SN=price.approval.reviewer_sn,
-                DCSN_DT=now,
-                REG_DT=now,
-                RDCT_BFHD_SRNG_SN=price.approval.sn,
-            )
-        )
+    # 대기 신청은 감면 예정 금액만 담는다. 이력은 자리를 받을 때 남겨, 자리를 못 받은 대기가 감면을 쓰지 않게 한다(DV20)
+    if values["APLY_STTS_CD"] != "ES.WAIT" and price.approval is not None and price.reduction > 0:
+        record_applied(db, bundle_sn, application_sn, price.reduction, price.approval, now)
     record_job(
         db,
         actor="AK.MEMBER",

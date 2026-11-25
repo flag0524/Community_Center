@@ -313,8 +313,8 @@ def create_application(mbr_sn, cors_sn, idem_key, body):
             app.RDCT_RSN, app.RDCT_MNGR_SN = srng.reason, srng.SRNG_MNGR_SN    # R09: 감면 > 0이면 필수
         app.IDEM_KEY = idem_key
         repo.insert(app)
-        if srng:
-            reduction.record_applied(app, srng)    # TB_RDCT_HSTRY(DR.APPROVE) INSERT
+        if srng and app.APLY_STTS_CD != 'ES.WAIT':
+            reduction.record_applied(app, srng)    # TB_RDCT_HSTRY(DR.APPROVE) INSERT. 대기는 승격 때 남긴다(ADR-126)
         audit.log('APLY_CREATE', app)
     return app
 ```
@@ -340,6 +340,7 @@ def promote_waiters(cors):
         if nxt is None: break
         if not member_still_eligible(nxt): # 탈퇴·잠금 → ES.CANCEL(사유: 자격 상실) 후 다음
             ...; continue
+        settle_reduction(cors, nxt, now)     # 예정한 감면을 회원 잠금 아래에서 다시 판정해 기록, 못 쓰면 전액(ADR-126)
         nxt.APLY_STTS_CD = 'ES.CONFIRM' if nxt.STLM_PRNMNT_AMT == 0 else 'ES.HOLD'
         nxt.SEAT_ALTMNT_DT = now
         nxt.STLM_DDLN_DT = None if nxt.STLM_PRNMNT_AMT == 0 else now + timedelta(seconds=600)
@@ -438,6 +439,7 @@ STLM_PRNMNT_AMT  = TTCHG_AMT − RDCT_AMT           # ≥ 0 (R09)
 1. 회원이 조리읍 거주로 확인됨: `HAB_RGN_CD='RA.JORI'` + `HAB_IDNTY_STTS_CD='RV.OK'`.
 2. TB_RDCT_BFHD_SRNG에 같은 회원·같은 기수(`EDU_CYCL_SN`)의 `DS.APPROVED` 행이 있고 `VLD_END_DT`가 비었거나 지나지 않음. 대상 유형은 `DR.LIVELIHD`·`DR.VETERAN`·`DR.DISABLED` 3종만.
 3. 회원 행 잠금 아래에서 같은 기수의 다른 신청에 `DR.APPROVE` 감면 이력이 없음. 이전 감면 신청이 취소·만료·환불됐어도 **자동 복구하지 않는다**. 담당자가 명시적으로 해제(해당 신청에 `DR.REJECT` 이력 + 사유 추가, 제안)한 경우에만 다시 쓸 수 있다.
+- 이력은 **자리를 배정하는 순간**(`ES.HOLD`·`ES.CONFIRM`)에만 남긴다. 대기 신청은 감면 예정 금액만 담고 감면권을 쓰지 않는다. 승격할 때 회원 행을 잠가 다시 판정하며, 대기 동안 다른 신청에 썼거나 심사가 만료·거주 요건이 달라졌으면 감면 0·전액 결제예정으로 바꾼다(DV20, ADR-126).
 - 적용 결과는 TB_RDCT_HSTRY(`ATNLC_APLY_SN`, `DR.APPROVE`, `RDCT_AMT`, `RDCT_BFHD_SRNG_SN`, `DCSN_MNGR_SN`=사전심사 승인자)에 INSERT만 한다. 증빙은 사전심사 소유 파일(TB_FILE.RDCT_BFHD_SRNG_SN)이며 판정별 연결은 TB_RDCT_HSTRY_FILE에 남긴다.
 - 사전심사 승인 후 내용·증빙은 덮어쓰지 않는다. 재심사는 새 심사건이다(RDCT-BFHD-01).
 

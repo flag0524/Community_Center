@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import and_, exists, select
+from sqlalchemy import and_, exists, insert, select
 from sqlalchemy.orm import Session, aliased
 
 from app.db.tables import TB_ATNLC_APLY, TB_CORS, TB_RDCT_BFHD_SRNG, TB_RDCT_HSTRY
@@ -109,3 +109,35 @@ def quote(db: Session, member: Any, course: Any, now: datetime) -> Quote:
     approval = find_usable_approval(db, member, int(course.EDU_CYCL_SN), now)
     reduction = fee * REDUCTION_PERCENT // 100 if approval is not None else 0
     return Quote(fee=fee, reduction=reduction, payable=fee - reduction, approval=approval)
+
+
+def has_applied(db: Session, bundle_sn: int, application_sn: int) -> bool:
+    """이 신청에 감면 적용 이력이 이미 있는가."""
+    found = select(TB_RDCT_HSTRY.c.RDCT_HSTRY_SN).where(
+        TB_RDCT_HSTRY.c.OPER_BNDL_SN == bundle_sn,
+        TB_RDCT_HSTRY.c.ATNLC_APLY_SN == application_sn,
+        TB_RDCT_HSTRY.c.DCSN_RSLT_CD == "DR.APPROVE",
+    )
+    return bool(db.execute(select(exists(found))).scalar_one())
+
+
+def record_applied(
+    db: Session, bundle_sn: int, application_sn: int, amount: int, approval: Approval, now: datetime
+) -> None:
+    """감면 적용을 남긴다. 자리를 배정하는 순간에만 부른다(DV20). 이력은 INSERT만 한다.
+
+    이 행이 있어야 같은 기수에 감면을 다시 쓰지 못하므로(RDCT-BFHD-02) 회원 행을 잠근 상태에서 판정하고 남긴다.
+    """
+    db.execute(
+        insert(TB_RDCT_HSTRY).values(
+            OPER_BNDL_SN=bundle_sn,
+            ATNLC_APLY_SN=application_sn,
+            DCSN_RSLT_CD="DR.APPROVE",
+            RDCT_AMT=amount,
+            DCSN_RSN=REDUCTION_REASON[approval.type_code],
+            DCSN_MNGR_SN=approval.reviewer_sn,
+            DCSN_DT=now,
+            REG_DT=now,
+            RDCT_BFHD_SRNG_SN=approval.sn,
+        )
+    )

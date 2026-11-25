@@ -308,6 +308,24 @@ def test_감면을_쓴_신청을_취소해도_감면은_돌아오지_않는다(w
     assert apply(world, second).json()["reductionAmount"] == 0
 
 
+def test_대기_신청은_감면_이력을_남기지_않아_대기를_취소하면_다른_강좌에서_쓴다(world: World) -> None:
+    me, cyc, full = reduction_world(world)
+    second = course(world, cyc, "두번째", TTCHG=100000)
+    approval(world, me, cyc)
+    fill(world, full, confirmed=int(full["RCRT_NOPE"]))
+    waiting = apply(world, full).json()
+    assert waiting["status"] == "WAITING"
+    assert (waiting["reductionAmount"], waiting["payableAmount"]) == (50000, 50000)  # 예정 금액은 보인다
+    assert rows(world, "SELECT 1 FROM TB_RDCT_HSTRY") == []
+    cancelled = world.client.post(
+        f"{MEMBER}/me/applications/{waiting['applicationId']}/cancel", headers={"X-CSRF-Token": csrf(world)}
+    )
+    assert cancelled.status_code == 200
+    body = apply(world, second).json()
+    assert (body["status"], body["reductionAmount"], body["payableAmount"]) == ("HOLD", 50000, 50000)
+    assert len(rows(world, "SELECT 1 FROM TB_RDCT_HSTRY")) == 1
+
+
 def test_담당자가_해제하면_다시_쓸_수_있다(world: World) -> None:
     me, cyc, first = reduction_world(world)
     second = course(world, cyc, "두번째", TTCHG=100000)

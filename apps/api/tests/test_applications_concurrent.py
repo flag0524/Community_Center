@@ -304,3 +304,64 @@ def test_취소하는_동안_새로_신청한_사람은_대기자를_앞지르�
         assert (
             len(queued) == newcomers and len(set(queued)) == newcomers
         )  # 새로 들어온 사람 모두 순서가 겹치지 않는다
+
+
+def test_승격과_다른_강좌_신청이_겹쳐도_감면은_한_번만_쓴다(arena: Arena) -> None:
+    rounds = 12
+
+    def make(f: RowFactory) -> tuple[int, int, list[tuple[int, int, int, int]]]:
+        bundle = f.bundle()
+        member = make_member(f, bundle, "waiting-reduced")
+        admin = int(
+            f.make("TB_MNGR", LGN_ID="promo-reviewer", PSWD_HASH_VL="x" * 20, MNGR_NM="심사")["MNGR_SN"]
+        )
+        arena.admins.append(admin)
+        sets = []
+        for n in range(rounds):
+            cycle = make_cycle(f, bundle, number=30 + n)
+            screened = f.make(
+                "TB_RDCT_BFHD_SRNG",
+                OPER_BNDL_SN=bundle,
+                MBR_SN=member,
+                EDU_CYCL_SN=cycle["EDU_CYCL_SN"],
+                RDCT_TYPE_CD="DR.LIVELIHD",
+                SRNG_STTS_CD="DS.APPROVED",
+                SRNG_MNGR_SN=admin,
+                SRNG_DT=START,
+            )
+            starts = {"TTCHG": 100000, "EDU_BGNG_YMD": "20261201"}
+            full = make_course(f, bundle, cycle, f"대기{n}", RCRT_NOPE=1, **starts)
+            direct = make_course(f, bundle, cycle, f"직접{n}", **starts)
+            holder = make_member(f, bundle, f"holder{n}")
+            held = make_application(f, bundle, holder, full, "ES.HOLD")
+            queued = f.make(
+                "TB_ATNLC_APLY",
+                OPER_BNDL_SN=bundle,
+                MBR_SN=member,
+                CORS_SN=full["CORS_SN"],
+                APLY_STTS_CD="ES.WAIT",
+                WTNG_SEQ=1,
+                TTCHG_AMT=100000,
+                RDCT_AMT=50000,
+                STLM_PRNMNT_AMT=50000,
+                RDCT_RSN="사전심사 승인",
+                RDCT_MNGR_SN=screened["SRNG_MNGR_SN"],
+            )
+            sets.append((holder, held, int(direct["CORS_SN"]), int(queued["ATNLC_APLY_SN"])))
+        return bundle, member, sets
+
+    bundle, member, sets = arena.build(make)
+    arena.serve(bundle)
+    me = arena.applicant(member, bundle)
+    for n, (holder, held, direct, queued) in enumerate(sets):
+        leaving = arena.applicant(holder, bundle)
+        cancelled, applied = parallel(
+            [cancel_call(leaving, held), attempt(me, direct, f"promo-{n}-key-0001")]
+        )
+        assert (cancelled.status_code, applied.status_code) == (200, 201), (cancelled.text, applied.text)
+        [row] = arena.query(
+            "SELECT APLY_STTS_CD s, STLM_PRNMNT_AMT p FROM TB_ATNLC_APLY WHERE ATNLC_APLY_SN = :a", a=queued
+        )
+        payable = sorted([int(row["p"]), int(applied.json()["payableAmount"])])
+        assert row["s"] == "ES.HOLD" and payable == [50000, 100000], (n, payable)
+    assert len(arena.query("SELECT 1 FROM TB_RDCT_HSTRY WHERE DCSN_RSLT_CD = 'DR.APPROVE'")) == rounds

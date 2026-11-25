@@ -7,7 +7,15 @@ import pytest
 from sqlalchemy import text
 
 from app.auth.crypto import decrypt
-from tests.test_applications_read import RESIDENT, application, payment, sign_in
+from tests.test_applications_read import (
+    RESIDENT,
+    application,
+    approval,
+    payment,
+    reduction_log,
+    sign_in,
+    the_cycle,
+)
 from tests.test_applications_read import open_course as _open_course
 from tests.world import MEMBER, START, World, make_admin, make_member
 
@@ -444,6 +452,94 @@ def test_수강료가_있어도_결제예정이_0원인_대기자는_승격되�
         RDCT_RSN="전액 감면",
         RDCT_MNGR_SN=reviewer,
     )
+    reduction_log(world, target, "DR.APPROVE", RDCT_AMT=30000)
     cancel(world, holder)
     saved = one(world, target)
     assert saved["APLY_STTS_CD"] == "ES.CONFIRM" and saved["STLM_DDLN_DT"] is None
+
+
+# --- 승격할 때의 감면(DV20) -------------------------------------------------------------------
+
+
+def reduced_waiter(w: World, row: dict[str, Any], **approved: Any) -> tuple[Any, Any, dict[str, Any]]:
+    """감면을 예정하고 대기하는 회원. (회원, 사전심사 승인, 대기 신청)을 준다."""
+    member = make_member(w, "reduced-waiter", MBL_TELNO=PHONE, **RESIDENT)
+    screened = approval(w, member, the_cycle(w), **approved)
+    queued = application(
+        w,
+        member,
+        row,
+        "ES.WAIT",
+        WTNG_SEQ=1,
+        TTCHG_AMT=30000,
+        RDCT_AMT=15000,
+        STLM_PRNMNT_AMT=15000,
+        RDCT_RSN="기초생활보장 수급자 본인 사전심사 승인",
+        RDCT_MNGR_SN=screened["SRNG_MNGR_SN"],
+    )
+    return member, screened, queued
+
+
+def free_one_seat(w: World, row: dict[str, Any]) -> None:
+    me = sign_in(w, **RESIDENT)
+    assert cancel(w, application(w, me, row, "ES.HOLD")).status_code == 200
+
+
+def history(w: World, app: dict[str, Any]) -> list[Any]:
+    sql = "SELECT * FROM TB_RDCT_HSTRY WHERE ATNLC_APLY_SN = :s"
+    return rows(w, sql, s=app["ATNLC_APLY_SN"])
+
+
+def amounts(w: World, app: dict[str, Any]) -> tuple[str, int, int, Any]:
+    saved = one(w, app)
+    return (
+        str(saved["APLY_STTS_CD"]),
+        int(saved["RDCT_AMT"]),
+        int(saved["STLM_PRNMNT_AMT"]),
+        saved["RDCT_MNGR_SN"],
+    )
+
+
+def test_승격할_때_감면을_쓸_수_있으면_그_순간에_이력을_남긴다(world: World) -> None:
+    row = open_course(world, RCRT_NOPE=1, WTNG_NOPE=5)
+    _, screened, queued = reduced_waiter(world, row)
+    world.clock.advance(minutes=3)
+    free_one_seat(world, row)
+    assert amounts(world, queued) == ("ES.HOLD", 15000, 15000, screened["SRNG_MNGR_SN"])
+    [log] = history(world, queued)
+    assert (log["DCSN_RSLT_CD"], int(log["RDCT_AMT"])) == ("DR.APPROVE", 15000)
+    assert log["RDCT_BFHD_SRNG_SN"] == screened["RDCT_BFHD_SRNG_SN"]
+    assert log["DCSN_DT"] == START + timedelta(minutes=3)
+
+
+def test_대기하는_동안_감면을_다른_강좌에_썼으면_전액으로_승격한다(world: World) -> None:
+    row = open_course(world, RCRT_NOPE=1, WTNG_NOPE=5)
+    other = open_course(world, CORS_NM="다른강좌")
+    member, _, queued = reduced_waiter(world, row)
+    used = application(world, member, other, "ES.CONFIRM")
+    reduction_log(world, used, "DR.APPROVE")
+    free_one_seat(world, row)
+    assert amounts(world, queued) == ("ES.HOLD", 0, 30000, None)
+    assert one(world, queued)["RDCT_RSN"] is None and history(world, queued) == []
+    [job] = rows(
+        world,
+        "SELECT CHG_CN c FROM TB_JOB_HSTRY WHERE JOB_CD='APLY_PROMOTE' AND TRGT_KEY_VL=:s",
+        s=str(queued["ATNLC_APLY_SN"]),
+    )
+    assert "감면 제외" in job["c"]
+
+
+def test_승격할_때_사전심사가_만료됐으면_전액으로_승격한다(world: World) -> None:
+    row = open_course(world, RCRT_NOPE=1, WTNG_NOPE=5)
+    _, _, queued = reduced_waiter(world, row, VLD_END_DT=START)
+    free_one_seat(world, row)
+    assert amounts(world, queued) == ("ES.HOLD", 0, 30000, None) and history(world, queued) == []
+
+
+def test_대기_때_이미_이력을_남긴_신청은_감면을_그대로_두고_다시_남기지_않는다(world: World) -> None:
+    row = open_course(world, RCRT_NOPE=1, WTNG_NOPE=5)
+    _, screened, queued = reduced_waiter(world, row)
+    reduction_log(world, queued, "DR.APPROVE")
+    free_one_seat(world, row)
+    assert amounts(world, queued) == ("ES.HOLD", 15000, 15000, screened["SRNG_MNGR_SN"])
+    assert len(history(world, queued)) == 1

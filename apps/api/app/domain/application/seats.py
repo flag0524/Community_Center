@@ -18,6 +18,12 @@ from app.db.tables import (
     TB_SMS_TRGT,
     TB_STLM,
 )
+from app.domain.application.pricing import (
+    REDUCTION_REASON,
+    find_usable_approval,
+    has_applied,
+    record_applied,
+)
 from app.domain.application.service import PAYMENT_WINDOW_SECONDS, SEAT_STATUSES
 from app.domain.course.service import VISIBLE_STATUSES
 
@@ -137,6 +143,55 @@ def _enqueue_promotion_sms(
     return True
 
 
+def _lock_reduction_members(db: Session, bundle_sn: int, course_sn: int) -> None:
+    """감면을 예정한 대기 회원을 잠근다. 같은 회원의 신청이나 다른 강좌의 승격과 겹쳐도 감면은 기수당 한 번이다.
+
+    잠금 순서는 강좌 → 회원 → 신청이다(C07). 회원 번호 순으로 잠가 승격끼리 엇갈려 기다리지 않게 한다.
+    """
+    members = (
+        db.execute(
+            select(TB_ATNLC_APLY.c.MBR_SN).where(
+                TB_ATNLC_APLY.c.OPER_BNDL_SN == bundle_sn,
+                TB_ATNLC_APLY.c.CORS_SN == course_sn,
+                TB_ATNLC_APLY.c.APLY_STTS_CD == "ES.WAIT",
+                TB_ATNLC_APLY.c.RDCT_AMT > 0,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if members:
+        db.execute(
+            select(TB_MBR.c.MBR_SN)
+            .where(TB_MBR.c.MBR_SN.in_(members))
+            .order_by(TB_MBR.c.MBR_SN)
+            .with_for_update()
+        ).all()
+
+
+def _settle_reduction(db: Session, course: Any, waiter: Any, member: Any, now: datetime) -> tuple[int, str]:
+    """대기 때 예정한 감면을 자리를 배정하는 순간에 다시 판정해 기록한다(DV20, ADR-126).
+
+    (결제예정액, 작업이력에 덧붙일 말)을 준다. 대기 동안 감면을 다른 신청에 썼거나 심사가 만료됐으면 전액이 된다.
+    """
+    bundle_sn, application_sn = int(waiter.OPER_BNDL_SN), int(waiter.ATNLC_APLY_SN)
+    reduction, payable = int(waiter.RDCT_AMT), int(waiter.STLM_PRNMNT_AMT)
+    if reduction == 0 or has_applied(
+        db, bundle_sn, application_sn
+    ):  # 이전 방식으로 이미 남긴 신청은 그대로다
+        return payable, ""
+    approval = find_usable_approval(db, member, int(course.EDU_CYCL_SN), now)
+    row = update(TB_ATNLC_APLY).where(TB_ATNLC_APLY.c.ATNLC_APLY_SN == application_sn)
+    if approval is None:
+        fee = int(waiter.TTCHG_AMT)
+        db.execute(row.values(RDCT_AMT=0, STLM_PRNMNT_AMT=fee, RDCT_RSN=None, RDCT_MNGR_SN=None))
+        return fee, ", 감면 제외"
+    reason = REDUCTION_REASON[approval.type_code]
+    db.execute(row.values(RDCT_RSN=reason, RDCT_MNGR_SN=approval.reviewer_sn))
+    record_applied(db, bundle_sn, application_sn, reduction, approval, now)
+    return payable, ""
+
+
 def promote_waiters(
     db: Session, settings: Settings, course: Any, *, now: datetime, request_id: str
 ) -> list[int]:
@@ -148,6 +203,8 @@ def promote_waiters(
     if not promotion_allowed(course, now):
         return []
     promoted: list[int] = []
+    if count_by_status(db, bundle_sn, course_sn, SEAT_STATUSES) < int(course.RCRT_NOPE):
+        _lock_reduction_members(db, bundle_sn, course_sn)
     while count_by_status(db, bundle_sn, course_sn, SEAT_STATUSES) < int(course.RCRT_NOPE):
         waiter = db.execute(
             select(TB_ATNLC_APLY)
@@ -164,9 +221,14 @@ def promote_waiters(
             break
         application_sn = int(waiter.ATNLC_APLY_SN)
         member = db.execute(
-            select(TB_MBR.c.MBR_SN, TB_MBR.c.MBR_STTS_CD, TB_MBR.c.MBL_TELNO_ENCPT_VL).where(
-                TB_MBR.c.MBR_SN == waiter.MBR_SN
-            )
+            select(
+                TB_MBR.c.MBR_SN,
+                TB_MBR.c.OPER_BNDL_SN,
+                TB_MBR.c.MBR_STTS_CD,
+                TB_MBR.c.MBL_TELNO_ENCPT_VL,
+                TB_MBR.c.HAB_RGN_CD,
+                TB_MBR.c.HAB_IDNTY_STTS_CD,
+            ).where(TB_MBR.c.MBR_SN == waiter.MBR_SN)
         ).one()
         if member.MBR_STTS_CD != "MS.ACTIVE":
             set_status(db, application_sn, status="ES.CANCEL", now=now, reason=LOST_ELIGIBILITY)
@@ -181,7 +243,8 @@ def promote_waiters(
                 "자격 상실로 취소",
             )
             continue
-        free = int(waiter.STLM_PRNMNT_AMT) == 0
+        payable, note = _settle_reduction(db, course, waiter, member, now)
+        free = payable == 0
         deadline = None if free else now + timedelta(seconds=PAYMENT_WINDOW_SECONDS)
         set_status(
             db,
@@ -210,6 +273,7 @@ def promote_waiters(
             request_id,
             now,
             f"대기에서 승격({'ES.CONFIRM' if free else 'ES.HOLD'})"
+            + note
             + ("" if queued else ", 수신번호 없어 문자 제외"),
         )
         promoted.append(application_sn)
