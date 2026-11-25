@@ -56,7 +56,8 @@ for (const size of SIZES) {
         await expectNoViolations(page);
 
         await main(page).getByRole('link', { name: '신청 상세' }).click();
-        await main(page).getByRole('link', { name: '환불신청' }).click();
+        // 마이페이지 좌측 메뉴의 "환불신청 내역"과 구별한다
+        await main(page).getByRole('link', { name: '환불신청', exact: true }).click();
         await expect(heading(page, '환불 신청')).toBeVisible();
         await expect(main(page).getByText('개강 전이므로 결제한 수강료 전액을 반환합니다.')).toBeVisible();
         await expectNoViolations(page);
@@ -67,7 +68,7 @@ for (const size of SIZES) {
         await expect(main(page).getByText('환불신청이 접수되었습니다.')).toBeVisible();
         await expectNoViolations(page);
 
-        await main(page).getByRole('link', { name: '신청내역' }).click();
+        await main(page).getByRole('link', { name: '신청내역', exact: true }).click();
         await expect(heading(page, '수강신청내역')).toBeVisible();
         const row = main(page).getByRole('row').nth(1);
         await expect(row).toContainText('결제완료');
