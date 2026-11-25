@@ -1,6 +1,7 @@
 # API 오류 코드 enum, 오류 응답 형식, 요청 ID 부여와 예외 처리기
 import logging
 import re
+import traceback
 import uuid
 from enum import StrEnum
 from typing import NoReturn
@@ -148,8 +149,22 @@ def not_implemented() -> NoReturn:
     raise ApiError(ErrorCode.NOT_IMPLEMENTED)
 
 
+class ResponseAborted(RuntimeError):
+    """응답을 보내던 중의 오류. 원래 예외의 전문이 서버 로그에 남지 않게 바꿔 던져 연결을 끊는다."""
+
+
+def _log_unexpected(error: Exception, request_id: str) -> None:
+    """예외 메시지에는 SQL이나 개인정보가 들어 있을 수 있어 종류·요청 ID·호출 위치만 남긴다(C10)."""
+    frames = traceback.extract_tb(error.__traceback__)
+    where = " > ".join(f"{f.filename}:{f.lineno} {f.name}" for f in frames)  # 소스 줄의 글자는 싣지 않는다
+    logger.error("처리하지 못한 오류 type=%s request_id=%s at=%s", type(error).__name__, request_id, where)
+
+
 class RequestIdMiddleware:
-    """모든 요청에 요청 ID를 붙이고 응답 헤더로 돌려준다. 형식이 맞지 않는 값은 버리고 새로 만든다."""
+    """모든 요청에 요청 ID를 붙이고 응답 헤더로 돌려준다. 형식이 맞지 않는 값은 버리고 새로 만든다.
+
+    처리하지 못한 오류는 여기서 응답으로 바꾼다. 앱 밖으로 나가면 서버(uvicorn)가 예외 전문을 로그에 남긴다.
+    """
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
@@ -162,12 +177,23 @@ class RequestIdMiddleware:
         request_id = incoming if incoming and _REQUEST_ID_PATTERN.fullmatch(incoming) else uuid.uuid4().hex
         scope.setdefault("state", {})["request_id"] = request_id
 
+        started = False
+
         async def send_with_id(message: Message) -> None:
+            nonlocal started
             if message["type"] == "http.response.start":
+                started = True
                 MutableHeaders(scope=message)[REQUEST_ID_HEADER] = request_id
             await send(message)
 
-        await self.app(scope, receive, send_with_id)
+        try:
+            await self.app(scope, receive, send_with_id)
+        except Exception as error:
+            _log_unexpected(error, request_id)
+            if started:
+                raise ResponseAborted("응답을 보내던 중 처리하지 못한 오류") from None
+            response = _error_response(Request(scope), ErrorCode.INTERNAL_ERROR)
+            await response(scope, receive, send_with_id)
 
 
 def _request_id(request: Request) -> str:
@@ -222,9 +248,3 @@ def install_error_handlers(app: FastAPI) -> None:
     async def handle_http_exception(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         code = _HTTP_STATUS_TO_CODE.get(exc.status_code, ErrorCode.RULE_REJECTED)
         return _error_response(request, code)
-
-    @app.exception_handler(Exception)
-    async def handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
-        # 예외 메시지에는 SQL이나 개인정보가 들어 있을 수 있어 종류와 요청 ID만 남긴다(C10)
-        logger.error("처리하지 못한 오류 type=%s request_id=%s", type(exc).__name__, _request_id(request))
-        return _error_response(request, ErrorCode.INTERNAL_ERROR)

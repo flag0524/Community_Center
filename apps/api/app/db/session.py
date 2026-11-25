@@ -24,6 +24,7 @@ def create_db_engine(settings: Settings) -> Engine:
         pool_pre_ping=True,
         pool_recycle=1800,
         connect_args={"init_command": "SET time_zone = '+00:00'"},
+        hide_parameters=True,  # 예외 문구에 SQL 인자(개인정보)가 실리지 않게 한다(C10)
     )
 
 
