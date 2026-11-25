@@ -509,6 +509,9 @@ def get_file(db: Session, admin: Admin, *, now: datetime, file_id: str) -> Admin
 
 def delete_file(db: Session, admin: Admin, *, now: datetime, request_id: str, file_id: str) -> None:
     """논리삭제한다. 소유 업무가 잠겼으면 409다. 물리 삭제는 보존기간 뒤에 한다."""
+    _, owner = _file_and_owner(db, admin, now, file_id)
+    lock_owner(db, admin.bundle_sn, owner)
+    # 기다리는 사이에 업무가 잠기거나 파일이 지워졌을 수 있어 잠근 뒤 다시 읽는다
     row, owner = _file_and_owner(db, admin, now, file_id)
     if row.FILE_STTS_CD == "FS.DELETE":
         raise ApiError(ErrorCode.NOT_FOUND)
