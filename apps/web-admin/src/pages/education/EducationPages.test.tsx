@@ -99,6 +99,21 @@ describe('교육기수', () => {
     expect(field('기수명')).toHaveValue('2027년 제1기 확정');
   });
 
+  it('저장한 화면에서 값을 고쳐 다시 저장해도 버전이 이어져 충돌하지 않는다', async () => {
+    await signInAs('group');
+    renderApp('/edu/cycles/1000000000000000000002');
+    await heading('교육기수 수정');
+    await userEvent.type(field('기수명'), ' 확정');
+    await userEvent.click(screen.getByRole('button', { name: '저장' }));
+    expect(await screen.findByText('저장했습니다.')).toBeInTheDocument();
+
+    await userEvent.type(field('기수명'), ' 재확정');
+    await userEvent.click(screen.getByRole('button', { name: '저장' }));
+    expect(await screen.findByText('저장했습니다.')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(field('기수명')).toHaveValue('2027년 제1기 확정 재확정');
+  });
+
   it('연결 강좌가 있으면 기간 변경 영향 안내를 보인다', async () => {
     await signInAs('group');
     renderApp('/edu/cycles/1000000000000000000001');

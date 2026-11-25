@@ -53,7 +53,8 @@ function CycleForm({ mode, initial, cycle }: { mode: 'create' | 'edit'; initial:
     mutationFn: (body: CycleWrite) => (cycle ? updateCycle(cycle.cycleId, { ...body, version: cycle.version }) : createCycle(body, key.current())),
     onSuccess: (result) => {
       key.renew();
-      queryClient.removeQueries({ queryKey: ['cycles'] });
+      // 상세까지 지우면 이 화면의 구독이 끊겨 아래의 갱신이 전달되지 않고 옛 버전이 남는다. 목록만 지운다.
+      queryClient.removeQueries({ queryKey: ['cycles', 'list'] });
       queryClient.removeQueries({ queryKey: ['course-options'] });
       if (mode === 'create') void navigate(`/edu/cycles/${result.cycleId}`, { replace: true });
       else {
