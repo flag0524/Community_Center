@@ -1,7 +1,7 @@
 // 문자 발송 화면. 대상을 고르고 미리보기로 수신자 수를 확인한 뒤 최종 확인 체크를 해야만 발송을 요청한다 (ADM-SYS-001P)
 import type { Schemas } from '@jori/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { previewSms, sendSms, type SmsAudience, type SmsPreview } from '../../api/sms';
 import { courseOptionsQuery } from '../../api/queries';
@@ -30,13 +30,22 @@ export function SmsSendPage() {
   const [missing, setMissing] = useState<Record<string, string>>({});
 
   const audience = (): SmsAudience => ({ scope, courseIds: scope === 'COURSE' ? courseIds : [], statuses, content });
+  // 대상·문안이 바뀔 때마다 올린다. 늦게 도착한 옛 조건의 미리보기는 버린다(확인하지 않은 대상에게 발송되지 않게).
+  const revision = useRef(0);
   const changed = () => {
+    revision.current += 1;
     setPreview(null);
     setConfirmed(false);
     setStale(false);
   };
 
-  const previewMutation = useMutation({ mutationFn: () => previewSms(audience()), onSuccess: setPreview });
+  const previewMutation = useMutation({
+    mutationFn: (request: { revision: number; audience: SmsAudience }) => previewSms(request.audience),
+    onSuccess: (data, request) => {
+      if (request.revision === revision.current) setPreview(data);
+    },
+  });
+  const requestPreview = () => previewMutation.mutate({ revision: revision.current, audience: audience() });
   const sendMutation = useMutation({
     mutationFn: () => sendSms({ ...audience(), confirmed: true, expectedRecipientCount: preview?.recipientCount ?? 0 }, key.current()),
     onSuccess: (result) => {
@@ -49,7 +58,7 @@ export function SmsSendPage() {
       if (isStateConflict(error)) {
         setConfirmed(false);
         setStale(true);
-        previewMutation.mutate();
+        requestPreview();
       }
     },
   });
@@ -63,7 +72,7 @@ export function SmsSendPage() {
     setMissing(errors);
     setConfirmed(false);
     setStale(false);
-    if (Object.keys(errors).length === 0) previewMutation.mutate();
+    if (Object.keys(errors).length === 0) requestPreview();
   };
 
   const server = fieldErrors(previewMutation.error);

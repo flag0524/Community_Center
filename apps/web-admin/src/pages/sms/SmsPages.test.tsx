@@ -80,6 +80,30 @@ describe('알림 이력', () => {
 });
 
 describe('문자 발송', () => {
+  it('미리보기를 기다리는 동안 문안을 바꾸면 늦게 온 옛 미리보기를 보이지 않아 발송할 수 없다', async () => {
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let answered = false;
+    server.use(
+      http.post('/api/admin/v1/sms/preview', async () => {
+        await gate;
+        answered = true;
+        return Response.json({ recipientCount: 122, duplicateRemoved: 3, courseCount: 8, centerName: '조리읍', byteLength: 23, recipients: [] });
+      }),
+    );
+    await openSend();
+    await typeMessage();
+    await preview();
+    await typeMessage(' 추가');
+    release();
+    await waitFor(() => expect(answered).toBe(true));
+    await waitFor(() => expect(screen.getByRole('button', { name: '미리보기' })).toBeEnabled());
+    expect(screen.queryByRole('heading', { name: '미리보기' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '발송 요청' })).not.toBeInTheDocument();
+  });
+
   it('문안 길이를 바이트로 안내하고 센터 전체 미리보기에서 중복을 뺀 수신자 수를 보인다', async () => {
     await openSend();
     expect(screen.getByText('0/90byte · SMS')).toBeInTheDocument();
