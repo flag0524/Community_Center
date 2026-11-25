@@ -17,11 +17,12 @@ export function NameChangePage() {
   const state = decided ? 'DECIDED' : 'PENDING';
   const list = useQuery(nameChangeListQuery(state));
   const queryClient = useQueryClient();
-  const [note, setNote] = useState('');
+  // 메모는 요청마다 따로 둔다. 한 회원에게 쓴 말이 다른 회원의 결정에 붙지 않게 한다.
+  const [notes, setNotes] = useState<Record<string, string>>({});
   const mutation = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' }) => decideNameChange(id, action, note),
-    onSuccess: () => {
-      setNote('');
+    mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' }) => decideNameChange(id, action, notes[id] ?? ''),
+    onSuccess: (_result, { id }) => {
+      setNotes((current) => ({ ...current, [id]: '' }));
       void queryClient.invalidateQueries({ queryKey: ['name-changes'] });
     },
     onError: (error) => {
@@ -44,14 +45,6 @@ export function NameChangePage() {
           처리한 요청
         </Link>
       </p>
-      {!decided && (
-        <div className="adm-form">
-          <label>
-            처리 메모(선택)
-            <input value={note} maxLength={300} onChange={(event) => setNote(event.target.value)} placeholder="승인·반려할 때 회원에게 남길 말" />
-          </label>
-        </div>
-      )}
       {mutation.isError && (
         <p className="adm-message error" role="alert">
           {isStateConflict(mutation.error) ? '이미 다른 담당자가 처리했거나 정상 회원이 아니라 승인할 수 없습니다. 목록을 다시 확인해 주세요.' : errorMessage(mutation.error)}
@@ -86,6 +79,13 @@ export function NameChangePage() {
                     <td>
                       {item.state === 'PENDING' ? (
                         <>
+                          <input
+                            aria-label={`처리 메모(선택) (${item.loginId} → ${item.requestedName})`}
+                            value={notes[item.requestId] ?? ''}
+                            maxLength={300}
+                            onChange={(event) => setNotes((current) => ({ ...current, [item.requestId]: event.target.value }))}
+                            placeholder="이 회원에게 남길 말"
+                          />
                           <ConfirmButton label="승인" confirmLabel="정말 승인" target={`${item.loginId} → ${item.requestedName}`} disabled={mutation.isPending} onConfirm={() => mutation.mutate({ id: item.requestId, action: 'approve' })} />
                           <ConfirmButton label="반려" confirmLabel="정말 반려" target={`${item.loginId} → ${item.requestedName}`} disabled={mutation.isPending} onConfirm={() => mutation.mutate({ id: item.requestId, action: 'reject' })} />
                         </>

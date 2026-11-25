@@ -36,7 +36,7 @@ describe('이름 변경 검토', () => {
     await signInAs('group');
     renderApp('/mbr/name-changes');
     await rows();
-    await userEvent.type(screen.getByLabelText('처리 메모(선택)'), '판결문 확인');
+    await userEvent.type(screen.getByLabelText('처리 메모(선택) (kim01 → 김새롬)'), '판결문 확인');
     await userEvent.click(screen.getByRole('button', { name: '승인 (kim01 → 김새롬)' }));
     await userEvent.click(screen.getByRole('button', { name: '정말 승인 (kim01 → 김새롬)' }));
     expect(await screen.findByRole('cell', { name: 'park02' })).toBeInTheDocument();
@@ -46,6 +46,25 @@ describe('이름 변경 검토', () => {
     expect(cells(done[0]!).slice(1, 6)).toEqual(['kim01', '김*롬', '김새롬', '개명 판결문 확인 예정', '승인']);
     expect(cells(done[0]!)[6]).toContain('판결문 확인');
     expect(cells(done[0]!)[6]).toContain('김관리');
+  });
+
+  it('한 회원의 요청에 적은 메모는 다른 회원의 결정에 함께 보내지 않는다', async () => {
+    const sent: unknown[] = [];
+    await signInAs('group');
+    renderApp('/mbr/name-changes');
+    await rows();
+    server.use(
+      http.post('/api/admin/v1/name-change-requests/:id/reject', async ({ request }) => {
+        sent.push(await request.json());
+        return apiError('CONFLICT_STATE');
+      }),
+    );
+    await userEvent.type(screen.getByLabelText('처리 메모(선택) (kim01 → 김새롬)'), '김씨에게만 보낼 사유');
+    await userEvent.click(screen.getByRole('button', { name: '반려 (park02 → 박다온)' }));
+    await userEvent.click(screen.getByRole('button', { name: '정말 반려 (park02 → 박다온)' }));
+    await screen.findByRole('alert');
+    expect(JSON.stringify(sent)).not.toContain('김씨에게만 보낼 사유');
+    expect(sent).toHaveLength(1);
   });
 
   it('반려하면 처리한 요청에 반려로 남는다', async () => {
@@ -68,7 +87,7 @@ describe('이름 변경 검토', () => {
     const [only] = await rows();
     expect(cells(only!).slice(1, 6)).toEqual(['lee03', '이*름', '이하늘', '개명 판결문 확인 예정', '승인']);
     expect(screen.queryByRole('button', { name: /승인 \(/ })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('처리 메모(선택)')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/처리 메모/)).not.toBeInTheDocument();
   });
 
   it('다른 담당자가 먼저 처리했으면 알리고 목록을 다시 읽는다', async () => {
