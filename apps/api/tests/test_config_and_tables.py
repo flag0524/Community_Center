@@ -7,7 +7,12 @@ from app.tools.generate_ddl import TABLES, generate
 from app.tools.schema_doc import SchemaDoc, parse_schema_doc
 
 KEY = "k" * 40
-BASE = {"JORI_DATABASE_URL": "mysql+pymysql://u:secret@h/db", "JORI_SITE_ID": "jori", "JORI_SECRET_KEY": KEY}
+BASE = {
+    "JORI_ENVIRONMENT": "development",
+    "JORI_DATABASE_URL": "mysql+pymysql://u:secret@h/db",
+    "JORI_SITE_ID": "jori",
+    "JORI_SECRET_KEY": KEY,
+}
 
 
 def test_설정은_환경변수에서_읽고_없으면_값을_드러내지_않고_멈춘다() -> None:
@@ -17,7 +22,7 @@ def test_설정은_환경변수에서_읽고_없으면_값을_드러내지_않�
         5,
         5,
     )  # 기관이 정한 값(Q28)이 기본이다
-    for missing in ("JORI_DATABASE_URL", "JORI_SITE_ID", "JORI_SECRET_KEY"):
+    for missing in ("JORI_ENVIRONMENT", "JORI_DATABASE_URL", "JORI_SITE_ID", "JORI_SECRET_KEY"):
         env = {name: value for name, value in BASE.items() if name != missing}
         with pytest.raises(ConfigError) as caught:
             load_settings(env)

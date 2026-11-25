@@ -14,6 +14,7 @@ from tests.test_courses_public import cycle, get
 from tests.world import MEMBER, World
 
 BASE = {
+    "JORI_ENVIRONMENT": "development",
     "JORI_DATABASE_URL": "mysql+pymysql://u:p@127.0.0.1:3306/x",
     "JORI_SITE_ID": "t",
     "JORI_SECRET_KEY": "k" * 40,

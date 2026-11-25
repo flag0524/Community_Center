@@ -26,8 +26,10 @@ def _operation_id(route: APIRoute) -> str:
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # 운영은 설정과 실제 어댑터 지원 여부를 기동 때 확인한다. 개발의 계약 생성에는 DB 설정이 필요 없다.
-    if os.environ.get("JORI_ENVIRONMENT") == "production":
+    # 운영은 설정과 실제 어댑터 지원 여부를 기동 때 확인한다.
+    # 환경 이름이 없거나 틀려도 여기서 거절한다(ADR-127).
+    # 개발의 계약 생성은 앱을 기동하지 않아 설정이 필요 없다.
+    if os.environ.get("JORI_ENVIRONMENT") not in {"development", "test"}:
         settings = get_settings()
         build_gateway(settings)
         build_sender(settings)

@@ -282,7 +282,12 @@ def test_거절된_요청은_인증_행을_남기지_않는다(world: World) -> 
 def test_하루_상한은_환경변수로_읽고_1_미만은_거절한다() -> None:
     from app.core.config import ConfigError, load_settings
 
-    base = {"JORI_DATABASE_URL": "mysql+pymysql://u:p@h/x", "JORI_SITE_ID": "t", "JORI_SECRET_KEY": "k" * 40}
+    base = {
+        "JORI_ENVIRONMENT": "development",
+        "JORI_DATABASE_URL": "mysql+pymysql://u:p@h/x",
+        "JORI_SITE_ID": "t",
+        "JORI_SECRET_KEY": "k" * 40,
+    }
     assert load_settings(base).otp_daily_limit == 10
     assert load_settings({**base, "JORI_OTP_DAILY_LIMIT": "3"}).otp_daily_limit == 3
     for bad in ("0", "-2"):

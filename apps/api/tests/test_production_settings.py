@@ -9,6 +9,7 @@ BASE = {
     "JORI_DATABASE_URL": "mysql+pymysql://unused/unused",
     "JORI_SITE_ID": "test",
     "JORI_SECRET_KEY": "s" * 32,
+    "JORI_ENVIRONMENT": "development",
 }
 REAL = {
     **BASE,
@@ -35,6 +36,12 @@ def test_운영에서는_보안_쿠키를_꺼도_거절한다() -> None:
         load_settings({**REAL, "JORI_COOKIE_SECURE": "0"})
 
 
+def test_환경_이름이_없으면_개발로_여기지_않고_거절한다() -> None:
+    without = {name: value for name, value in BASE.items() if name != "JORI_ENVIRONMENT"}
+    with pytest.raises(ConfigError, match="JORI_ENVIRONMENT"):
+        load_settings(without)
+
+
 def test_환경_이름의_오타를_개발_환경으로_취급하지_않는다() -> None:
     with pytest.raises(ConfigError):
         load_settings({**BASE, "JORI_ENVIRONMENT": "prodution"})
@@ -53,6 +60,27 @@ def test_운영_앱은_잘못된_설정을_첫_요청까지_미루지_않고_기
     starting = _lifespan(FastAPI()).__aenter__()
     try:
         with pytest.raises(ConfigError, match="mock"):
+            starting.send(None)
+    finally:
+        starting.close()
+        get_settings.cache_clear()
+
+
+@pytest.mark.parametrize("environment", [None, "prodution"])
+def test_앱은_환경_이름이_없거나_틀리면_기동을_거절한다(
+    environment: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name, value in BASE.items():
+        monkeypatch.setenv(name, value)
+    if environment is None:
+        monkeypatch.delenv("JORI_ENVIRONMENT")
+    else:
+        monkeypatch.setenv("JORI_ENVIRONMENT", environment)
+    get_settings.cache_clear()
+
+    starting = _lifespan(FastAPI()).__aenter__()
+    try:
+        with pytest.raises(ConfigError, match="JORI_ENVIRONMENT"):
             starting.send(None)
     finally:
         starting.close()

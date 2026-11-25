@@ -15,7 +15,12 @@ from app.adapters.scan.base import ScanUnavailable
 from app.adapters.scan.clamd import CHUNK, ClamdScanner
 from app.core.config import ConfigError, Settings, load_settings
 
-ENV = {"JORI_DATABASE_URL": "mysql://x", "JORI_SITE_ID": "s", "JORI_SECRET_KEY": "k" * 32}
+ENV = {
+    "JORI_ENVIRONMENT": "development",
+    "JORI_DATABASE_URL": "mysql://x",
+    "JORI_SITE_ID": "s",
+    "JORI_SECRET_KEY": "k" * 32,
+}
 
 
 class FakeClamd:

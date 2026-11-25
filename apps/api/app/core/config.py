@@ -16,7 +16,8 @@ class ConfigError(RuntimeError):
 class Settings:
     database_url: str
     site_id: str  # 이 배포가 맡는 운영묶음의 TB_OPER_BNDL.SITE_ID. 요청이 아니라 배포 설정이 정한다(R26)
-    environment: str = "development"  # 운영 배포는 JORI_ENVIRONMENT=production을 명시한다
+    # 환경변수에서 읽을 때(load_settings)는 JORI_ENVIRONMENT가 꼭 있어야 한다(ADR-127)
+    environment: str = "development"
     secret_key: str = "x" * MIN_SECRET_LENGTH  # CSRF·OTP 검증값용 비밀키(용도별로 파생)
     pbkdf2_iterations: int = 600_000  # 비밀번호 해시 반복 횟수. 해시마다 값이 같이 저장돼 나중에 올려도 된다
     cookie_secure: bool = True  # 로컬 http 개발에서만 끈다
@@ -82,7 +83,8 @@ def _int_or(env: dict[str, str], name: str, default: int) -> int:
 
 def load_settings(environ: dict[str, str] | None = None) -> Settings:
     env = dict(os.environ if environ is None else environ)
-    missing = [name for name in ("JORI_DATABASE_URL", "JORI_SITE_ID", "JORI_SECRET_KEY") if not env.get(name)]
+    required = ("JORI_ENVIRONMENT", "JORI_DATABASE_URL", "JORI_SITE_ID", "JORI_SECRET_KEY")
+    missing = [name for name in required if not env.get(name)]
     if missing:
         raise ConfigError(f"필수 환경변수가 없습니다: {', '.join(missing)}")
     if len(env["JORI_SECRET_KEY"]) < MIN_SECRET_LENGTH:
@@ -94,7 +96,7 @@ def load_settings(environ: dict[str, str] | None = None) -> Settings:
     return Settings(
         database_url=env["JORI_DATABASE_URL"],
         site_id=env["JORI_SITE_ID"],
-        environment=env.get("JORI_ENVIRONMENT", "development"),
+        environment=env["JORI_ENVIRONMENT"],
         secret_key=env["JORI_SECRET_KEY"],
         pbkdf2_iterations=_int(env, "JORI_PBKDF2_ITERATIONS") or 600_000,
         cookie_secure=env.get("JORI_COOKIE_SECURE", "1") != "0",
