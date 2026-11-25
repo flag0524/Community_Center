@@ -161,7 +161,16 @@ def test_비밀번호가_틀리면_탈퇴하지_않는다(world: World) -> None:
 
 @pytest.mark.parametrize(
     "case",
-    ["wait", "hold", "payment-pending", "refund-request", "refund-hold", "refund-approve", "refund-pending"],
+    [
+        "wait",
+        "hold",
+        "payment-pending",
+        "refund-request",
+        "refund-hold",
+        "refund-approve",
+        "refund-pending",
+        "refund-fail",  # PG 취소가 실패해 다시 처리해야 하는 환불(돌려줄 돈이 남아 있다)
+    ],
 )
 def test_진행_중인_신청_결제_환불이_있으면_422이고_탈퇴하지_않는다(world: World, case: str) -> None:
     who = member(world)

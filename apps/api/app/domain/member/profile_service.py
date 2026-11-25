@@ -20,7 +20,8 @@ from app.domain.member.types import ResidenceStatus
 # 자리를 쥐고 있는 신청, 결과를 모르는 결제, 처리 중인 환불이 하나라도 있으면 탈퇴할 수 없다
 WAITING_APPLICATIONS = ("ES.WAIT", "ES.HOLD")
 UNKNOWN_PAYMENT = "PS.PENDING"
-OPEN_REFUNDS = ("RS.REQUEST", "RS.HOLD", "RS.APPROVE", "RS.PENDING")
+# RS.FAIL은 돌려줄 돈이 남아 다시 처리할 환불이다. 탈퇴하면 30일 뒤 연락처가 지워진다(ADR-121)
+OPEN_REFUNDS = ("RS.REQUEST", "RS.HOLD", "RS.APPROVE", "RS.PENDING", "RS.FAIL")
 
 
 def _lock(db: Session, member: Member) -> object:
