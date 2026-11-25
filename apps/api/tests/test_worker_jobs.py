@@ -404,7 +404,9 @@ def test_PG가_받은_적이_없는_취소는_10분_뒤_같은_키로_다시_보
     [call] = world.pg.cancel_calls
     assert (call.idempotency_key, call.amount) == (key_of(world, r), 30000)
     assert refund_state(world, r)["RFND_STTS_CD"] == "RS.DONE"
-    resent = world.db.execute(text("SELECT ACTR_TYPE_CD a FROM TB_JOB_HSTRY WHERE JOB_CD='RFND_RESEND'")).all()
+    resent = world.db.execute(
+        text("SELECT ACTR_TYPE_CD a FROM TB_JOB_HSTRY WHERE JOB_CD='RFND_RESEND'")
+    ).all()
     assert [row.a for row in resent] == ["AK.SYSTEM"]
 
 

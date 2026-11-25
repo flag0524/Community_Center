@@ -363,7 +363,9 @@ def test_관리자_잠금은_연속_실패만_센다(migrated_engine: Engine, sc
             401,
         ]  # 앞의 2번은 세지 않는다
         assert login(w, ADMIN, "admin1", "wrong").status_code == 401
-        assert login(w, ADMIN, "admin1").status_code == 401  # 성공 뒤 연속 3번째 실패에서 잠겨 맞는 비밀번호도 막힌다
+        assert (
+            login(w, ADMIN, "admin1").status_code == 401
+        )  # 성공 뒤 연속 3번째 실패에서 잠겨 맞는 비밀번호도 막힌다
 
 
 def test_사용_중지된_관리자는_로그인할_수_없다(world: World) -> None:
