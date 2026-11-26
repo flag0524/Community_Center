@@ -12,6 +12,7 @@ from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
 from app.core.times import kst_today
 from app.db.tables import (
+    TB_FCLT,
     TB_FILE,
     TB_INSTR_APLY,
     TB_JOB_HSTRY,
@@ -61,6 +62,8 @@ KINDS = {
     FileOwnerKind.INSTRUCTOR_APPLICATION: ("INSTR_APLY_SN", "FP.PROOF", 5),
     # 홈 배너·팝업의 이미지 한 장(jpg·png). 다른 유형은 이미지를 쓰지 않는다
     FileOwnerKind.CONTENT: ("SITE_CONTS_SN", "FP.IMAGE", 1),
+    # 시설·강의실 사진 다섯 장. 정렬순서의 맨 앞이 대표 사진이다(ADR-129)
+    FileOwnerKind.FACILITY: ("FCLT_SN", "FP.IMAGE", 5),
 }
 INSTRUCTOR_EDITABLE = ("IA.WAIT",)  # 서류 검토중에만 증빙을 더하고 뺀다
 
@@ -101,6 +104,8 @@ def lock_owner(db: Session, bundle_sn: int, owner: Owner) -> None:
             .where(TB_SITE_CONTS.c.SITE_CONTS_SN == owner.sn)
             .with_for_update()
         ).one()
+    elif owner.kind is FileOwnerKind.FACILITY:
+        db.execute(select(TB_FCLT.c.FCLT_SN).where(TB_FCLT.c.FCLT_SN == owner.sn).with_for_update()).one()
     elif owner.kind is FileOwnerKind.REDUCTION:
         db.execute(
             select(TB_RDCT_BFHD_SRNG.c.RDCT_BFHD_SRNG_SN)
@@ -157,6 +162,13 @@ def store_upload(
     if live >= owner.max_files:
         message = f"파일은 {owner.max_files}개까지 올릴 수 있습니다. 먼저 기존 파일을 제거해 주세요."
         raise ApiError(ErrorCode.RULE_REJECTED, message, fields={"file": message})
+    last = int(
+        db.execute(
+            select(func.coalesce(func.max(TB_FILE.c.SORT_SEQ), 0)).where(
+                TB_FILE.c.OPER_BNDL_SN == bundle_sn, live_files(owner)
+            )
+        ).scalar_one()
+    )
     key = new_key(bundle_sn)
     try:
         write_blob(settings.file_root, key, upload.data)
@@ -175,7 +187,8 @@ def store_upload(
                     FILE_HASH_VL=upload.sha256,
                     FILE_STTS_CD="FS.PENDING",  # 업로드 즉시 검사 대기. 검사를 통과해야 내려받을 수 있다
                     FILE_USE_CD=owner.purpose,
-                    SORT_SEQ=live + 1,
+                    # 지운 파일이 있어도 새 파일은 맨 뒤에 놓는다(맨 앞의 대표 사진 자리를 빼앗지 않게)
+                    SORT_SEQ=last + 1,
                     REG_DT=now,
                     **{owner.column: owner.sn},
                 )

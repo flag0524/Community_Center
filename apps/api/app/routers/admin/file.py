@@ -244,6 +244,69 @@ def upload_content_file(
     )
 
 
+@router.get("/facilities/{facility_id}/files", responses=error_responses(ErrorCode.NOT_FOUND))
+def list_facility_files(facility_id: Serial, db: Db, admin: Me, clock: Now) -> OwnerFileList:
+    """시설·강의실 사진. 담당자(AU.FCLT_W)만 보고 다섯 장까지이며 맨 앞이 대표 사진이다."""
+    return service.list_owner_files(db, admin, now=clock(), kind=FileOwnerKind.FACILITY, sn=int(facility_id))
+
+
+@router.post(
+    "/facilities/{facility_id}/files",
+    status_code=201,
+    responses=UPLOAD_ERRORS,
+    dependencies=[Depends(csrf_header)],
+)
+def upload_facility_file(
+    facility_id: Serial,
+    request: Request,
+    db: Db,
+    settings: Config,
+    admin: MeWrite,
+    clock: Now,
+    file: Annotated[UploadFile, File(description="사진 한 장(jpg·png)")],
+    idempotency_key: IdempotencyKey,
+) -> OwnerFile:
+    """이미지가 아니거나 이미 다섯 장이면 RULE_REJECTED다."""
+    return service.upload_owner_file(
+        db,
+        settings,
+        admin,
+        now=clock(),
+        request_id=request_id_of(request),
+        kind=FileOwnerKind.FACILITY,
+        sn=int(facility_id),
+        filename=file.filename or "",
+        data=read_upload(file),
+        idem_key=idempotency_key,
+    )
+
+
+@router.post(
+    "/facilities/{facility_id}/files/{file_id}/representative",
+    responses=UPLOAD_ERRORS,
+    dependencies=[Depends(csrf_header)],
+)
+def set_main_photo(
+    facility_id: Serial,
+    file_id: Serial,
+    request: Request,
+    db: Db,
+    admin: MeWrite,
+    clock: Now,
+    idempotency_key: IdempotencyKey,
+) -> OwnerFileList:
+    """검사를 통과한 사진을 대표(맨 앞)로 지정하고 바뀐 목록을 준다."""
+    return service.set_main_photo(
+        db,
+        admin,
+        now=clock(),
+        request_id=request_id_of(request),
+        sn=int(facility_id),
+        file_id=file_id,
+        idem_key=idempotency_key,
+    )
+
+
 @router.delete(
     "/files/{file_id}",
     status_code=204,

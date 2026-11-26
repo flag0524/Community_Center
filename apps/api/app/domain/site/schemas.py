@@ -88,6 +88,7 @@ class FacilityInfo(ApiModel):
     name: str
     floor: str | None = None
     address: str | None = None
+    photo_urls: list[str] = Field(description="검사를 통과한 사진 주소. 첫 번째가 대표 사진이다.")
 
 
 class FacilityListResponse(ApiModel):

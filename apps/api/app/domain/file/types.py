@@ -1,6 +1,13 @@
 # 파일 도메인의 열거형(처리 상태·용도·소유 업무 종류). 관리자·주민 서비스가 함께 쓰며 이 도메인이 소유한다
 from enum import StrEnum
 
+FILE_URL = "/api/v1/files/{}"
+
+
+def file_url(file_sn: int) -> str:
+    """주민 화면이 파일을 받는 주소. 열어도 되는지는 받을 때 다시 판정한다."""
+    return FILE_URL.format(file_sn)
+
 
 class FileStatus(StrEnum):
     """파일 처리 상태. TB_FILE.FILE_STTS_CD(FS 코드집합)에 대응한다."""
@@ -32,3 +39,4 @@ class FileOwnerKind(StrEnum):
     REDUCTION = "REDUCTION"  # 감면 사전심사 증빙
     STATS_SOURCE = "STATS_SOURCE"  # 연령·성별 집계자료
     SATISFACTION_SOURCE = "SATISFACTION_SOURCE"  # 만족도 원자료
+    FACILITY = "FACILITY"  # 시설·강의실 사진

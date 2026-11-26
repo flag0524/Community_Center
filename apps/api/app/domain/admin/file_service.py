@@ -5,6 +5,7 @@ from urllib.parse import quote
 
 from fastapi import Response
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy import and_, func, or_, select, true, update
 from sqlalchemy.orm import Session
 
@@ -18,6 +19,7 @@ from app.db.tables import (
     TB_ATNLC_APLY,
     TB_BBS,
     TB_CORS,
+    TB_FCLT,
     TB_FILE,
     TB_INSTR_APLY,
     TB_JOB_HSTRY,
@@ -30,6 +32,7 @@ from app.db.tables import (
     TB_STLM,
 )
 from app.domain.admin.content_service import CODE_TYPE
+from app.domain.admin.education_service import _idem_mark, _replayed
 from app.domain.admin.file_schemas import AdminFile, AdminFilePage, AdminFileSummary, DownloadRecord
 from app.domain.admin.types import AdminAuthority as AU
 from app.domain.file.owner import (
@@ -67,6 +70,7 @@ LOCKED_REASON = {
 EVIDENCE_VIEW_JOB = "RDCT_EVIDENCE_VIEW"
 GALLERY_IMAGES = 10
 IMAGE_EXTENSIONS = ("jpg", "jpeg", "png")
+MAIN_PHOTO_JOB = "FCLT_PHOTO_MAIN"
 
 
 def _covers(scope: Scope, dong_sn: Any) -> bool:
@@ -225,6 +229,20 @@ def _instructor_owner(db: Session, admin: Admin, now: datetime, sn: int) -> Owne
     )
 
 
+def _facility_owner(db: Session, admin: Admin, now: datetime, sn: int) -> Owner | None:
+    """시설·강의실 사진. 권한은 시설을 고치는 권한(AU.FCLT_W)이고 범위는 시설의 동이다. 사용 중지한 시설도 고칠 수 있다."""
+    row = db.execute(
+        select(TB_FCLT.c.FCLT_NM, TB_FCLT.c.DONG_SN).where(
+            TB_FCLT.c.OPER_BNDL_SN == admin.bundle_sn, TB_FCLT.c.FCLT_SN == sn
+        )
+    ).first()
+    if row is None:
+        return None
+    write = _covers(scope_for(db, admin, AU.FCLT_W, now), row.DONG_SN)
+    column, purpose, limit = KINDS[FileOwnerKind.FACILITY]
+    return Owner(FileOwnerKind.FACILITY, column, sn, str(row.FCLT_NM), write, write, write, purpose, limit)
+
+
 def owner_of(db: Session, admin: Admin, now: datetime, kind: FileOwnerKind, sn: int) -> Owner:
     """권한이 없거나 없는 소유 업무는 같은 404다."""
     found = (
@@ -236,6 +254,8 @@ def owner_of(db: Session, admin: Admin, now: datetime, kind: FileOwnerKind, sn: 
         if kind is FileOwnerKind.INSTRUCTOR_APPLICATION
         else _content_owner(db, admin, now, sn)
         if kind is FileOwnerKind.CONTENT
+        else _facility_owner(db, admin, now, sn)
+        if kind is FileOwnerKind.FACILITY
         else _refund_owner(db, admin, now, sn)
     )
     if found is None or not found.can_view:
@@ -291,7 +311,7 @@ def upload_owner_file(
         raise _locked_error(owner)
     upload = validate_upload(filename, data)
     if owner.purpose == "FP.IMAGE" and upload.extension not in IMAGE_EXTENSIONS:
-        message = "갤러리에는 이미지(jpg·jpeg·png)만 올릴 수 있습니다."
+        message = "이미지(jpg·jpeg·png)만 올릴 수 있습니다."
         raise ApiError(ErrorCode.RULE_REJECTED, message, fields={"file": message})
     lock_owner(db, admin.bundle_sn, owner)
     owner = owner_of(db, admin, now, kind, sn)  # 기다리는 사이에 업무가 잠겼을 수 있어 잠근 뒤 다시 읽는다
@@ -311,6 +331,60 @@ def upload_owner_file(
     )
 
 
+class MainPhoto(BaseModel):
+    """대표 지정 요청의 내용. 멱등 표식의 지문으로만 쓴다."""
+
+    facility_id: int
+    file_id: int
+
+
+def set_main_photo(
+    db: Session,
+    admin: Admin,
+    *,
+    now: datetime,
+    request_id: str,
+    sn: int,
+    file_id: str,
+    idem_key: str,
+) -> OwnerFileList:
+    """검사를 통과한 사진을 맨 앞(대표)으로 옮기고 나머지는 순서를 유지한다."""
+    owner = owner_of(db, admin, now, FileOwnerKind.FACILITY, sn)
+    lock_owner(db, admin.bundle_sn, owner)  # 올리기·지우기와 한 줄로 세운다
+    body = MainPhoto(facility_id=sn, file_id=int(file_id))
+    if _replayed(db, admin.bundle_sn, MAIN_PHOTO_JOB, idem_key, body) is None:
+        photos = db.execute(
+            select(TB_FILE.c.FILE_SN, TB_FILE.c.FILE_STTS_CD)
+            .where(TB_FILE.c.OPER_BNDL_SN == admin.bundle_sn, live_files(owner))
+            .order_by(TB_FILE.c.SORT_SEQ, TB_FILE.c.FILE_SN)
+            .with_for_update()
+        ).all()
+        chosen = next((p for p in photos if int(p.FILE_SN) == body.file_id), None)
+        if chosen is None:
+            raise ApiError(ErrorCode.NOT_FOUND)
+        if chosen.FILE_STTS_CD != "FS.SAFE":
+            message = "검사를 통과한 사진만 대표로 지정할 수 있습니다."
+            raise ApiError(ErrorCode.RULE_REJECTED, message, fields={"file": message})
+        ordered = [chosen, *(p for p in photos if p is not chosen)]
+        for seq, photo in enumerate(ordered, start=1):
+            db.execute(
+                update(TB_FILE).where(TB_FILE.c.FILE_SN == photo.FILE_SN).values(SORT_SEQ=seq, MDFCN_DT=now)
+            )
+        record_job(
+            db,
+            actor="AK.ADMIN",
+            job=MAIN_PHOTO_JOB,
+            table="TB_FCLT",
+            key=sn,
+            request_id=request_id,
+            now=now,
+            bundle_sn=admin.bundle_sn,
+            admin_sn=admin.admin_sn,
+            change=f"대표 사진 {body.file_id} {_idem_mark(idem_key, body)}",
+        )
+    return list_owner_files(db, admin, now=now, kind=FileOwnerKind.FACILITY, sn=sn)
+
+
 # --- 전체 목록·상세 ---------------------------------------------------------------------------
 
 
@@ -321,7 +395,9 @@ def _visible_files(db: Session, admin: Admin, now: datetime) -> Any:
     refund_scope = Scope(refund_a.whole or refund_x.whole, refund_a.dongs | refund_x.dongs)
     post_scope = scope_for(db, admin, AU.POST_W, now)
     content_scope = scope_for(db, admin, AU.SITE_W, now)
-    if course_scope.empty() and refund_scope.empty() and post_scope.empty() and content_scope.empty():
+    facility_scope = scope_for(db, admin, AU.FCLT_W, now)
+    scopes = (course_scope, refund_scope, post_scope, content_scope, facility_scope)
+    if all(scope.empty() for scope in scopes):
         raise ApiError(ErrorCode.FORBIDDEN)
     pieces = []
     if not course_scope.empty():
@@ -354,6 +430,13 @@ def _visible_files(db: Session, admin: Admin, now: datetime) -> Any:
                 true() if content_scope.whole else TB_SITE_CONTS.c.DONG_SN.in_(content_scope.dongs),
             )
         )
+    if not facility_scope.empty():
+        pieces.append(
+            and_(
+                TB_FILE.c.FCLT_SN.is_not(None),
+                true() if facility_scope.whole else TB_FCLT.c.DONG_SN.in_(facility_scope.dongs),
+            )
+        )
     return or_(*pieces)
 
 
@@ -369,9 +452,10 @@ def _query(admin: Admin) -> Any:
         .outerjoin(RFND_CORS, RFND_CORS.c.CORS_SN == TB_ATNLC_APLY.c.CORS_SN)
         .outerjoin(TB_PST, TB_PST.c.PST_SN == TB_FILE.c.PST_SN)
         .outerjoin(TB_SITE_CONTS, TB_SITE_CONTS.c.SITE_CONTS_SN == TB_FILE.c.SITE_CONTS_SN)
+        .outerjoin(TB_FCLT, TB_FCLT.c.FCLT_SN == TB_FILE.c.FCLT_SN)
     )
     return (
-        select(TB_FILE, TB_CORS.c.CORS_NM, TB_PST.c.PST_TTL, TB_SITE_CONTS.c.CONTS_TTL)
+        select(TB_FILE, TB_CORS.c.CORS_NM, TB_PST.c.PST_TTL, TB_SITE_CONTS.c.CONTS_TTL, TB_FCLT.c.FCLT_NM)
         .select_from(source)
         .where(TB_FILE.c.OPER_BNDL_SN == admin.bundle_sn)
     )
@@ -384,6 +468,8 @@ def _summary(row: Any) -> AdminFileSummary:
         kind, label = FileOwnerKind.POST, str(row.PST_TTL)
     elif row.SITE_CONTS_SN is not None:
         kind, label = FileOwnerKind.CONTENT, str(row.CONTS_TTL)
+    elif row.FCLT_SN is not None:
+        kind, label = FileOwnerKind.FACILITY, str(row.FCLT_NM)
     elif row.RDCT_BFHD_SRNG_SN is not None:
         kind, label = FileOwnerKind.REDUCTION, f"감면 심사 {int(row.RDCT_BFHD_SRNG_SN)}"
     elif row.INSTR_APLY_SN is not None:
@@ -422,6 +508,8 @@ def list_files(
         query = query.where(TB_FILE.c.PST_SN.is_not(None))
     elif owner_kind is FileOwnerKind.CONTENT:
         query = query.where(TB_FILE.c.SITE_CONTS_SN.is_not(None))
+    elif owner_kind is FileOwnerKind.FACILITY:
+        query = query.where(TB_FILE.c.FCLT_SN.is_not(None))
     elif owner_kind is not None:
         query = query.where(TB_FILE.c.FILE_SN == -1)  # 아직 구현되지 않은 소유 업무의 파일은 없다
     query = (
@@ -465,6 +553,8 @@ def _file_and_owner(db: Session, admin: Admin, now: datetime, file_id: str) -> t
         owner = _instructor_owner(db, admin, now, int(row.INSTR_APLY_SN))
     elif row.SITE_CONTS_SN is not None:
         owner = _content_owner(db, admin, now, int(row.SITE_CONTS_SN))
+    elif row.FCLT_SN is not None:
+        owner = _facility_owner(db, admin, now, int(row.FCLT_SN))
     else:
         owner = None
     if owner is None or not owner.can_view:

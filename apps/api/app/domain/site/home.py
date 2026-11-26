@@ -17,7 +17,8 @@ from app.domain.course.service import (
     ymd,
 )
 from app.domain.course.types import ReceptionState
-from app.domain.file.service import ALWAYS_LISTED, file_url
+from app.domain.file.service import ALWAYS_LISTED
+from app.domain.file.types import file_url
 from app.domain.site.schemas import (
     CategoryOverview,
     HomeBanner,

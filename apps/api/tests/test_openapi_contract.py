@@ -111,6 +111,9 @@ ADMIN_OPERATIONS = {
     ("post", "/api/admin/v1/facilities"),
     ("get", "/api/admin/v1/facilities/{facility_id}"),
     ("put", "/api/admin/v1/facilities/{facility_id}"),
+    ("get", "/api/admin/v1/facilities/{facility_id}/files"),
+    ("post", "/api/admin/v1/facilities/{facility_id}/files"),
+    ("post", "/api/admin/v1/facilities/{facility_id}/files/{file_id}/representative"),
     ("get", "/api/admin/v1/courses/{course_id}/schedules"),
     ("post", "/api/admin/v1/courses/{course_id}/schedules"),
     ("put", "/api/admin/v1/courses/{course_id}/schedules/{schedule_id}"),
@@ -272,6 +275,8 @@ IDEMPOTENT_POSTS = {
     ("post", "/api/admin/v1/refunds/{refund_id}/files"),
     ("post", "/api/admin/v1/instructor-applications/{application_id}/files"),
     ("post", "/api/admin/v1/contents/{content_id}/files"),
+    ("post", "/api/admin/v1/facilities/{facility_id}/files"),
+    ("post", "/api/admin/v1/facilities/{facility_id}/files/{file_id}/representative"),
     ("post", "/api/admin/v1/exports/pii"),
 }
 
@@ -700,7 +705,7 @@ def test_일정과_휴보강은_시각을_HH_MM_문자열로_받는다(spec: Sch
 def test_강의실_선택지는_강좌_옵션에_있고_시설_조회는_시설_권한_전용이다(spec: Schema) -> None:
     assert "rooms" in spec["components"]["schemas"]["CourseOptions"]["properties"]
     facility_paths = [path for path in spec["paths"] if path.startswith("/api/admin/v1/facilities")]
-    assert len(facility_paths) == 2
+    assert len(facility_paths) == 4  # 목록·상세와 사진, 대표 지정
 
 
 def test_강사_심사_수정은_읽은_버전을_보내고_승인해도_권한을_주지_않는다(spec: Schema) -> None:
@@ -1071,6 +1076,7 @@ def test_파일_올리기는_multipart로_한_개씩_받고_한도는_응답이_
         "/api/admin/v1/refunds/{refund_id}/files",
         "/api/admin/v1/instructor-applications/{application_id}/files",
         "/api/admin/v1/contents/{content_id}/files",
+        "/api/admin/v1/facilities/{facility_id}/files",
     ):
         body = spec["paths"][path]["post"]["requestBody"]["content"]
         assert set(body) == {"multipart/form-data"}, path

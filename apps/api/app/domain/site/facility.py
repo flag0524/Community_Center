@@ -4,7 +4,8 @@ from typing import Any, Literal
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.db.tables import TB_FCLT
+from app.db.tables import TB_FCLT, TB_FILE
+from app.domain.file.types import file_url
 from app.domain.site.schemas import FacilityInfo, FacilityListResponse
 
 # 관리자 시설 관리가 층을 설명 칸에 저장하는 표식과 시설 유형 코드다. 같은 값인지는 시험이 지킨다.
@@ -29,6 +30,23 @@ def center_in_use() -> Any:
     )
 
 
+def _photos(db: Session, bundle_sn: int, facility_sns: list[int]) -> dict[int, list[str]]:
+    """검사를 통과한 사진 주소. 정렬순서의 맨 앞이 대표 사진이다."""
+    found: dict[int, list[str]] = {sn: [] for sn in facility_sns}
+    for row in db.execute(
+        select(TB_FILE.c.FCLT_SN, TB_FILE.c.FILE_SN)
+        .where(
+            TB_FILE.c.OPER_BNDL_SN == bundle_sn,
+            TB_FILE.c.FCLT_SN.in_(facility_sns),
+            TB_FILE.c.FILE_STTS_CD == "FS.SAFE",
+            TB_FILE.c.FILE_USE_CD == "FP.IMAGE",
+        )
+        .order_by(TB_FILE.c.SORT_SEQ, TB_FILE.c.FILE_SN)
+    ):
+        found[int(row.FCLT_SN)].append(file_url(int(row.FILE_SN)))
+    return found
+
+
 def list_facilities(db: Session, bundle_sn: int) -> FacilityListResponse:
     """사용 중인 시설만이며 사용 중지한 센터의 강의실도 뺀다.
 
@@ -46,6 +64,7 @@ def list_facilities(db: Session, bundle_sn: int) -> FacilityListResponse:
             TB_FCLT.c.FCLT_SN,
         )
     ).all()
+    photos = _photos(db, bundle_sn, [int(r.FCLT_SN) for r in rows])
     return FacilityListResponse(
         items=[
             FacilityInfo(
@@ -55,6 +74,7 @@ def list_facilities(db: Session, bundle_sn: int) -> FacilityListResponse:
                 name=str(r.FCLT_NM),
                 floor=_floor(r.FCLT_EXPLN),
                 address=None if r.ADDR is None else str(r.ADDR),
+                photo_urls=photos[int(r.FCLT_SN)],
             )
             for r in rows
         ]

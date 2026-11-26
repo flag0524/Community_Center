@@ -64,7 +64,7 @@ def download_file(
     clock: Now,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Response:
-    """소유 게시물이 공개일 때, 게시 중인 홈 콘텐츠의 이미지일 때, 공개 강좌의 강의계획서일 때만 내려준다."""
+    """공개 게시물 첨부, 게시 중인 홈 콘텐츠 이미지, 공개 강좌 강의계획서, 사용 중인 시설 사진만 내려준다."""
     file, path = file_service.download(db, settings, bundles.resolve(db), file_id, clock())
     mime = str(file.MIME_TYPE_NM)
     inline = file.FILE_USE_CD == "FP.IMAGE" and mime.startswith("image/")

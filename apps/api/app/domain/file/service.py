@@ -8,19 +8,15 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
-from app.db.tables import TB_BBS, TB_CORS, TB_FILE, TB_PST, TB_SITE_CONTS
+from app.db.tables import TB_BBS, TB_CORS, TB_FCLT, TB_FILE, TB_PST, TB_SITE_CONTS
 from app.domain.board.service import ATTACH, IMAGE, SAFE, public_post_conditions
 from app.domain.course.service import VISIBLE_STATUSES
+from app.domain.site.facility import center_in_use
 from app.domain.site.service import banner_window, published_window
 from app.files.storage import StorageError, blob_path
 
 HOME_CONTENT_TYPES = ("CT.VISUAL", "CT.BANNER", "CT.POPUP")  # 이미지를 올릴 수 있는 홈 콘텐츠
 ALWAYS_LISTED = ("CT.VISUAL", "CT.BANNER")  # 게시 기간과 상관없이 게시 여부만 보는 홈 콘텐츠(ADR-088·099)
-FILE_URL = "/api/v1/files/{}"
-
-
-def file_url(file_sn: int) -> str:
-    return FILE_URL.format(file_sn)
 
 
 def public_file(db: Session, bundle_sn: int, file_id: str, now: datetime) -> Any:
@@ -61,6 +57,14 @@ def public_file(db: Session, bundle_sn: int, file_id: str, now: datetime) -> Any
             TB_CORS.c.CORS_STTS_CD.in_(VISIBLE_STATUSES),
         )
         allowed = file.FILE_USE_CD == "FP.PLAN"
+    elif file.FCLT_SN is not None:
+        owner = exists().where(
+            TB_FCLT.c.OPER_BNDL_SN == bundle_sn,
+            TB_FCLT.c.FCLT_SN == file.FCLT_SN,
+            TB_FCLT.c.USE_YN == "Y",
+            center_in_use(),
+        )
+        allowed = file.FILE_USE_CD == IMAGE
     else:
         return None  # 감면 증빙·강사 지원서·만족도 자료 등 비공개 소유자
     if not allowed or not db.execute(select(owner)).scalar_one():
