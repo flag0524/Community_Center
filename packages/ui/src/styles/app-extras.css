@@ -260,3 +260,11 @@ button.login-link {
   min-height: 44px;
   cursor: pointer;
 }
+
+/* 시설안내 표의 사진. 좁은 화면에서도 표가 가로로 넘치지 않게 화면 폭에 맞춰 줄인다. */
+.facility-photo {
+  display: block;
+  width: min(280px, 42vw);
+  height: auto;
+  margin: 6px 0;
+}

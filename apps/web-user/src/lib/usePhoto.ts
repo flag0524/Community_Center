@@ -34,3 +34,23 @@ export function usePhoto(src: string): PhotoStatus {
   }, [src]);
   return status;
 }
+
+/** 시설 이름과 같은 이름의 사진 파일. 청사 사진처럼 git과 운영 빌드에 넣지 않는다 */
+export const facilityPhoto = (name: string) => `/dev-assets/facility/${encodeURIComponent(name)}.jpg`;
+
+/** 여러 사진 가운데 실제로 불러와진 것의 주소 */
+export function useLoadedPhotos(sources: string[]): ReadonlySet<string> {
+  const [loaded, setLoaded] = useState<ReadonlySet<string>>(new Set());
+  const joined = sources.join('\n');
+  useEffect(() => {
+    let active = true;
+    const list = joined ? joined.split('\n') : [];
+    void Promise.all(list.map(async (src) => ((await probe(src)) ? src : ''))).then((found) => {
+      if (active) setLoaded(new Set(found.filter(Boolean)));
+    });
+    return () => {
+      active = false;
+    };
+  }, [joined]);
+  return loaded;
+}
