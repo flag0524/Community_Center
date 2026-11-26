@@ -3,6 +3,7 @@ import type { Schemas } from '@jori/api-client';
 import { HttpResponse, http } from 'msw';
 import { apiError, currentAdminName, denyCsrf, denyUnless } from './auth';
 import { mockPostTitle } from './boards';
+import { mockFacilityName } from './campus';
 import { mockContentInfo } from './contents';
 import { mockCourseName } from './education';
 
@@ -10,6 +11,8 @@ type File = Schemas['AdminFile'];
 
 const fid = (n: number) => `31${String(n).padStart(20, '0')}`;
 const PAGE_SIZE = 20;
+// 시설 사진의 내려받기는 화면이 그림으로 보이므로 작은 PNG(1×1)를 준다
+const PIXEL = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkaPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
 
 export const UPLOAD_LIMITS = { maxFiles: 10, maxBytes: 20 * 1024 * 1024, allowedExtensions: ['pdf', 'hwp', 'hwpx', 'docx', 'xlsx', 'jpg', 'png'] };
@@ -60,6 +63,13 @@ const OWNERS: Record<string, OwnerConfig> = {
       const usesImage = IMAGE_TYPES.includes(content.contentType);
       return { label: content.title, locked: !usesImage, reject: usesImage ? undefined : '이 유형은 이미지를 쓰지 않습니다.' };
     },
+  },
+  facilities: {
+    kind: 'FACILITY',
+    purpose: 'IMAGE',
+    authority: 'AU.FCLT_W',
+    limits: { maxFiles: 5, allowedExtensions: ['jpg', 'png'] },
+    info: (id) => (mockFacilityName(id) ? { label: mockFacilityName(id)!, locked: false } : null),
   },
   refunds: { kind: 'REFUND', purpose: 'PROOF', authority: 'AU.RFND_A', info: (id) => registered.refunds?.(id) ?? null },
   'instructor-applications': { kind: 'INSTRUCTOR_APPLICATION', purpose: 'PROOF', authority: 'AU.INSTR_W', info: (id) => registered['instructor-applications']?.(id) ?? null },
@@ -123,6 +133,16 @@ function scan(ownerPath: string): void {
     }
   }
 }
+
+const ownerList = (group: string, ownerPath: string, locked: boolean): Schemas['OwnerFileList'] => ({
+  items: owned
+    .filter((item) => item.ownerPath === ownerPath)
+    .map((item) => rows.find((row) => row.fileId === item.fileId)!)
+    .filter((row) => row.status !== 'DELETE')
+    .map(ownerFile),
+  canEdit: !locked,
+  ...limitsOf(group),
+});
 
 export type UploadResult = { file: Schemas['OwnerFile'] } | { status: number; code: 'NOT_FOUND' | 'RULE_REJECTED' | 'CONFLICT_STATE'; fields?: Record<string, string> };
 
@@ -190,9 +210,10 @@ export const fileHandlers = [
     if (!fileName || status !== 'SAFE') return apiError('NOT_FOUND');
     if (external) external.onDownload(currentAdminName());
     else row!.downloads.push({ at: new Date().toISOString(), by: currentAdminName(), byAdmin: true });
-    return new HttpResponse('시험용 첨부 내용입니다.', {
+    const photo = group === 'facilities';
+    return new HttpResponse(photo ? PIXEL : '시험용 첨부 내용입니다.', {
       headers: {
-        'Content-Type': 'application/octet-stream',
+        'Content-Type': photo ? 'image/png' : 'application/octet-stream',
         'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
         'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'private, no-store',
@@ -211,6 +232,18 @@ export const fileHandlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
+  http.post('/api/admin/v1/facilities/:ownerId/files/:fileId/representative', ({ request, params }) => {
+    const denied = denyCsrf(request) ?? denyUnless('AU.FCLT_W');
+    if (denied) return denied;
+    const ownerPath = `/facilities/${String(params.ownerId)}`;
+    const live = (entry: { fileId: string }) => rows.find((row) => row.fileId === entry.fileId)!;
+    const chosen = owned.find((entry) => entry.ownerPath === ownerPath && entry.fileId === params.fileId);
+    if (!chosen || live(chosen).status === 'DELETE') return apiError('NOT_FOUND');
+    if (live(chosen).status !== 'SAFE') return apiError('RULE_REJECTED', { file: '검사를 통과한 사진만 대표로 지정할 수 있습니다.' });
+    owned = [chosen, ...owned.filter((entry) => entry !== chosen)];
+    return HttpResponse.json(ownerList('facilities', ownerPath, false));
+  }),
+
   ...Object.entries(OWNERS).flatMap(([group, owner]) => [
     http.get(`/api/admin/v1/${group}/:ownerId/files`, ({ params }) => {
       const denied = denyUnless(owner.authority, ...(group === 'courses' ? (['AU.CORS_R'] as const) : []));
@@ -219,12 +252,7 @@ export const fileHandlers = [
       const info = owner.info(String(params.ownerId));
       if (!info) return apiError('NOT_FOUND');
       scan(ownerPath);
-      const items = owned
-        .filter((item) => item.ownerPath === ownerPath)
-        .map((item) => rows.find((row) => row.fileId === item.fileId)!)
-        .filter((row) => row.status !== 'DELETE')
-        .map(ownerFile);
-      return HttpResponse.json({ items, canEdit: !info.locked, ...limitsOf(group) } satisfies Schemas['OwnerFileList']);
+      return HttpResponse.json(ownerList(group, ownerPath, info.locked));
     }),
 
     http.post(`/api/admin/v1/${group}/:ownerId/files`, async ({ request, params }) => {

@@ -69,3 +69,30 @@ test('일정을 등록하면 시간표에 나타난다', async ({ page }) => {
   const timetable = page.getByRole('region', { name: '주간 시간표' });
   await expect(timetable.getByText('14:00~15:00')).toBeVisible();
 });
+
+// 1×1 PNG. 실제 그림이어야 미리보기와 올린 사진이 화면에 그려진다.
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkaPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+const ROOM_1 = '7000000000000000000002';
+
+for (const size of SIZES) {
+  test(`시설 사진 · ${size.name}: 미리 보고 올려 대표를 바꾸며 접근성 위반과 가로 스크롤이 없다`, async ({ page }) => {
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await signIn(page);
+    await goTo(page, `/edu/facilities/${ROOM_1}`);
+    await page.getByLabel('사진 선택').setInputFiles([
+      { name: '아주 긴 이름의 무대 사진 파일 이름이 한 줄을 넘어가는 경우를 확인하는 파일.png', mimeType: 'image/png', buffer: PNG },
+      { name: '객석.png', mimeType: 'image/png', buffer: PNG },
+    ]);
+    const preview = page.getByRole('list', { name: '올리기 전 미리보기' });
+    await expect(preview.getByRole('img')).toHaveCount(2);
+    await expect.poll(() => preview.getByRole('img').first().evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+    await expectClean(page);
+    await page.getByRole('button', { name: '2장 올리기' }).click();
+    const uploaded = page.getByRole('list', { name: '올린 사진' });
+    await expect(uploaded.getByRole('img')).toHaveCount(2, { timeout: 15_000 });
+    await expect.poll(() => uploaded.getByRole('img').first().evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+    await page.getByRole('button', { name: '객석.png 대표로 지정' }).click();
+    await expect(uploaded.getByRole('listitem').first()).toContainText('객석.png대표');
+    await expectClean(page);
+  });
+}

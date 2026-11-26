@@ -91,3 +91,14 @@
 .admin-prototype .adm-kpis dt { font-size: 13px; color: #4b5563; }
 .admin-prototype .adm-kpis dd { margin: 4px 0 0; font-size: 20px; font-weight: 700; }
 .admin-prototype .adm-list { margin: 0; padding-left: 20px; line-height: 1.9; }
+
+/* 시설 사진. 올리기 전 미리보기와 올린 사진을 같은 크기의 칸으로 보이고 사진은 자르지 않고 맞춘다. */
+.admin-prototype .adm-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; list-style: none; margin: 10px 0 14px; padding: 0; }
+.admin-prototype .adm-photo-grid li { display: flex; flex-direction: column; gap: 8px; min-width: 0; border: 1px solid #d0d7de; padding: 8px; }
+.admin-prototype .adm-photo-grid figure { margin: 0; }
+.admin-prototype .adm-photo-grid img,
+.admin-prototype .adm-photo-wait { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #f1f3f5; }
+.admin-prototype .adm-photo-wait { color: #4b5563; font-size: 13px; text-align: center; padding: 8px; }
+.admin-prototype .adm-photo-grid figcaption { margin-top: 6px; font-size: 13px; overflow-wrap: anywhere; }
+.admin-prototype .adm-photo-main { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid #315ab8; color: #315ab8; font-size: 12px; }
+.admin-prototype .adm-photo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

@@ -9,6 +9,7 @@ import { errorMessage, fieldErrors } from '../../lib/errors';
 import { FACILITY_KIND } from '../../lib/labels';
 import { isVersionConflict } from '../../lib/messages';
 import { useIdempotencyKey } from '../../lib/useIdempotencyKey';
+import { FacilityPhotos } from './FacilityPhotos';
 
 interface Values {
   kind: FacilityWrite['kind'];
@@ -173,6 +174,7 @@ function FacilityForm({ centers, facility }: { centers: Facility[]; facility?: F
           </Link>
         </div>
       </form>
+      {facility ? <FacilityPhotos facilityId={facility.facilityId} name={facility.name} /> : <p className="adm-notice">사진은 시설을 저장한 뒤 올릴 수 있습니다.</p>}
     </>
   );
 }

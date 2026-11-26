@@ -69,6 +69,8 @@ export function resetMockCampus(): void {
 }
 
 const facilityName = (id: string | null) => state.facilities.find((item) => item.facilityId === id)?.name ?? null;
+/** 첨부 모의 서버가 시설 사진의 소유 업무 이름을 묻는다. */
+export const mockFacilityName = (id: string): string | null => facilityName(id);
 const scheduleCountOf = (id: string) => state.schedules.filter((item) => item.facilityId === id).length;
 const withCount = (item: State['facilities'][number]): Facility => ({ ...item, scheduleCount: scheduleCountOf(item.facilityId) });
 const syncCount = (id: string) => setScheduleCount(id, state.schedules.filter((item) => item.courseId === id).length);
