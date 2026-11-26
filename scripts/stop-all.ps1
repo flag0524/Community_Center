@@ -26,16 +26,19 @@ function Get-ProjectPython {
 
 # 직접 켠 화면 서버. 명령에는 폴더가 없어, 그 포트의 첫 화면 제목이 이 센터의 것인지 확인한다
 function Get-ProjectScreen([int]$Port) {
-    $owner = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1
-    if (-not $owner) { return }
-    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $($owner.OwningProcess)"
-    if ($process.Name -ne 'node.exe' -or $process.CommandLine -notmatch 'vite\.js') { return }
-    try {
-        $page = Invoke-WebRequest -UseBasicParsing -TimeoutSec 5 "http://127.0.0.1:$Port/"
-        $html = [Text.Encoding]::UTF8.GetString($page.RawContentStream.ToArray())
+    foreach ($owner in @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)) {
+        $process = Get-CimInstance Win32_Process -Filter "ProcessId = $($owner.OwningProcess)"
+        if ($process.Name -ne 'node.exe' -or $process.CommandLine -notmatch 'vite\.js') { continue }
+        # 켜기 파일의 화면은 127.0.0.1, pnpm dev의 화면은 ::1에서만 듣는다. 실제로 듣는 주소로 확인한다
+        $address = $owner.LocalAddress -replace '^0\.0\.0\.0$', '127.0.0.1' -replace '^::$', '::1'
+        if ($address.Contains(':')) { $address = "[$address]" }
+        try {
+            $page = Invoke-WebRequest -UseBasicParsing -TimeoutSec 5 "http://${address}:$Port/"
+            $html = [Text.Encoding]::UTF8.GetString($page.RawContentStream.ToArray())
+        }
+        catch { continue }
+        if ($html -match '<title>조리읍주민자치센터') { $process }
     }
-    catch { return }
-    if ($html -match '<title>조리읍주민자치센터') { $process }
 }
 
 function Stop-Tree($Processes) {
