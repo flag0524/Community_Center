@@ -35,3 +35,30 @@ for (const size of SIZES) {
     });
   }
 }
+
+for (const size of SIZES) {
+  for (const view of VIEWS) {
+    test(`시설 사진 크게 보기 · ${view.name} · ${size.name}: 넘겨 보고 닫으면 누른 단추로 돌아온다`, async ({ page }) => {
+      await page.setViewportSize({ width: size.width, height: size.height });
+      await page.goto(`/center/facility${view.query}`);
+      const open = page.getByRole('button', { name: '문화공연장 사진 2장 크게 보기' });
+      await expect.poll(() => open.locator('img').evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+      await open.click();
+      const dialog = page.getByRole('dialog', { name: '문화공연장 사진' });
+      await expect(dialog.getByRole('img', { name: '문화공연장 사진 1 / 2' })).toBeVisible();
+      await dialog.getByRole('button', { name: '다음 사진' }).click();
+      await expect(dialog.getByRole('status')).toHaveText('2 / 2');
+      expect(await violations(page)).toEqual([]);
+      const box = (await dialog.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(size.width);
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+      await expect(open).toBeFocused();
+      await open.click();
+      await expect(dialog.getByRole('status')).toHaveText('1 / 2');
+      await dialog.getByRole('button', { name: '닫기' }).click();
+      await expect(dialog).toBeHidden();
+    });
+  }
+}

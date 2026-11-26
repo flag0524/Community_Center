@@ -261,10 +261,49 @@ button.login-link {
   cursor: pointer;
 }
 
-/* 시설안내 표의 사진. 좁은 화면에서도 표가 가로로 넘치지 않게 화면 폭에 맞춰 줄인다. */
+/* 시설안내의 사진. 좁은 화면에서도 표가 가로로 넘치지 않게 화면 폭에 맞춰 줄인다. */
 .facility-photo {
   display: block;
   width: min(280px, 42vw);
-  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+.facility-photo-button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 44px;
+  min-height: 44px;
   margin: 6px 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #1f4f99;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.photo-viewer {
+  width: min(900px, 94vw);
+  max-height: 94vh;
+  padding: 16px;
+  border: 1px solid #596475;
+}
+.photo-viewer::backdrop {
+  background: rgb(0 0 0 / 70%);
+}
+.photo-viewer img {
+  display: block;
+  width: 100%;
+  max-height: 66vh;
+  margin: 12px 0;
+  object-fit: contain;
+}
+.photo-viewer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }

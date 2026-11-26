@@ -178,13 +178,16 @@ export function buildHome(now: Date = new Date()): HomeResponse {
   };
 }
 
+/** 모의 서버의 예시 시설 사진. 파일 모의 서버가 그림 대신 예시 표시를 돌려준다. */
+export const FACILITY_PHOTO_IDS = ['9100000000000000000601', '9100000000000000000602'];
+
 export const facilities: FacilityListResponse = {
   items: [
-    { facilityId: '1', kind: 'CENTER', parentId: null, name: '조리읍 행정복지센터', floor: null, address: '경기도 파주시 조리읍 봉천로 64' },
-    { facilityId: '2', kind: 'ROOM', parentId: '1', name: '문화공연장', floor: '1층', address: null },
-    { facilityId: '3', kind: 'ROOM', parentId: '1', name: '통합민원실', floor: '2층', address: null },
-    { facilityId: '4', kind: 'ROOM', parentId: '1', name: '주민자치센터', floor: '3층', address: null },
-    { facilityId: '5', kind: 'ROOM', parentId: '1', name: '다목적강당', floor: '4층', address: null },
+    { facilityId: '1', kind: 'CENTER', parentId: null, name: '조리읍 행정복지센터', floor: null, address: '경기도 파주시 조리읍 봉천로 64', photoUrls: [] },
+    { facilityId: '2', kind: 'ROOM', parentId: '1', name: '문화공연장', floor: '1층', address: null, photoUrls: FACILITY_PHOTO_IDS.map((id) => `/api/v1/files/${id}`) },
+    { facilityId: '3', kind: 'ROOM', parentId: '1', name: '통합민원실', floor: '2층', address: null, photoUrls: [] },
+    { facilityId: '4', kind: 'ROOM', parentId: '1', name: '주민자치센터', floor: '3층', address: null, photoUrls: [] },
+    { facilityId: '5', kind: 'ROOM', parentId: '1', name: '다목적강당', floor: '4층', address: null, photoUrls: [] },
   ],
 };
 

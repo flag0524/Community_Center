@@ -100,10 +100,10 @@ describe('센터소개', () => {
     expect(await screen.findByRole('heading', { level: 1, name: '시설안내' })).toBeInTheDocument();
     expect(screen.getByText('경기도 파주시 조리읍 봉천로 64')).toBeInTheDocument();
     const table = screen.getByRole('table', { name: '조리읍 행정복지센터 표' });
-    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['층', '시설']);
+    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['층', '시설', '사진']);
     const rows = within(table).getAllByRole('row').slice(1);
     expect(rows).toHaveLength(4);
-    expect(within(rows[2]!).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['3층', '주민자치센터']);
+    expect(within(rows[2]!).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['3층', '주민자치센터', '사진 준비 중']);
     expect(screen.getByRole('link', { name: '찾아오시는 길 →' })).toHaveAttribute('href', '/center/contact');
   });
 
@@ -112,9 +112,9 @@ describe('센터소개', () => {
       http.get('/api/v1/site/facilities', () =>
         HttpResponse.json({
           items: [
-            { facilityId: '1', kind: 'CENTER', parentId: null, name: '본관', floor: null, address: null },
-            { facilityId: '2', kind: 'ROOM', parentId: '1', name: '컴퓨터실', floor: null, address: null },
-            { facilityId: '3', kind: 'CENTER', parentId: null, name: '별관', floor: null, address: null },
+            { facilityId: '1', kind: 'CENTER', parentId: null, name: '본관', floor: null, address: null, photoUrls: [] },
+            { facilityId: '2', kind: 'ROOM', parentId: '1', name: '컴퓨터실', floor: null, address: null, photoUrls: [] },
+            { facilityId: '3', kind: 'CENTER', parentId: null, name: '별관', floor: null, address: null, photoUrls: [] },
           ],
         }),
       ),
