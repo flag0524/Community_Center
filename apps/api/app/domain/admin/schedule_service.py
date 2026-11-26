@@ -453,6 +453,12 @@ def update_schedule(
             "weekday",
             "휴강·보강이 걸린 일정은 요일과 적용 기간을 바꿀 수 없습니다. 먼저 휴강·보강을 지워 주세요.",
         )
+    if any(
+        _day_code(_date(day)) != f"DW.{body.weekday.value}"
+        or not _ymd(body.period_start) <= day <= _ymd(body.period_end)
+        for day in _attended_days(db, int(current.CORS_SCHDL_SN))
+    ):
+        raise _fail("weekday", "출석을 입력한 수업일이 빠지게 되어 요일·적용 기간을 이렇게 바꿀 수 없습니다.")
     _check_schedule(db, admin, course, room, body, except_schedule=int(current.CORS_SCHDL_SN))
     update_versioned(
         db,
@@ -483,6 +489,16 @@ def update_schedule(
         f"강좌 {course_id} 일정 수정",
     )
     return _schedule(_own_schedule(db, admin.bundle_sn, int(course.CORS_SN), schedule_id))
+
+
+def _attended_days(db: Session, schedule_sn: int) -> list[str]:
+    """그 일정의 정규 수업으로 출석을 입력한 날짜(ATND-02)."""
+    found = db.execute(
+        select(TB_CORS_ATND.c.LCTR_YMD).where(
+            TB_CORS_ATND.c.CORS_SCHDL_SN == schedule_sn, TB_CORS_ATND.c.CORS_SCHDL_CHG_SN.is_(None)
+        )
+    ).scalars()
+    return [str(day) for day in found]
 
 
 def delete_schedule(
@@ -699,6 +715,8 @@ def create_change(
     ).first()
     if taken is not None:
         raise _fail("classDate", "이 수업일에는 이미 휴강 또는 보강이 등록되어 있습니다.")
+    if _ymd(original) in _attended_days(db, int(schedule.CORS_SCHDL_SN)):
+        raise ApiError(ErrorCode.CONFLICT_STATE, "출석을 입력한 수업일에는 휴강·보강을 등록할 수 없습니다.")
     values: dict[str, Any] = {}
     if makeup:
         assert room is not None and body.start_time and body.end_time

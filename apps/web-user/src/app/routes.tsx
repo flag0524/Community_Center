@@ -59,6 +59,7 @@ const JoinTermsPage = lazy(() => import('../pages/member/JoinTermsPage').then((m
 const JoinVerifyPage = lazy(() => import('../pages/member/JoinVerifyPage').then((m) => ({ default: m.JoinVerifyPage })));
 const LoginPage = lazy(() => import('../pages/member/LoginPage').then((m) => ({ default: m.LoginPage })));
 const TermPage = lazy(() => import('../pages/member/TermPage').then((m) => ({ default: m.TermPage })));
+const TeachingAttendancePage = lazy(() => import('../pages/teaching/TeachingAttendancePage').then((m) => ({ default: m.TeachingAttendancePage })));
 
 function Root() {
   return (
@@ -168,6 +169,7 @@ export const routes: RouteObject[] = [
         ['me/password', <ChangePasswordPage />],
         ['me/withdraw', <WithdrawPage />],
         ['me/instructor-applications', <MyInstructorApplicationsPage />],
+        ['teach/attendance', <TeachingAttendancePage />],
         ['me/reductions', <MyReductionsPage />],
         ['me/reductions/new', <ReductionApplyPage />],
         ['me/reductions/:reviewId', <MyReductionDetailPage />],

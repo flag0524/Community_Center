@@ -40,14 +40,3 @@ class ApplicationSource(StrEnum):
     ONLINE = "ONLINE"  # 온라인 지원
     VISIT = "VISIT"  # 방문 접수
     EXTERNAL = "EXTERNAL"  # 외부 접수
-
-
-class AttendanceInputStatus(StrEnum):
-    IN_PROGRESS = "IN_PROGRESS"  # 입력중
-    DONE = "DONE"  # 완료
-
-
-class AttendanceMark(StrEnum):
-    PRESENT = "PRESENT"  # 출석
-    ABSENT = "ABSENT"  # 결석
-    UNCHECKED = "UNCHECKED"  # 미체크

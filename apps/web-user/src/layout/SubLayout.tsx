@@ -1,6 +1,8 @@
 // 서브 페이지 틀 두 가지. 목록형은 히어로와 좌측 메뉴를, 상세형은 현재 위치와 제목을 쓴다
+import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { teachingCoursesQuery } from '../api/queries';
 import { Breadcrumb, type Crumb } from '../components/Breadcrumb';
 import { PhoneLink } from '../components/PhoneLink';
 import { usePhoto, BUILDING_PHOTO } from '../lib/usePhoto';
@@ -91,6 +93,7 @@ export function ServicePage({ title, crumbs, children }: { title: string; crumbs
 }
 
 const MY_PAGE_GROUP = NAV_GROUPS.find((group) => group.title === '마이페이지')!;
+const TEACHING_ITEM = { label: '강의 출석 입력', to: '/teach/attendance' };
 
 /** 현재 주소가 속한 마이페이지 메뉴 항목. 상세·하위 화면은 가장 긴 접두부가 맞는 항목, 회원정보 하위(비밀번호·이름·탈퇴)는 회원정보수정이다 */
 function myPageActive(pathname: string): string | undefined {
@@ -104,9 +107,14 @@ function myPageActive(pathname: string): string | undefined {
 /** 마이페이지 화면의 틀. 다른 메뉴와 같은 히어로와 좌측 메뉴를 쓰고, 현재 항목은 주소에서 정한다 */
 export function MyPageLayout({ title, crumbs, children }: { title: string; crumbs: Crumb[]; children: ReactNode }) {
   const { pathname } = useLocation();
+  // 담당 강좌가 있는 강사에게만 출석 입력 메뉴를 보인다
+  const teaching = useQuery(teachingCoursesQuery);
+  const group = teaching.data?.items.length
+    ? { ...MY_PAGE_GROUP, items: [...MY_PAGE_GROUP.items, TEACHING_ITEM] }
+    : MY_PAGE_GROUP;
   return (
     <SubLayout
-      group={MY_PAGE_GROUP}
+      group={group}
       title={title}
       subtitle="내 신청과 회원정보를 확인합니다."
       crumbs={crumbs}

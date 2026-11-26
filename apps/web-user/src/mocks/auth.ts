@@ -19,6 +19,12 @@ export const DEMO = {
   member: { memberId: '1000000000000000000001', name: '예시회원', loginId: 'demo-member' } satisfies MemberBrief,
 } as const;
 
+/** 담당 강좌가 있는 시험용 강사 계정. 비밀번호는 시험 회원과 같다. */
+export const DEMO_INSTRUCTOR = {
+  loginId: 'demo-instructor',
+  member: { memberId: '1000000000000000000002', name: '예시강사', loginId: 'demo-instructor' } satisfies MemberBrief,
+} as const;
+
 const LOGIN_FAILURE_LIMIT = 5;
 const OTP_FAILURE_LIMIT = 5;
 const OTP_VALID_SECONDS = 300;
@@ -70,8 +76,14 @@ const initialState = (): MockAuthState => ({
   certs: new Map(),
   certSeq: 0,
   lastOtpAt: new Map(),
-  members: new Map([[DEMO.loginId, { ...DEMO.member }]]),
-  passwords: new Map([[DEMO.loginId, DEMO.password]]),
+  members: new Map<string, MemberBrief>([
+    [DEMO.loginId, { ...DEMO.member }],
+    [DEMO_INSTRUCTOR.loginId, { ...DEMO_INSTRUCTOR.member }],
+  ]),
+  passwords: new Map<string, string>([
+    [DEMO.loginId, DEMO.password],
+    [DEMO_INSTRUCTOR.loginId, DEMO.password],
+  ]),
   profiles: new Map([
     [DEMO.loginId, { name: DEMO.member.name, phone: '01000000000', email: 'demo@example.invalid', residenceDeclared: null, joinedOn: '2026-09-01' }],
   ]),

@@ -14,6 +14,7 @@ from app.routers.user import (
     reduction,
     refunds,
     site,
+    teaching,
 )
 
 user_router = APIRouter(prefix="/api/v1")
@@ -23,3 +24,4 @@ user_router.include_router(community.member_router)
 user_router.include_router(instructor.member_router)
 user_router.include_router(member_file.member_router)
 user_router.include_router(reduction.member_router)
+user_router.include_router(teaching.member_router)

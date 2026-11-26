@@ -726,7 +726,7 @@ GET  /api/v1/files/{id}                   → 판정: FS.SAFE ∧ 소유 업무 
 | `/guide/apply`, `/guide/refund` | USR-CRS-006, 007 |
 | `/instructors`, `/instructors/:instructorId` | USR-TCH-001, 002 |
 | `/instructors/recruit`, `/instructors/recruit/:recruitmentId`, `/instructors/recruit/:recruitmentId/apply`, `/me/instructor-applications`, `/me/instructor-applications/:applicationId/edit` | USR-TCH-003~006 |
-| **미구현** (계획 경로 `/teach/attendance`) | USR-TCH-007 |
+| `/teach/attendance?course&lesson` (담당 강좌가 있는 강사의 마이페이지 메뉴) | USR-TCH-007 |
 | `/board/{notice,news,resources,gallery,faq}`, `/board/{notice,news,resources,gallery}/:postId`, `/board/review`, `/board/review/:postId`, `/board/review/write`, `/board/review/:postId/edit`, `/board/qna`, `/board/qna/:postId`, `/board/qna/write`, `/board/qna/:postId/edit` | USR-COM-* |
 | `/center/history`, `/center/facility`, `/center/contact` (찾아오시는 길은 별도 경로 없이 위치 및 연락처 안) | USR-CEN-001~004 |
 | `/login`, `/join`, `/join/verify`, `/join/info`, `/join/complete`, `/find-id`, `/reset-password`, `/terms/:slug` | USR-MEM-* |
@@ -795,7 +795,7 @@ GET  /api/v1/files/{id}                   → 판정: FS.SAFE ∧ 소유 업무 
 | GET `/me/payments/{id}/receipt` | 영수증 (`PS.PAID`만) | 063 |
 | GET `/me/applications/{id}/refund-preview` | 서버가 산정한 반환 기준액과 근거 | 043 |
 | POST `/me/refunds`, GET `/me/refunds` | 환불 신청·내역 | 043, 044 |
-| **미구현** (계획: GET `/teach/attendance?cors&date`, PUT `/teach/attendance/{id}`) | 강사 출석 입력 (`RCRD_VER` 대조) | 064 |
+| GET `/me/teaching/courses`, GET/POST `/me/teaching/attendance`, PUT `/me/teaching/attendance/{id}` | 강사 출석: 담당 강좌·회차, 명단, 생성(Idempotency-Key)·수정(`RCRD_VER` 대조) (ADR-128) | 064 |
 
 ### 10.3 관리자 API (주요)
 | 영역 | 경로 | 권한 | RQ |

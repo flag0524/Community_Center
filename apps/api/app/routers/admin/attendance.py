@@ -12,7 +12,7 @@ from app.core.schema import MAX_PAGE
 from app.db.session import get_db
 from app.domain.admin import attendance_service as service
 from app.domain.admin.attendance_schemas import AttendanceDetail, AttendancePage
-from app.domain.admin.education_types import AttendanceInputStatus
+from app.domain.attendance.types import AttendanceInputStatus
 from app.routers.deps import MEMBER_ERRORS, admin_session, error_responses
 
 router = APIRouter(tags=["admin-attendance"], responses=MEMBER_ERRORS, dependencies=[Security(admin_session)])

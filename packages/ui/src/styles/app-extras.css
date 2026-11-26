@@ -250,3 +250,13 @@ button.login-link {
 .footer-bottom {
   color: #465061;
 }
+
+/* 강사 출석 입력. 출석·결석·미체크 선택 칸은 손가락으로 누를 수 있게 44px 이상으로 한다. */
+.attendance-choice {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  cursor: pointer;
+}

@@ -277,3 +277,19 @@ export const myReductionQuery = (reviewId: string) =>
     queryKey: ['me', 'reduction', reviewId],
     queryFn: ({ signal }) => getJson<Schemas['MyReduction']>(`/me/reduction-reviews/${encodeURIComponent(reviewId)}`, signal),
   });
+
+// 강사의 담당 강좌·회차와 회차별 명단. 입력하는 동안 저절로 다시 받으면 화면의 명단이 바뀌므로 창 전환으로는 부르지 않는다
+export const teachingCoursesQuery = queryOptions({
+  queryKey: ['me', 'teaching', 'courses'],
+  queryFn: ({ signal }) => getJson<Schemas['TeachingCourseList']>('/me/teaching/courses', signal),
+  refetchOnWindowFocus: false,
+});
+export const teachingSheetQuery = (courseId: string, session: Schemas['TeachingSession']) => {
+  const query = new URLSearchParams({ courseId, classDate: session.classDate, scheduleId: session.scheduleId });
+  if (session.changeId) query.set('changeId', session.changeId);
+  return queryOptions({
+    queryKey: ['me', 'teaching', 'sheet', query.toString()],
+    queryFn: ({ signal }) => getJson<Schemas['TeachingSheet']>(`/me/teaching/attendance?${query.toString()}`, signal),
+    refetchOnWindowFocus: false,
+  });
+};

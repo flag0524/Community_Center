@@ -4,7 +4,7 @@ from datetime import date
 from pydantic import Field
 
 from app.core.schema import ApiModel, Page, SerialId
-from app.domain.admin.education_types import AttendanceInputStatus, AttendanceMark
+from app.domain.attendance.types import AttendanceInputStatus, AttendanceMark
 
 
 class AttendanceSummary(ApiModel):

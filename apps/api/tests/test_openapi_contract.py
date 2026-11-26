@@ -83,6 +83,10 @@ EXPECTED_OPERATIONS = {
     ("get", "/api/v1/me/applications/{application_id}/refund-preview"),
     ("post", "/api/v1/me/refunds"),
     ("get", "/api/v1/me/refunds"),
+    ("get", "/api/v1/me/teaching/courses"),
+    ("get", "/api/v1/me/teaching/attendance"),
+    ("post", "/api/v1/me/teaching/attendance"),
+    ("put", "/api/v1/me/teaching/attendance/{attendance_id}"),
 }
 ADMIN_OPERATIONS = {
     ("post", "/api/admin/v1/auth/login"),

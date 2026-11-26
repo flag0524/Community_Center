@@ -17,14 +17,9 @@ from app.domain.admin.attendance_schemas import (
     AttendanceRow,
     AttendanceSummary,
 )
-from app.domain.admin.education_types import AttendanceInputStatus, AttendanceMark
 from app.domain.admin.types import AdminAuthority as AU
+from app.domain.attendance.types import MARK_BY_CODE, AttendanceInputStatus
 
-MARK = {
-    "AR.PRESENT": AttendanceMark.PRESENT,
-    "AR.ABSENT": AttendanceMark.ABSENT,
-    "AR.UNCHECKED": AttendanceMark.UNCHECKED,  # 미체크를 결석으로 바꾸지 않는다
-}
 MEMBER_STATUS = {"MS.ACTIVE": "정상", "MS.LOCKED": "잠금", "MS.WITHDRAW": "탈퇴"}  # 표시 이름은 서버가 정한다
 
 
@@ -140,7 +135,7 @@ def get_attendance(db: Session, admin: Admin, *, now: datetime, attendance_id: s
                 name=mask_name(str(r.MBR_NM)),
                 application_no=str(int(r.ATNLC_APLY_SN)),
                 member_status=MEMBER_STATUS.get(str(r.MBR_STTS_CD), "확인 필요"),
-                mark=MARK[str(r.ATND_RSLT_CD)],
+                mark=MARK_BY_CODE[str(r.ATND_RSLT_CD)],
             )
             for r in roster
         ],

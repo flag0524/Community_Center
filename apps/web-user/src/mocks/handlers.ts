@@ -9,6 +9,7 @@ import { fileHandlers } from './files';
 import { CONTENTS } from './contents';
 import { instructorHandlers } from './instructors';
 import { reductionHandlers } from './reductions';
+import { teachingHandlers } from './teaching';
 import {
   buildCategories,
   buildCourseDetail,
@@ -40,6 +41,7 @@ export const handlers = [
   ...instructorHandlers,
   ...fileHandlers,
   ...reductionHandlers,
+  ...teachingHandlers,
   http.get('/api/v1/home', () => HttpResponse.json(buildHome(mockNow()))),
   http.get('/api/v1/site/contact', () => HttpResponse.json(contact)),
   http.get('/api/v1/site/facilities', () => HttpResponse.json(facilities)),

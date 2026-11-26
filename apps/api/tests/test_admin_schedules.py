@@ -838,3 +838,61 @@ def test_적용_기간이_하루인_일정도_등록한다(world: World) -> None
     r = room(world)
     writer(world)
     assert add(world, c, body(r, periodStart=MON1, periodEnd=MON1)).status_code == 201
+
+
+# --- 출석이 있는 일정(ATND-02) -------------------------------------------------------------------
+
+
+def attended(w: World, course: dict[str, Any], schedule_id: str, day: str = "20261109") -> None:
+    """그 일정의 수업일에 입력된 정규 출석부."""
+    instructor = w.factory.make("TB_INSTR")
+    w.factory.make(
+        "TB_CORS_ATND",
+        CORS_SN=course["CORS_SN"],
+        CORS_SCHDL_SN=int(schedule_id),
+        INSTR_SN=instructor["INSTR_SN"],
+        LCTR_YMD=day,
+        LCTR_SEQ=1,
+        DEL_YN="N",
+        CMPTN_YN="N",
+        CORS_SCHDL_CHG_SN=None,
+    )
+
+
+@pytest.mark.parametrize(
+    "values", [{"weekday": "TUE"}, {"periodStart": "2026-11-16"}, {"periodEnd": "2026-11-08"}]
+)
+def test_출석한_수업일이_빠지게_일정을_바꾸면_거절한다(world: World, values: dict[str, Any]) -> None:
+    course, r = open_course(world), room(world)
+    use(world, staff(world, "boss", "AU.CORS_W"))
+    schedule = made(world, course, body(r))
+    attended(world, course, schedule["scheduleId"])
+    world.db.commit()
+    url = f"/courses/{course['CORS_SN']}/schedules/{schedule['scheduleId']}"
+    response = call(world, "PUT", url, {**body(r, **values), "version": schedule["version"]})
+    assert response.status_code == 422 and "출석" in response.json()["message"], response.text
+
+
+def test_출석한_수업일이_남는_변경은_받는다(world: World) -> None:
+    course, r = open_course(world), room(world)
+    use(world, staff(world, "boss", "AU.CORS_W"))
+    schedule = made(world, course, body(r))
+    attended(world, course, schedule["scheduleId"])
+    url = f"/courses/{course['CORS_SN']}/schedules/{schedule['scheduleId']}"
+    payload = {**body(r, startTime="13:00", endTime="14:00", periodEnd="2026-11-30"), "version": 1}
+    r2 = call(world, "PUT", url, payload)
+    assert r2.status_code == 200, r2.text
+
+
+@pytest.mark.parametrize("kind", ["CANCEL", "MAKEUP"])
+def test_출석한_수업일에는_휴강과_보강을_등록할_수_없다(world: World, kind: str) -> None:
+    course, r = open_course(world), room(world)
+    use(world, staff(world, "boss", "AU.CORS_W"))
+    schedule = made(world, course, body(r))
+    attended(world, course, schedule["scheduleId"])
+    world.db.commit()
+    payload = cancel_body(MON1) if kind == "CANCEL" else makeup_body(r, "2026-11-11", MON1)
+    response = change(world, course, payload)
+    assert response.status_code == 409 and "출석" in response.json()["message"], response.text
+    assert rows(world, "SELECT COUNT(*) n FROM TB_CORS_SCHDL_CHG")[0]["n"] == 0
+    assert change(world, course, cancel_body(MON2)).status_code == 201  # 다른 수업일은 된다
