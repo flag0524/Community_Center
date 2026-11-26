@@ -5,8 +5,11 @@ import hmac
 import secrets
 from functools import lru_cache
 
+from app.core.config import PBKDF2_MAX_ITERATIONS
+
 ALGORITHM = "pbkdf2_sha256"
 SALT_BYTES = 16
+DIGEST_BYTES = 32  # SHA-256 출력 길이. hash_password가 저장하는 길이다
 
 
 def _b64(data: bytes) -> str:
@@ -31,9 +34,9 @@ def verify_password(password: str, encoded: str) -> bool:
         salt = base64.b64decode(salt_text, validate=True)
     except ValueError:
         return False
-    if iterations < 1:
+    if not 1 <= iterations <= PBKDF2_MAX_ITERATIONS or len(expected) != DIGEST_BYTES:
         return False
-    actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations, dklen=len(expected))
+    actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
     return hmac.compare_digest(actual, expected)
 
 

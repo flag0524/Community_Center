@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 MIN_SECRET_LENGTH = 32
+# 비밀번호 해시 반복 횟수의 상한(기본값의 10배). 이보다 크면 저장값은 검증하지 않고 설정은 거절한다
+PBKDF2_MAX_ITERATIONS = 6_000_000
 ADMIN_LOCK_FAILURES = 5  # 기관 확정값(Q28): 연속 실패 허용 횟수
 ADMIN_LOCK_MINUTES = 5  # 기관 확정값(Q28): 잠금 시간(분). 실패를 세는 구간도 같다
 
@@ -52,6 +54,8 @@ class Settings:
     def __post_init__(self) -> None:
         if self.environment not in {"development", "test", "production"}:
             raise ConfigError("JORI_ENVIRONMENT는 development, test, production 중 하나여야 합니다.")
+        if not 1 <= self.pbkdf2_iterations <= PBKDF2_MAX_ITERATIONS:
+            raise ConfigError(f"비밀번호 해시 반복 횟수는 1 이상 {PBKDF2_MAX_ITERATIONS} 이하여야 합니다.")
         if self.db_pool_size < 1 or self.db_pool_timeout < 1 or self.db_max_overflow < 0:
             raise ConfigError("DB 풀 크기와 대기 시간은 1 이상, 초과 허용은 0 이상이어야 합니다.")
         if self.otp_daily_limit < 1:
