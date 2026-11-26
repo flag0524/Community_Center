@@ -6,22 +6,26 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { logout } from '../api/auth';
 import { sessionQuery } from '../api/queries';
 import { SearchIcon } from '../components/icons';
-import { EASY_NAV, NAV_GROUPS, isActiveGroup } from './navigation';
+import { EASY_NAV, isActiveGroup } from './navigation';
 import { useContact } from './useContact';
+import { useNavGroups } from './useNavGroups';
 
 export function Header({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const contact = useContact();
+  const groups = useNavGroups();
   const [query, setQuery] = useState('');
   const queryClient = useQueryClient();
   const { data: session } = useQuery(sessionQuery);
   const signOut = useMutation({
     mutationFn: logout,
     // 로그아웃하면 앞 회원의 신청·결제 정보를 화면에서 지우고, 세션을 다시 받아 새 토큰과 비로그인 상태를 반영한다.
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.removeQueries({ queryKey: ['me'] });
-      return queryClient.invalidateQueries({ queryKey: sessionQuery.queryKey });
+      await queryClient.invalidateQueries({ queryKey: sessionQuery.queryKey });
+      // 로그인 상태가 바뀌기 전에 화면(메뉴)이 다시 만든 회원 전용 항목까지 지운다
+      queryClient.removeQueries({ queryKey: ['me'] });
     },
   });
 
@@ -63,7 +67,7 @@ export function Header({ onOpenMenu }: { onOpenMenu: () => void }) {
           ))}
         </nav>
         <nav className="primary-nav" aria-label="주 메뉴">
-          {NAV_GROUPS.map((group) => (
+          {groups.map((group) => (
             <div key={group.to} className={isActiveGroup(group, pathname) ? 'nav-item active' : 'nav-item'}>
               <Link to={group.to}>{group.title}</Link>
               <div className="dropdown">

@@ -111,3 +111,56 @@ describe('강사 출석 입력', () => {
     expect(seen[0]!.body.marks).toHaveLength(3);
   });
 });
+
+describe('상단 메뉴의 강의 출석 입력', () => {
+  const link = { name: '강의 출석 입력' };
+  const primary = () => screen.getByRole('navigation', { name: '주 메뉴' });
+  const allMenu = () => within(document.getElementById('all-menu') as HTMLElement);
+
+  it('담당 강좌가 있는 강사에게는 어느 화면의 주 메뉴와 전체 메뉴에도 보이고 눌러서 들어간다', async () => {
+    await signInAsInstructor();
+    const { router } = renderApp('/');
+    await waitFor(() => expect(within(primary()).getByRole('link', link)).toHaveAttribute('href', '/teach/attendance'));
+    expect(allMenu().getByRole('link', { ...link, hidden: true })).toHaveAttribute('href', '/teach/attendance');
+
+    await user().click(within(primary()).getByRole('link', link));
+    await screen.findByRole('table', { name: '출석 명단' });
+    expect(router.state.location.pathname).toBe('/teach/attendance');
+    // 마이페이지 묶음이 현재 위치로 표시된다
+    expect(within(primary()).getByRole('link', { name: '마이페이지' }).parentElement).toHaveClass('active');
+  });
+
+  it('담당 강좌가 없는 회원에게는 보이지 않는다', async () => {
+    await signInAsDemo();
+    renderApp('/me/applications');
+    await screen.findByRole('navigation', { name: '마이페이지 하위 메뉴' });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(screen.queryByRole('link', { ...link, hidden: true })).not.toBeInTheDocument();
+  });
+
+  it('로그인하지 않았으면 담당 강좌를 묻지 않고 보이지 않는다', async () => {
+    const asked: string[] = [];
+    const listener = ({ request }: { request: Request }) => {
+      asked.push(new URL(request.url).pathname);
+    };
+    server.events.on('request:start', listener);
+    try {
+      renderApp('/');
+      await screen.findByRole('navigation', { name: '주 메뉴' });
+      await waitFor(() => expect(asked).toContain('/api/v1/auth/session'));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    } finally {
+      server.events.removeListener('request:start', listener);
+    }
+    expect(asked).not.toContain('/api/v1/me/teaching/courses');
+    expect(screen.queryByRole('link', { ...link, hidden: true })).not.toBeInTheDocument();
+  });
+
+  it('로그아웃하면 메뉴에서 사라진다', async () => {
+    await signInAsInstructor();
+    renderApp('/');
+    await waitFor(() => expect(within(primary()).getByRole('link', link)).toBeInTheDocument());
+    await user().click(screen.getByRole('button', { name: '로그아웃' }));
+    await waitFor(() => expect(screen.queryByRole('link', { ...link, hidden: true })).not.toBeInTheDocument());
+  });
+});

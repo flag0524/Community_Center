@@ -1,9 +1,11 @@
 // 전체 메뉴를 보여 주는 모달 대화상자. 초점 가둠, Esc 닫기, 호출자 초점 복귀는 dialog 요소가 맡는다
 import { forwardRef } from 'react';
 import { Link } from 'react-router-dom';
-import { NAV_GROUPS } from './navigation';
+import { useNavGroups } from './useNavGroups';
 
 export const AllMenu = forwardRef<HTMLDialogElement>(function AllMenu(_props, ref) {
+  const groups = useNavGroups();
+
   function close(dialog: HTMLDialogElement | null) {
     dialog?.close();
   }
@@ -30,7 +32,7 @@ export const AllMenu = forwardRef<HTMLDialogElement>(function AllMenu(_props, re
         </button>
       </div>
       <nav className="menu-tree" aria-label="전체 메뉴 트리">
-        {NAV_GROUPS.map((group) => (
+        {groups.map((group) => (
           <section key={group.to}>
             <h3>{group.title}</h3>
             {group.items.map((item) => (

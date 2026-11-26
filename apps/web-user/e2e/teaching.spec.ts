@@ -25,6 +25,18 @@ for (const size of SIZES) {
 
         await expect(page.getByRole('heading', { level: 1, name: '강의 출석 입력' })).toBeVisible();
         await expect(page.getByRole('table', { name: '출석 명단' })).toBeVisible();
+        // 상단의 전체 메뉴에도 항목이 있다. 데스크톱 기본 화면은 주 메뉴의 마이페이지 아래에도 있다
+        await expect(page.locator('#all-menu a[href="/teach/attendance"]')).toHaveCount(1);
+        await expect(page.locator('nav.primary-nav a[href="/teach/attendance"]')).toHaveCount(1);
+        if (size.width > 1000 && view.query === '') {
+          await page.getByRole('navigation', { name: '주 메뉴' }).getByRole('link', { name: '마이페이지', exact: true }).hover();
+          await expect(page.getByRole('navigation', { name: '주 메뉴' }).getByRole('link', { name: '강의 출석 입력' })).toBeVisible();
+        }
+        if (view.query === '') {
+          await page.getByRole('button', { name: '전체 메뉴 열기' }).click();
+          await expect(page.locator('#all-menu').getByRole('link', { name: '강의 출석 입력' })).toBeVisible();
+          await page.getByRole('button', { name: '전체 메뉴 닫기' }).click();
+        }
         const choice = page.getByRole('radio', { name: /^김\*수 \d+ 출석$/ });
         const cell = await choice.locator('xpath=..').boundingBox();
         expect(Math.min(cell!.width, cell!.height)).toBeGreaterThanOrEqual(44);

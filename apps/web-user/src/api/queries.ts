@@ -281,7 +281,10 @@ export const myReductionQuery = (reviewId: string) =>
 // 강사의 담당 강좌·회차와 회차별 명단. 입력하는 동안 저절로 다시 받으면 화면의 명단이 바뀌므로 창 전환으로는 부르지 않는다
 export const teachingCoursesQuery = queryOptions({
   queryKey: ['me', 'teaching', 'courses'],
-  queryFn: ({ signal }) => getJson<Schemas['TeachingCourseList']>('/me/teaching/courses', signal),
+  // 메뉴가 모든 화면에서 쓰므로, 이미 받은 자료를 저절로 다시 부를 때는 유휴 시간을 늘리지 않는다
+  queryFn: ({ signal, client, queryKey }) =>
+    getJson<Schemas['TeachingCourseList']>('/me/teaching/courses', signal, (client.getQueryState(queryKey)?.dataUpdateCount ?? 0) > 0),
+  staleTime: 5 * 60 * 1000,
   refetchOnWindowFocus: false,
 });
 export const teachingSheetQuery = (courseId: string, session: Schemas['TeachingSession']) => {
