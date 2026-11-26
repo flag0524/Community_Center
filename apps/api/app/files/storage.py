@@ -43,18 +43,19 @@ def new_key(bundle_sn: int) -> str:
 
 
 def write_blob(root: str, key: str, data: bytes) -> None:
-    """임시 파일에 쓴 뒤 바꿔 놓아, 읽는 쪽이 반쯤 쓴 파일을 보지 않게 한다. 같은 키가 이미 있으면 덮어쓰지 않는다."""
+    """임시 파일에 쓴 뒤 이름을 붙여, 읽는 쪽이 반쯤 쓴 파일을 보지 않게 한다. 같은 키가 이미 있으면 덮어쓰지 않는다."""
     target = _resolve(root, key)
-    temp = target.with_name(target.name + ".part")
+    temp = target.with_name(f"{target.name}.{secrets.token_hex(8)}.part")
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
-        if target.exists():
-            raise StorageError("이미 있는 객체키")
         temp.write_bytes(data)
-        os.replace(temp, target)
+        # 하드 링크는 대상이 있으면 실패하므로 확인과 확정 사이에 틈이 없다(os.replace는 덮어쓴다)
+        os.link(temp, target)
     except OSError:
-        temp.unlink(missing_ok=True)
         raise StorageError("파일을 쓰지 못했다") from None
+    finally:
+        with contextlib.suppress(OSError):
+            temp.unlink(missing_ok=True)
 
 
 def purge_blob(root: str, key: str) -> None:

@@ -141,6 +141,41 @@ def test_저장하고_읽으며_같은_키는_덮어쓰지_않고_임시_파일�
     assert not list(tmp_path.rglob("*.part"))
 
 
+def test_쓰는_사이에_같은_키가_생겨도_덮어쓰지_않는다(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    key = new_key(1)
+    target = tmp_path / key
+    real = Path.write_bytes
+
+    def race(self: Path, data: bytes) -> int:
+        written = real(self, data)
+        real(target, b"first")  # 임시 파일을 쓰는 동안 다른 요청이 같은 키를 먼저 확정했다
+        return written
+
+    monkeypatch.setattr(Path, "write_bytes", race)
+    with pytest.raises(StorageError):
+        write_blob(str(tmp_path), key, b"second")
+    assert target.read_bytes() == b"first"
+    assert not list(tmp_path.rglob("*.part"))
+
+
+def test_같은_키의_두_쓰기는_임시_파일을_나눠_쓴다(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    key = new_key(1)
+    names: list[str] = []
+    real = Path.write_bytes
+
+    def record(self: Path, data: bytes) -> int:
+        names.append(self.name)
+        return real(self, data)
+
+    monkeypatch.setattr(Path, "write_bytes", record)
+    write_blob(str(tmp_path), key, b"first")
+    with pytest.raises(StorageError):
+        write_blob(str(tmp_path), key, b"second")
+    assert len(set(names)) == len(names) == 2
+
+
 @pytest.mark.parametrize("key", ["../outside", "a/../../outside", "/etc/passwd", ".", ""])
 def test_저장소_밖을_가리키는_키는_읽고_쓰지_않는다(tmp_path: Path, key: str) -> None:
     with pytest.raises(StorageError):
