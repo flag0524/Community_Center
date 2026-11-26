@@ -103,7 +103,7 @@ try {
     Write-Host '  사용자  http://127.0.0.1:5173/        devmember / Demo-pass-2026'
     Write-Host '  관리자  http://127.0.0.1:5174/login   devadmin  / Demo-admin-2026'
     Write-Host ''
-    Write-Host '끌 때는 작업 표시줄의 "수강시스템" 창 4개를 닫으면 됩니다. 데이터베이스는 켜 둔 채로 두어도 됩니다.'
+    Write-Host '끌 때는 프로젝트 폴더의 프로그램_끄기.bat 파일을 두 번 누르세요.'
 }
 catch {
     Write-Host ''
