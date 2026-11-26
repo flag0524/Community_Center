@@ -103,7 +103,7 @@ uv run pytest -q
 ```
 
 - DB 시험이 건너뛰어졌다면 전체 검증 통과로 보지 않습니다. 먼저 `scripts\db\mariadb-dev.ps1 start`로 DB를 켭니다.
-- GitHub 자동 검사(`.github/workflows/ci.yml`)는 푸시·PR마다 API(ruff, 서식, mypy, pytest)와 웹(린트, 타입, 단위 시험, 빌드)을 검사합니다. **브라우저 시험은 포함하지 않으므로** 로컬에서 돌립니다.
+- GitHub 자동 검사(`.github/workflows/ci.yml`)는 푸시·PR마다 API(ruff, 서식, mypy, pytest)와 웹(린트, 타입, 단위 시험, 빌드), 의존성의 알려진 취약점(`uv audit`, `pnpm audit`)을 검사합니다. **브라우저 시험은 포함하지 않으므로** 로컬에서 돌립니다.
 - 화면 시험 중 날짜를 다루는 것은 CI와 같은 `TZ=UTC`로도 확인합니다.
 - 실행별 결과는 `context-notes.md`와 `checklist.md`에 남깁니다.
 - Windows에서 pnpm 실행기가 막히면 설치된 도구를 직접 실행합니다. 예를 들어 앱 폴더에서 `node node_modules/vitest/vitest.mjs run`, API 폴더에서 `.venv\Scripts\python.exe -m pytest`를 씁니다.

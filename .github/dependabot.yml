@@ -1,0 +1,23 @@
+# 의존성의 새 버전과 보안 갱신을 GitHub가 매주 확인해 PR로 알리게 하는 설정(2026-11-26 코드 리뷰 보통-2)
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /apps/api
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm # pnpm 작업공간 전체
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

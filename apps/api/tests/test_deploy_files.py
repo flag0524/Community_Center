@@ -210,6 +210,15 @@ def test_CI는_정적_검사와_DB_필수_시험과_커버리지와_웹_검사�
     assert '-v "$PWD/deploy/mariadb/jori.cnf:' in ci  # 운영과 같은 MariaDB 설정으로 시험한다
 
 
+def test_의존성_취약점을_CI와_Dependabot이_확인한다() -> None:
+    github = DEPLOY.parent / ".github"
+    ci = (github / "workflows/ci.yml").read_text(encoding="utf-8")
+    assert "uv audit --frozen" in ci and "pnpm audit" in ci
+    dependabot = (github / "dependabot.yml").read_text(encoding="utf-8")
+    for ecosystem in ("uv", "npm", "github-actions"):
+        assert re.search(rf"^  - package-ecosystem: {ecosystem}\b", dependabot, re.M), ecosystem
+
+
 def test_MariaDB_설정은_READ_COMMITTED와_행_기반_바이너리_로그다() -> None:
     cnf = (DEPLOY / "mariadb/jori.cnf").read_text(encoding="utf-8")
     assert re.search(r"^transaction_isolation\s*=\s*READ-COMMITTED$", cnf, re.M)
