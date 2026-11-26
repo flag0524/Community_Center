@@ -151,7 +151,7 @@ CURATED: tuple[NarrativeCheck, ...] = (
         "(PST_SN IS NOT NULL) + (CORS_SN IS NOT NULL) + (INSTR_SN IS NOT NULL) + (SITE_CONTS_SN IS NOT NULL)"
         " + (ATNLC_APLY_SN IS NOT NULL) + (RFND_SN IS NOT NULL) + (INSTR_APLY_SN IS NOT NULL)"
         " + (MBR_STATS_SRC_SN IS NOT NULL) + (RDCT_BFHD_SRNG_SN IS NOT NULL)"
-        " + (CORS_DGSTFN_SRC_SN IS NOT NULL) = 1",
+        " + (CORS_DGSTFN_SRC_SN IS NOT NULL) + (FCLT_SN IS NOT NULL) = 1",
         "PST_SN",
         "CORS_SN",
         "INSTR_SN",
@@ -162,6 +162,7 @@ CURATED: tuple[NarrativeCheck, ...] = (
         "MBR_STATS_SRC_SN",
         "RDCT_BFHD_SRNG_SN",
         "CORS_DGSTFN_SRC_SN",
+        "FCLT_SN",
     ),
     _c(
         "R19",

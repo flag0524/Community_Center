@@ -1357,6 +1357,11 @@ TB_FILE = Table(
         Numeric(22, 0),
         nullable=True,
     ),
+    Column(
+        "FCLT_SN",
+        Numeric(22, 0),
+        nullable=True,
+    ),
 )
 
 TB_SITE_CONTS = Table(

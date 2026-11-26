@@ -1,4 +1,4 @@
-# 설계안 파서가 문서의 숫자(45·612·184·코드 187값)와 일치하고 문서 안의 참조가 맞는지 보는 시험
+# 설계안 파서가 문서의 숫자(45·613·185·코드 187값)와 일치하고 문서 안의 참조가 맞는지 보는 시험
 from collections import Counter
 
 import pytest
@@ -13,15 +13,15 @@ def schema() -> SchemaDoc:
 
 def test_문서의_총계와_일치한다(schema: SchemaDoc) -> None:
     assert len(schema.tables) == 45
-    assert sum(len(table.columns) for table in schema.tables) == 612
-    assert sum(len(table.foreign_keys) for table in schema.tables) == 184
+    assert sum(len(table.columns) for table in schema.tables) == 613
+    assert sum(len(table.foreign_keys) for table in schema.tables) == 185
     assert len(schema.listed_tables) == 45
     assert {name for name, _ in schema.listed_tables} == {table.name for table in schema.tables}
 
 
 def test_키와_인덱스_종류별_개수(schema: SchemaDoc) -> None:
     kinds = Counter(index.kind for table in schema.tables for index in table.indexes)
-    assert kinds == {"PK": 45, "UQ": 78, "IX": 105, "UQ_FILTER": 2}
+    assert kinds == {"PK": 45, "UQ": 78, "IX": 106, "UQ_FILTER": 2}
 
 
 def test_공통코드는_40집합_187값이고_12자_안이다(schema: SchemaDoc) -> None:

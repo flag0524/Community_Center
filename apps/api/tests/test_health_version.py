@@ -29,7 +29,7 @@ def test_인증_없이_커밋과_마이그레이션_리비전과_코드_수를_�
     with_settings(world, build_commit="abc1234")
     body = version(world)
     assert body["commit"] == "abc1234"
-    assert body["migration"] == "0005"
+    assert body["migration"] == "0006"
     assert body["codeCount"] == 187
     assert len(body["codeSetChecksum"]) == 64 and len(body["configHash"]) == 64
 
