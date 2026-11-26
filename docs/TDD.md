@@ -532,7 +532,7 @@ with session.begin():
 | 요구사항 보완 | TB_RDCT_BFHD_SRNG | 감면 사전심사 | 4.45 | 038 |
 | 홈페이지 | TB_BBS | 게시판 설정 | 4.13 | 020, 052 |
 | 홈페이지 | TB_PST | 게시물·답변·후기·문의 | 4.14 | 020, 021, 053 |
-| 홈페이지 | TB_FILE | 첨부파일(단일 소유자 10종) | 4.15 | 021, NF-SER-002 |
+| 홈페이지 | TB_FILE | 첨부파일(단일 소유자 11종) | 4.15 | 021, 022, NF-SER-002 |
 | 홈페이지 | TB_SITE_CONTS | 콘텐츠·약관·동의문·운영기준 | 4.16 | 006, 054, 055, 069 |
 | 관리자 | TB_MNGR | 관리자 계정 | 4.17 | 056 |
 | 관리자 | TB_MNGR_ROLE | 관리자 역할 정의 | 4.18 | 056 |
@@ -674,9 +674,9 @@ POST /api/v1/{owner}/{ownerId}/files      multipart → 소유자 확인 → TB_
 GET  /api/v1/files/{id}                   → 판정: FS.SAFE ∧ 소유 업무 존재 ∧ 소유 업무 접근 권한 ∧ 동일 묶음
                                           → Nginx X-Accel-Redirect로 전송, 감사이력 기록
 ```
-- 파일당 소유자는 게시물·강좌·강사·콘텐츠·수강신청·환불·강사지원·연령성별자료·감면사전심사·만족도자료 중 **정확히 하나**다. 소유자 없는 임시 파일 행은 만들지 않는다.
+- 파일당 소유자는 게시물·강좌·강사·콘텐츠·수강신청·환불·강사지원·연령성별자료·감면사전심사·만족도자료·시설(ADR-129) 중 **정확히 하나**다. 소유자 없는 임시 파일 행은 만들지 않는다.
 - `STRG_KEY`는 묶음 접두부 + 난수 객체키다. 원본 경로·서명 URL·절대경로를 저장하지 않는다.
-- 다운로드 판정은 파일 자체가 아니라 **소유 업무의 현재 상태**로 한다. 게시물이 비공개로 바뀌면 첨부도 즉시 막힌다. 감면 증빙·만족도 원자료·강사 지원 증빙은 비공개다.
+- 다운로드 판정은 파일 자체가 아니라 **소유 업무의 현재 상태**로 한다. 게시물이 비공개로 바뀌면 첨부도 즉시 막힌다. 감면 증빙·만족도 원자료·강사 지원 증빙은 비공개다. 시설 사진은 사용 중인 시설(상위 센터 포함)의 검사 통과분만 공개한다.
 - 응답 헤더 `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, 캐시 `private, no-store`.
 
 ### 8.5 입력 검증 (RQ-SER-NF-007)
@@ -763,7 +763,7 @@ GET  /api/v1/files/{id}                   → 판정: FS.SAFE ∧ 소유 업무 
 |---|---|---|
 | GET `/home` | 비주얼·바로가기·소식 탭·분야별 대표 강좌·배너·교육기수(`cycle`) | 004~006, 071 |
 | GET `/site/contact` | 공통 연락처·운영시간·주차·주소 (ADR-092) | 011, 072 |
-| GET `/site/facilities` | 사용 중인 센터와 강의실 (ADR-117) | 022 |
+| GET `/site/facilities` | 사용 중인 센터와 강의실, 시설 사진 주소 `photoUrls`(대표부터) (ADR-117·129) | 022 |
 | GET `/contents/{slug}` | 안내·연혁 같은 홈페이지 콘텐츠 | 016, 017, 022 |
 | GET `/courses` | 목록 (q, field, day, status, page). 일정은 `schedules`(행 목록), 교육 상태 `educationState`, 기준 기수 `criteria.cycle` | 012, 013 |
 | GET `/categories` | 분야 선택지 | 012 |
@@ -807,7 +807,7 @@ GET  /api/v1/files/{id}                   → 판정: FS.SAFE ∧ 소유 업무 
 | 강좌 | CRUD `/courses`, POST `/courses/{id}/publish`, `/close-reception`, `/cancel-course` | AU.CORS_W | 048, 057 |
 | 분류 | CRUD `/course-classes`, POST `/{id}/deactivate|reactivate|delete` | AU.CORS_W (제안) | 058 |
 | 일정 | CRUD `/courses/{id}/schedules`, `/schedule-changes` | AU.CORS_W | 049 |
-| 시설 | CRUD `/facilities` | AU.FCLT_W | 050 |
+| 시설 | CRUD `/facilities`, GET/POST `/facilities/{id}/files`, POST `…/files/{fileId}/representative`(대표 사진, ADR-129) | AU.FCLT_W | 022, 050 |
 | 강사 | GET/PUT `/instructor-applications`(방문·외부 접수 포함), `/instructors/{id}/status` | AU.INSTR_W | 051 |
 | 신청 | GET `/applications`, `/applications/{id}`, GET `/waitlist` | AU.APLY_R | 023, 034, 035 |
 | 결제 | GET `/transactions`, `/transactions/{id}`, POST `/{id}/recheck`, `/{id}/manual-reconcile` | AU.STLM_R / AU.STLM_W | 041, 042 |
