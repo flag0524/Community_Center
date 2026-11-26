@@ -170,12 +170,15 @@ def _items(db: Session, src: Any) -> list[SatisfactionItem]:
         .where(TB_CORS_DGSTFN_QITEM.c.CORS_DGSTFN_SRC_SN == src.CORS_DGSTFN_SRC_SN)
         .order_by(TB_CORS_DGSTFN_QITEM.c.SORT_SEQ, TB_CORS_DGSTFN_QITEM.c.CORS_DGSTFN_QITEM_SN)
     ).all()
+    by_question: dict[Any, list[Any]] = {question.CORS_DGSTFN_QITEM_SN: [] for question in questions}
+    for row in db.execute(
+        select(TB_CORS_DGSTFN_TOT)
+        .where(TB_CORS_DGSTFN_TOT.c.CORS_DGSTFN_QITEM_SN.in_(list(by_question)))
+        .order_by(TB_CORS_DGSTFN_TOT.c.SORT_SEQ, TB_CORS_DGSTFN_TOT.c.CORS_DGSTFN_TOT_SN)
+    ):
+        by_question[row.CORS_DGSTFN_QITEM_SN].append(row)
     for question in questions:
-        choices = db.execute(
-            select(TB_CORS_DGSTFN_TOT)
-            .where(TB_CORS_DGSTFN_TOT.c.CORS_DGSTFN_QITEM_SN == question.CORS_DGSTFN_QITEM_SN)
-            .order_by(TB_CORS_DGSTFN_TOT.c.SORT_SEQ, TB_CORS_DGSTFN_TOT.c.CORS_DGSTFN_TOT_SN)
-        ).all()
+        choices = by_question[question.CORS_DGSTFN_QITEM_SN]
         scored = (
             [c for c in choices if c.SCR is not None]
             if str(question.RSPNS_TYPE_CD).strip() == SCORE_TYPE

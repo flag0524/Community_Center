@@ -6,7 +6,8 @@ from datetime import timedelta
 from typing import Any
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import event, text
+from sqlalchemy.engine import Engine
 
 from tests.test_admin_access import dong
 from tests.test_admin_refunds import call, staff, use
@@ -291,6 +292,29 @@ def test_만족도는_승인된_최신_자료의_문항별_응답과_평균을_�
     )  # 점수 문항이 아니면 평균은 없다
     assert items["시설 만족도"]["average"] is None  # 분모가 0이면 산출하지 않고 0점으로 바꾸지 않는다
     assert "옛 문항" not in str(out)
+
+
+def test_만족도_선택지는_문항_수와_무관하게_한_번에_읽는다(world: World) -> None:
+    src = survey(world, open_course(world), 1, days=1)
+    for seq in (1, 2, 3):
+        q = question(world, src, f"문항{seq}", "DQ.SINGLE", 1, seq)
+        choice(world, q, f"선택{seq}", seq)
+    viewer(world)
+    reads: list[str] = []
+
+    def record(conn: Any, cursor: Any, statement: str, *rest: Any) -> None:
+        if "FROM TB_CORS_DGSTFN_TOT" in statement.replace("\n", " ").replace("`", ""):
+            reads.append(statement)
+
+    event.listen(Engine, "before_cursor_execute", record)
+    try:
+        out = call(world, "GET", "/stats/satisfaction").json()
+    finally:
+        event.remove(Engine, "before_cursor_execute", record)
+    assert [(i["question"], i["options"]) for i in out["items"]] == [
+        (f"문항{seq}", [{"label": f"선택{seq}", "count": seq}]) for seq in (1, 2, 3)
+    ]
+    assert len(reads) == 1
 
 
 def test_승인자와_승인일시_중_하나만_있는_만족도_자료도_보이지_않는다(world: World) -> None:
