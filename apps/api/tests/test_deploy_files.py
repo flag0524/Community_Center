@@ -208,6 +208,7 @@ def test_CI는_정적_검사와_DB_필수_시험과_커버리지와_웹_검사�
         assert command in ci, f"CI에 {command}가 있어야 한다"
     assert 'JORI_REQUIRE_DB: "1"' in ci  # DB 없는 시험 결과를 통과로 보고하지 않는다
     assert '-v "$PWD/deploy/mariadb/jori.cnf:' in ci  # 운영과 같은 MariaDB 설정으로 시험한다
+    assert 'npm_config_reporter_hide_prefix: "true"' in ci  # 실패한 화면 시험 이름이 검사 알림에 남는다
 
 
 def test_의존성_취약점을_CI와_Dependabot이_확인한다() -> None:
