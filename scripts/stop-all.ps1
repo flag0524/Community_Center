@@ -19,7 +19,8 @@ function Get-ProjectPython {
     Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" | Where-Object {
         $_.CommandLine -and
         $_.CommandLine.IndexOf($venv, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and
-        $_.CommandLine -match '-m (uvicorn app\.main:app|app\.worker)'
+        # API는 python -m uvicorn과 uv run uvicorn(uvicorn.exe 경로가 명령에 남음) 두 모양이 있다
+        $_.CommandLine -match '(uvicorn.*\sapp\.main:app|-m app\.worker)'
     }
 }
 
