@@ -31,7 +31,7 @@ def test_문서의_모든_테이블과_외래키와_검사가_DDL에_나온다(s
     foreign_keys = [s for s in statements if "FOREIGN KEY" in s]
     checks = [s for s in statements if " CHECK (" in s]
     assert len(creates) == 45
-    assert len(foreign_keys) == 184
+    assert len(foreign_keys) == 185
     assert len(checks) == 54 + len(narrative_checks(schema))  # Y/N 18 + 코드 접두부 36 + 서술형·R27
     assert len([s for s in statements if s.startswith("INSERT INTO TB_COM_CD")]) == 1
 
