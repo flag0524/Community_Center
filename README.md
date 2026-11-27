@@ -75,9 +75,19 @@ pnpm --filter @jori/web-admin exec vite --port 5174 --strictPort
 | 파일 | 하는 일 |
 |---|---|
 | `프로그램_켜기.bat` | 개발 DB·API·워커·두 화면을 켜고 브라우저를 엽니다. 이미 켜진 것은 건너뜁니다 |
-| `프로그램_끄기.bat` | 켜 둔 서비스와 개발 DB를 끕니다. 이 프로젝트의 것이 아닌 프로그램은 끄지 않습니다 |
+| `프로그램_끄기.bat` | 켜 둔 서비스(직접 명령으로 켠 것 포함)와 개발 DB를 끕니다. 이 프로젝트의 것이 아닌 프로그램은 끄지 않습니다 |
 
 API와 워커는 `JORI_ENVIRONMENT`가 없으면 켜지지 않습니다. 켜기 파일은 `development`로 설정합니다. 화면을 직접 띄울 때는 `VITE_API_MODE=live`를 줘야 실제 API를 씁니다.
+
+### 저장소를 갱신한 뒤
+
+켜기 파일은 의존성 설치와 DB 변경을 하지 않습니다. 새 변경을 받은 뒤에는 서비스를 끄고 아래를 실행한 다음 켭니다.
+
+1. 저장소 루트에서 `pnpm install`
+2. `apps/api`에서 `uv sync`
+3. 개발 DB를 켜고 [구동 안내서](docs/시스템_구동_안내서.md) 5.2절의 환경변수를 설정한 뒤 `apps/api`에서 `uv run alembic upgrade head`
+
+3번을 빠뜨리면 DB 구조가 코드와 어긋납니다. 예를 들어 시설 사진은 마이그레이션 `0006`이 있어야 동작합니다.
 
 ### 개발 서버 전용 보조 기능
 
@@ -103,7 +113,8 @@ uv run pytest -q
 ```
 
 - DB 시험이 건너뛰어졌다면 전체 검증 통과로 보지 않습니다. 먼저 `scripts\db\mariadb-dev.ps1 start`로 DB를 켭니다.
-- GitHub 자동 검사(`.github/workflows/ci.yml`)는 푸시·PR마다 API(ruff, 서식, mypy, pytest)와 웹(린트, 타입, 단위 시험, 빌드), 의존성의 알려진 취약점(`uv audit`, `pnpm audit`)을 검사합니다. **브라우저 시험은 포함하지 않으므로** 로컬에서 돌립니다.
+- GitHub 자동 검사(`.github/workflows/ci.yml`)는 푸시·PR마다 API(ruff, 서식, mypy, pytest)와 웹(린트, 타입, 단위 시험, 빌드), 의존성의 알려진 취약점(`uv audit`, `pnpm audit`)을 검사합니다. 화면 시험이 실패하면 시험 이름이 검사 알림에 남습니다. **브라우저 시험은 포함하지 않으므로** 로컬에서 돌립니다.
+- Dependabot이 매주 의존성 갱신 PR을 만듭니다. 자동 검사를 통과해도 브라우저 시험을 로컬에서 확인한 뒤 합칩니다. React 18이 기준이라 React 19로 올리는 PR은 합치지 않습니다.
 - 화면 시험 중 날짜를 다루는 것은 CI와 같은 `TZ=UTC`로도 확인합니다.
 - 실행별 결과는 `context-notes.md`와 `checklist.md`에 남깁니다.
 - Windows에서 pnpm 실행기가 막히면 설치된 도구를 직접 실행합니다. 예를 들어 앱 폴더에서 `node node_modules/vitest/vitest.mjs run`, API 폴더에서 `.venv\Scripts\python.exe -m pytest`를 씁니다.
@@ -131,7 +142,7 @@ uv run pytest -q
 
 | 문서 | 내용 |
 |---|---|
-| [구동 안내서](docs/시스템_구동_안내서.md) | 계정, 개발 PC에서 띄우는 방법, 문제 해결 |
+| [구동 안내서](docs/시스템_구동_안내서.md) | 계정, 개발 PC에서 띄우는 방법(켜기·끄기 파일 포함), 문제 해결 |
 | [DB 스키마 설계안](docs/PRJ_2026_002_DB스키마_설계안.md) | 데이터 모델 기준. 다른 문서와 다르면 이 문서를 따릅니다 |
 | [PRD](docs/PRD.md) · [TRD](docs/TRD.md) · [TDD](docs/TDD.md) | 요구와 수용 기준, 수치 기준, 기술 설계 |
 | [ADR](docs/ADR.md) | 누적 설계 결정 |
