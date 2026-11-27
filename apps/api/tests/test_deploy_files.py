@@ -218,7 +218,8 @@ def test_의존성_취약점을_CI와_Dependabot이_확인한다() -> None:
     dependabot = (github / "dependabot.yml").read_text(encoding="utf-8")
     for ecosystem in ("uv", "npm", "github-actions"):
         assert re.search(rf"^  - package-ecosystem: {ecosystem}\b", dependabot, re.M), ecosystem
-    for name in ("react", "react-dom", '"@types/react"', '"@types/react-dom"'):  # React 18 기준
+    held = ("react", "react-dom", '"@types/react"', '"@types/react-dom"', '"@types/node"')
+    for name in held:  # React 18 기준, Node 타입은 지원하는 가장 낮은 Node 22 기준
         ignored = f'- dependency-name: {name}\n        update-types: ["version-update:semver-major"]'
         assert ignored in dependabot, name
 
