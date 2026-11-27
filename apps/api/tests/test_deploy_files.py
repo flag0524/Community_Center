@@ -218,6 +218,9 @@ def test_의존성_취약점을_CI와_Dependabot이_확인한다() -> None:
     dependabot = (github / "dependabot.yml").read_text(encoding="utf-8")
     for ecosystem in ("uv", "npm", "github-actions"):
         assert re.search(rf"^  - package-ecosystem: {ecosystem}\b", dependabot, re.M), ecosystem
+    for name in ("react", "react-dom", '"@types/react"', '"@types/react-dom"'):  # React 18 기준
+        ignored = f'- dependency-name: {name}\n        update-types: ["version-update:semver-major"]'
+        assert ignored in dependabot, name
 
 
 def test_MariaDB_설정은_READ_COMMITTED와_행_기반_바이너리_로그다() -> None:
