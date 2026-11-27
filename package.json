@@ -6,7 +6,7 @@
   "description": "조리읍 주민자치센터 수강시스템 모노레포",
   "packageManager": "pnpm@10.18.2",
   "engines": {
-    "node": ">=22.12.0"
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },
   "scripts": {
     "lint": "eslint . && pnpm -r --if-present lint",
